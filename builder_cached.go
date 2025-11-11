@@ -3,8 +3,8 @@
  * @Date: 2025-11-11 00:00:00
  * @LastEditors: kamalyes 501893067@qq.com
  * @LastEditTime: 2025-11-11 00:00:00
- * @FilePath: \go-sqlbuilder\cache.go
- * @Description: Redis缓存层集成 - 自动WithTTL管理
+ * @FilePath: \go-sqlbuilder\builder_cached.go
+ * @Description: 带缓存的 SQL 构建器 - 支持自动 TTL 过期
  *
  * Copyright (c) 2025 by kamalyes, All Rights Reserved.
  */
@@ -17,48 +17,22 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
+
+	"github.com/kamalyes/go-sqlbuilder/cache"
 )
-
-// CacheConfig Redis缓存配置
-type CacheConfig struct {
-	Enabled   bool          // 是否启用缓存
-	TTL       time.Duration // 缓存过期时间
-	KeyPrefix string        // 缓存键前缀
-}
-
-// CacheStore 缓存存储接口
-type CacheStore interface {
-	// Get 获取缓存
-	Get(ctx context.Context, key string) (string, error)
-
-	// Set 设置缓存
-	Set(ctx context.Context, key string, value string, ttl time.Duration) error
-
-	// Delete 删除缓存
-	Delete(ctx context.Context, key string) error
-
-	// Exists 检查缓存是否存在
-	Exists(ctx context.Context, key string) (bool, error)
-
-	// Clear 清除所有缓存（按前缀）
-	Clear(ctx context.Context, prefix string) error
-}
 
 // CachedBuilder 带缓存的查询构建器
 type CachedBuilder struct {
 	*Builder
-	cacheStore  CacheStore
-	cacheConfig CacheConfig
-	queryHash   string
+	cacheStore cache.Store
+	config     *cache.Config
+	queryHash  string
 }
 
 // NewCachedBuilder 创建带缓存的构建器
-func NewCachedBuilder(dbInstance interface{}, cache CacheStore, config CacheConfig) (*CachedBuilder, error) {
-	if config.TTL == 0 {
-		config.TTL = 1 * time.Hour // 默认1小时
-	}
-	if config.KeyPrefix == "" {
-		config.KeyPrefix = "sqlbuilder:"
+func NewCachedBuilder(dbInstance interface{}, store cache.Store, cfg *cache.Config) (*CachedBuilder, error) {
+	if cfg == nil {
+		cfg = cache.NewConfig()
 	}
 
 	builder, err := New(dbInstance)
@@ -67,52 +41,52 @@ func NewCachedBuilder(dbInstance interface{}, cache CacheStore, config CacheConf
 	}
 
 	return &CachedBuilder{
-		Builder:     builder,
-		cacheStore:  cache,
-		cacheConfig: config,
+		Builder:    builder,
+		cacheStore: store,
+		config:     cfg,
 	}, nil
 }
 
-// WithTTL 设置缓存TTL
+// WithTTL 设置此次查询的缓存 TTL
 func (cb *CachedBuilder) WithTTL(ttl time.Duration) *CachedBuilder {
-	cb.cacheConfig.TTL = ttl
+	cb.config.TTL = ttl
 	return cb
 }
 
 // DisableCache 禁用此次查询的缓存
 func (cb *CachedBuilder) DisableCache() *CachedBuilder {
-	cb.cacheConfig.Enabled = false
+	cb.config.Enabled = false
 	return cb
 }
 
 // EnableCache 启用此次查询的缓存
 func (cb *CachedBuilder) EnableCache() *CachedBuilder {
-	cb.cacheConfig.Enabled = true
+	cb.config.Enabled = true
 	return cb
 }
 
-// ClearCache 清除缓存
+// ClearCache 清除所有缓存
 func (cb *CachedBuilder) ClearCache() error {
 	if cb.cacheStore == nil {
 		return fmt.Errorf("cache store not configured")
 	}
-	return cb.cacheStore.Clear(cb.ctx, cb.cacheConfig.KeyPrefix)
+	return cb.cacheStore.Clear(cb.ctx, cb.config.KeyPrefix)
 }
 
 // generateCacheKey 生成缓存键
 func (cb *CachedBuilder) generateCacheKey() string {
 	sql, args := cb.ToSQL()
 
-	// 创建SQL和参数的哈希
-	key := fmt.Sprintf("%s%s_%v", cb.cacheConfig.KeyPrefix, sql, args)
+	// 创建 SQL 和参数的哈希
+	key := fmt.Sprintf("%s%s_%v", cb.config.KeyPrefix, sql, args)
 
 	hash := md5.Sum([]byte(key))
-	return fmt.Sprintf("%s%x", cb.cacheConfig.KeyPrefix, hash)
+	return fmt.Sprintf("%s%x", cb.config.KeyPrefix, hash)
 }
 
 // GetCached 获取结果（带缓存）
 func (cb *CachedBuilder) GetCached(dest interface{}) error {
-	if !cb.cacheConfig.Enabled || cb.cacheStore == nil {
+	if !cb.config.Enabled || cb.cacheStore == nil {
 		return cb.Get(dest)
 	}
 
@@ -132,7 +106,7 @@ func (cb *CachedBuilder) GetCached(dest interface{}) error {
 
 	// 存入缓存
 	if data, err := json.Marshal(dest); err == nil {
-		_ = cb.cacheStore.Set(cb.ctx, cacheKey, string(data), cb.cacheConfig.TTL)
+		_ = cb.cacheStore.Set(cb.ctx, cacheKey, string(data), cb.config.TTL)
 	}
 
 	return nil
@@ -140,7 +114,7 @@ func (cb *CachedBuilder) GetCached(dest interface{}) error {
 
 // FirstCached 获取第一条记录（带缓存）
 func (cb *CachedBuilder) FirstCached(dest interface{}) error {
-	if !cb.cacheConfig.Enabled || cb.cacheStore == nil {
+	if !cb.config.Enabled || cb.cacheStore == nil {
 		return cb.First(dest)
 	}
 
@@ -159,7 +133,7 @@ func (cb *CachedBuilder) FirstCached(dest interface{}) error {
 
 	// 存入缓存
 	if data, err := json.Marshal(dest); err == nil {
-		_ = cb.cacheStore.Set(cb.ctx, cacheKey, string(data), cb.cacheConfig.TTL)
+		_ = cb.cacheStore.Set(cb.ctx, cacheKey, string(data), cb.config.TTL)
 	}
 
 	return nil
@@ -167,7 +141,7 @@ func (cb *CachedBuilder) FirstCached(dest interface{}) error {
 
 // CountCached 获取计数（带缓存）
 func (cb *CachedBuilder) CountCached() (int64, error) {
-	if !cb.cacheConfig.Enabled || cb.cacheStore == nil {
+	if !cb.config.Enabled || cb.cacheStore == nil {
 		return cb.Count()
 	}
 
@@ -190,7 +164,7 @@ func (cb *CachedBuilder) CountCached() (int64, error) {
 
 	// 存入缓存
 	if data, err := json.Marshal(count); err == nil {
-		_ = cb.cacheStore.Set(cb.ctx, cacheKey, string(data), cb.cacheConfig.TTL)
+		_ = cb.cacheStore.Set(cb.ctx, cacheKey, string(data), cb.config.TTL)
 	}
 
 	return count, nil

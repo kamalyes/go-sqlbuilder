@@ -8,7 +8,7 @@
 
 ### 文件结构（平铺式设计，无子包）
 
-```
+```bash
 go-sqlbuilder/
 ├── interfaces.go          # 通用适配器接口定义
 ├── adapters.go            # SqlxAdapter 和 GormAdapter 实现
@@ -244,7 +244,7 @@ builder, _ := New(gormDB)
 
 ### 基准测试结果
 
-```
+```bash
 BenchmarkBuilderSQL - SQL生成性能测试
 在现代CPU上：~1ns/操作（百万次/秒级别）
 ```

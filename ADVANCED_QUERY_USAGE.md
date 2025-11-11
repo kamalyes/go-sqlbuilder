@@ -1,8 +1,29 @@
 # Advanced Query 高级查询 - 便捷 API 使用指南
 
+> **推荐**: 自版本2.0起，请使用 `github.com/kamalyes/go-sqlbuilder/query` 包中的新API。  
+> 本文档中的 `AdvancedQueryParam` 已转发到 `query.Param`，API完全兼容。
+
 ## 概述
 
-`AdvancedQueryParam` 提供了简化的便捷方法（Convenience Methods），无需传递操作符参数，直接通过方法名称表达查询意图。
+`query.Param`（原`AdvancedQueryParam`）提供了简化的便捷方法（Convenience Methods），无需传递操作符参数，直接通过方法名称表达查询意图。
+
+### 导入方式（推荐）
+
+```go
+import "github.com/kamalyes/go-sqlbuilder/query"
+
+// 创建高级查询参数
+param := query.NewParam()
+```
+
+### 向后兼容导入
+
+```go
+import sqlbuilder "github.com/kamalyes/go-sqlbuilder"
+
+// 旧API仍可使用，但建议迁移到query包
+param := sqlbuilder.NewAdvancedQueryParam()
+```
 
 ## 基础过滤方法
 
@@ -10,18 +31,18 @@
 
 ```go
 // 方式1：使用便捷方法（推荐）
-aq := NewAdvancedQueryParam().
+param := query.NewParam().
     AddEQ("status", "active")
 
 // 方式2：使用标准方法
-aq := NewAdvancedQueryParam().
-    AddFilter("status", OP_EQ, "active")
+param := query.NewParam().
+    AddFilter("status", query.OP_EQ, "active")
 ```
 
 ### 比较操作符
 
 ```go
-aq := NewAdvancedQueryParam().
+param := query.NewParam().
     AddGT("age", 18).              // 大于 >
     AddGTE("score", 80).           // 大于等于 >=
     AddLT("price", 1000).          // 小于 <
@@ -32,7 +53,7 @@ aq := NewAdvancedQueryParam().
 ### 字符串匹配
 
 ```go
-aq := NewAdvancedQueryParam().
+param := query.NewParam().
     AddLike("name", "john").              // 全模糊 LIKE %john%
     AddStartsWith("username", "user").    // 前缀匹配 LIKE user%
     AddEndsWith("email", "@qq.com")       // 后缀匹配 LIKE %@qq.com
@@ -41,10 +62,10 @@ aq := NewAdvancedQueryParam().
 ### IN 操作符
 
 ```go
-aq := NewAdvancedQueryParam().
+param := query.NewParam().
     AddIn("status", "active", "pending", "processing")
 
-aq := NewAdvancedQueryParam().
+param := query.NewParam().
     AddIn("user_id", 1, 2, 3, 4, 5)
 ```
 
@@ -229,10 +250,13 @@ aq := NewAdvancedQueryParam().
 ## 常见问题
 
 ### Q: `AddEQ` 和 `AddEQFilter` 的区别？
+
 A: 没有功能区别，`AddEQ` 是 `AddEQFilter` 的简洁别名，推荐使用 `AddEQ`。
 
 ### Q: 如何组合 AND 和 OR 条件？
+
 A: 第一个 `Add*` 方法总是 AND，之后的条件可以用 `AddOr*` 方法变为 OR：
+
 ```go
 aq.AddEQ("a", 1).        // AND a = 1
     AddOrEQ("b", 2).     // OR b = 2
@@ -240,7 +264,9 @@ aq.AddEQ("a", 1).        // AND a = 1
 ```
 
 ### Q: 时间范围查询如何使用？
+
 A: 使用 `AddTimeRange` 方法，传入字段名和开始/结束时间：
+
 ```go
 aq.AddTimeRange("created_at", startTime, endTime)
 ```

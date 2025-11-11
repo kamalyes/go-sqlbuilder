@@ -47,7 +47,7 @@
 
 ## 📊 测试覆盖
 
-```
+```bash
 总测试数:          42个 ✅
 通过率:            100%
 执行时间:          ~340ms
@@ -72,7 +72,7 @@
 
 ## 📁 项目结构
 
-```
+```bash
 go-sqlbuilder/
 ├── interfaces.go                # 核心接口定义
 │   ├── UniversalAdapterInterface  (12个方法)
@@ -249,7 +249,7 @@ dialect := builder.GetAdapter().GetDialect()          // "mysql", "postgres", et
 
 ### 基准测试结果
 
-```
+```bash
 BenchmarkBuilderSQL
     • 1,000,000+ SQL生成/秒
     • 内存分配最小化

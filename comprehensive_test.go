@@ -2,7 +2,7 @@
  * @Author: kamalyes 501893067@qq.com
  * @Date: 2025-11-11 00:00:00
  * @LastEditors: kamalyes 501893067@qq.com
- * @LastEditTime: 2025-11-11 00:00:00
+ * @LastEditTime: 2025-11-11 14:38:09
  * @FilePath: \go-sqlbuilder\comprehensive_test.go
  * @Description: 完整的SQL生成测试 - 不依赖真实数据库
  *
@@ -16,11 +16,12 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 // TestBuilderSelectBasic 测试基本SELECT生成
 func TestBuilderSelectBasic(t *testing.T) {
-	// 使用nil作为adapter以测试SQL生成逻辑
 	builder := &Builder{
 		adapter: nil,
 		ctx:     context.Background(),
@@ -31,22 +32,14 @@ func TestBuilderSelectBasic(t *testing.T) {
 		Select("id", "name", "email").
 		ToSQL()
 
-	if !strings.Contains(sql, "SELECT id, name, email") {
-		t.Errorf("Expected SELECT clause. Got: %s", sql)
-	}
-
-	if !strings.Contains(sql, "FROM users") {
-		t.Errorf("Expected FROM clause. Got: %s", sql)
-	}
-
-	if len(args) != 0 {
-		t.Errorf("Expected 0 args, got %d", len(args))
-	}
+	assert.Contains(t, sql, "SELECT id, name, email", "Expected SELECT clause.")
+	assert.Contains(t, sql, "FROM users", "Expected FROM clause.")
+	assert.Empty(t, args, "Expected 0 args.")
 
 	t.Logf("✓ SELECT SQL: %s", sql)
 }
 
-// TestBuilderSelectDistinct 测试DISTINCT
+// TestBuilderSelectDistinct 测试DISTINCTs
 func TestBuilderSelectDistinct(t *testing.T) {
 	builder := &Builder{
 		adapter: nil,
@@ -59,9 +52,7 @@ func TestBuilderSelectDistinct(t *testing.T) {
 		Distinct().
 		ToSQL()
 
-	if !strings.Contains(sql, "DISTINCT") {
-		t.Errorf("Expected DISTINCT keyword. Got: %s", sql)
-	}
+	assert.Contains(t, sql, "DISTINCT", "Expected DISTINCT keyword.")
 
 	t.Logf("✓ DISTINCT SQL: %s", sql)
 }
@@ -79,17 +70,10 @@ func TestBuilderWhereEquals(t *testing.T) {
 		Where("age", "=", 25).
 		ToSQL()
 
-	if !strings.Contains(sql, "WHERE") {
-		t.Errorf("Expected WHERE clause. Got: %s", sql)
-	}
-
-	if !strings.Contains(sql, "age") {
-		t.Errorf("Expected age column. Got: %s", sql)
-	}
-
-	if len(args) != 1 || args[0] != 25 {
-		t.Errorf("Expected args [25], got %v", args)
-	}
+	assert.Contains(t, sql, "WHERE", "Expected WHERE clause.")
+	assert.Contains(t, sql, "age", "Expected age column.")
+	assert.Len(t, args, 1)
+	assert.Equal(t, 25, args[0], "Expected args to be [25].")
 
 	t.Logf("✓ WHERE SQL: %s with args %v", sql, args)
 }
@@ -107,13 +91,8 @@ func TestBuilderWhereIn(t *testing.T) {
 		WhereIn("id", 1, 2, 3).
 		ToSQL()
 
-	if !strings.Contains(sql, "IN") {
-		t.Errorf("Expected IN clause. Got: %s", sql)
-	}
-
-	if len(args) != 3 {
-		t.Errorf("Expected 3 args, got %d", len(args))
-	}
+	assert.Contains(t, sql, "IN", "Expected IN clause.")
+	assert.Len(t, args, 3, "Expected 3 args.")
 
 	t.Logf("✓ WHERE IN SQL: %s with args %v", sql, args)
 }
@@ -131,13 +110,8 @@ func TestBuilderWhereBetween(t *testing.T) {
 		WhereBetween("age", 20, 50).
 		ToSQL()
 
-	if !strings.Contains(sql, "BETWEEN") {
-		t.Errorf("Expected BETWEEN clause. Got: %s", sql)
-	}
-
-	if len(args) != 2 {
-		t.Errorf("Expected 2 args, got %d", len(args))
-	}
+	assert.Contains(t, sql, "BETWEEN", "Expected BETWEEN clause.")
+	assert.Len(t, args, 2, "Expected 2 args.")
 
 	t.Logf("✓ WHERE BETWEEN SQL: %s with args %v", sql, args)
 }
@@ -155,13 +129,8 @@ func TestBuilderWhereNull(t *testing.T) {
 		WhereNull("deleted_at").
 		ToSQL()
 
-	if !strings.Contains(sql, "IS NULL") {
-		t.Errorf("Expected IS NULL clause. Got: %s", sql)
-	}
-
-	if len(args) != 0 {
-		t.Errorf("Expected 0 args for IS NULL, got %d", len(args))
-	}
+	assert.Contains(t, sql, "IS NULL", "Expected IS NULL clause.")
+	assert.Empty(t, args, "Expected 0 args for IS NULL.")
 
 	t.Logf("✓ WHERE IS NULL SQL: %s", sql)
 }
@@ -184,17 +153,9 @@ func TestBuilderInsert(t *testing.T) {
 		Insert(data).
 		ToSQL()
 
-	if !strings.Contains(sql, "INSERT INTO") {
-		t.Errorf("Expected INSERT INTO. Got: %s", sql)
-	}
-
-	if !strings.Contains(sql, "VALUES") {
-		t.Errorf("Expected VALUES. Got: %s", sql)
-	}
-
-	if len(args) != 3 {
-		t.Errorf("Expected 3 args, got %d", len(args))
-	}
+	assert.Contains(t, sql, "INSERT INTO", "Expected INSERT INTO.")
+	assert.Contains(t, sql, "VALUES", "Expected VALUES.")
+	assert.Len(t, args, 3, "Expected 3 args.")
 
 	t.Logf("✓ INSERT SQL: %s with %d args", sql, len(args))
 }
@@ -217,21 +178,10 @@ func TestBuilderUpdate(t *testing.T) {
 		Where("id", "=", 1).
 		ToSQL()
 
-	if !strings.Contains(sql, "UPDATE") {
-		t.Errorf("Expected UPDATE. Got: %s", sql)
-	}
-
-	if !strings.Contains(sql, "SET") {
-		t.Errorf("Expected SET. Got: %s", sql)
-	}
-
-	if !strings.Contains(sql, "WHERE") {
-		t.Errorf("Expected WHERE. Got: %s", sql)
-	}
-
-	if len(args) != 3 {
-		t.Errorf("Expected 3 args, got %d", len(args))
-	}
+	assert.Contains(t, sql, "UPDATE", "Expected UPDATE.")
+	assert.Contains(t, sql, "SET", "Expected SET.")
+	assert.Contains(t, sql, "WHERE", "Expected WHERE.")
+	assert.Len(t, args, 3, "Expected 3 args.")
 
 	t.Logf("✓ UPDATE SQL: %s with %d args", sql, len(args))
 }
@@ -249,17 +199,9 @@ func TestBuilderDelete(t *testing.T) {
 		Where("id", "=", 1).
 		ToSQL()
 
-	if !strings.Contains(sql, "DELETE FROM") {
-		t.Errorf("Expected DELETE FROM. Got: %s", sql)
-	}
-
-	if !strings.Contains(sql, "WHERE") {
-		t.Errorf("Expected WHERE. Got: %s", sql)
-	}
-
-	if len(args) != 1 {
-		t.Errorf("Expected 1 arg, got %d", len(args))
-	}
+	assert.Contains(t, sql, "DELETE FROM", "Expected DELETE FROM.")
+	assert.Contains(t, sql, "WHERE", "Expected WHERE.")
+	assert.Len(t, args, 1, "Expected 1 arg.")
 
 	t.Logf("✓ DELETE SQL: %s with args %v", sql, args)
 }
@@ -277,13 +219,8 @@ func TestBuilderJoin(t *testing.T) {
 		LeftJoin("orders", "users.id = orders.user_id").
 		ToSQL()
 
-	if !strings.Contains(sql, "LEFT JOIN") {
-		t.Errorf("Expected LEFT JOIN clause. Got: %s", sql)
-	}
-
-	if !strings.Contains(sql, "ON") {
-		t.Errorf("Expected ON clause. Got: %s", sql)
-	}
+	assert.Contains(t, sql, "LEFT JOIN", "Expected LEFT JOIN clause.")
+	assert.Contains(t, sql, "ON", "Expected ON clause.")
 
 	t.Logf("✓ JOIN SQL: %s", sql)
 }
@@ -302,17 +239,9 @@ func TestBuilderGroupByHaving(t *testing.T) {
 		Having("count(*)", ">", 5).
 		ToSQL()
 
-	if !strings.Contains(sql, "GROUP BY") {
-		t.Errorf("Expected GROUP BY. Got: %s", sql)
-	}
-
-	if !strings.Contains(sql, "HAVING") {
-		t.Errorf("Expected HAVING. Got: %s", sql)
-	}
-
-	if len(args) != 1 {
-		t.Errorf("Expected 1 arg for HAVING, got %d", len(args))
-	}
+	assert.Contains(t, sql, "GROUP BY", "Expected GROUP BY.")
+	assert.Contains(t, sql, "HAVING", "Expected HAVING.")
+	assert.Len(t, args, 1, "Expected 1 arg for HAVING.")
 
 	t.Logf("✓ GROUP BY/HAVING SQL: %s", sql)
 }
@@ -331,17 +260,9 @@ func TestBuilderOrderBy(t *testing.T) {
 		OrderByDesc("age").
 		ToSQL()
 
-	if !strings.Contains(sql, "ORDER BY") {
-		t.Errorf("Expected ORDER BY. Got: %s", sql)
-	}
-
-	if !strings.Contains(sql, "ASC") {
-		t.Errorf("Expected ASC. Got: %s", sql)
-	}
-
-	if !strings.Contains(sql, "DESC") {
-		t.Errorf("Expected DESC. Got: %s", sql)
-	}
+	assert.Contains(t, sql, "ORDER BY", "Expected ORDER BY.")
+	assert.Contains(t, sql, "ASC", "Expected ASC.")
+	assert.Contains(t, sql, "DESC", "Expected DESC.")
 
 	t.Logf("✓ ORDER BY SQL: %s", sql)
 }
@@ -360,13 +281,8 @@ func TestBuilderLimitOffset(t *testing.T) {
 		Offset(20).
 		ToSQL()
 
-	if !strings.Contains(sql, "LIMIT 10") {
-		t.Errorf("Expected LIMIT 10. Got: %s", sql)
-	}
-
-	if !strings.Contains(sql, "OFFSET 20") {
-		t.Errorf("Expected OFFSET 20. Got: %s", sql)
-	}
+	assert.Contains(t, sql, "LIMIT 10", "Expected LIMIT 10.")
+	assert.Contains(t, sql, "OFFSET 20", "Expected OFFSET 20.")
 
 	t.Logf("✓ LIMIT/OFFSET SQL: %s", sql)
 }
@@ -385,13 +301,8 @@ func TestBuilderPaginate(t *testing.T) {
 		Paginate(2, 25).
 		ToSQL()
 
-	if !strings.Contains(sql, "LIMIT 25") {
-		t.Errorf("Expected LIMIT 25. Got: %s", sql)
-	}
-
-	if !strings.Contains(sql, "OFFSET 25") {
-		t.Errorf("Expected OFFSET 25 (page2 * 25). Got: %s", sql)
-	}
+	assert.Contains(t, sql, "LIMIT 25", "Expected LIMIT 25.")
+	assert.Contains(t, sql, "OFFSET 25", "Expected OFFSET 25 (page2 * 25).")
 
 	t.Logf("✓ Paginate SQL: %s", sql)
 }
@@ -420,14 +331,10 @@ func TestBuilderComplexQuery(t *testing.T) {
 
 	expectedClauses := []string{"SELECT", "FROM", "LEFT JOIN", "WHERE", "GROUP BY", "HAVING", "ORDER BY", "LIMIT", "OFFSET"}
 	for _, clause := range expectedClauses {
-		if !strings.Contains(sql, clause) {
-			t.Errorf("Expected '%s' in complex query. Got: %s", clause, sql)
-		}
+		assert.Contains(t, sql, clause, "Expected '%s' in complex query.", clause)
 	}
 
-	if len(args) != 3 {
-		t.Errorf("Expected 3 args, got %d", len(args))
-	}
+	assert.Len(t, args, 3, "Expected 3 args.")
 
 	t.Logf("✓ Complex SQL: %s", sql)
 }
@@ -447,14 +354,10 @@ func TestBuilderMethodChaining(t *testing.T) {
 		OrderBy("name").
 		Limit(10)
 
-	if result != builder {
-		t.Errorf("Method chaining did not return the same builder instance")
-	}
+	assert.Same(t, builder, result, "Method chaining did not return the same builder instance")
 
 	sql, _ := builder.ToSQL()
-	if sql == "" {
-		t.Errorf("Expected non-empty SQL")
-	}
+	assert.NotEmpty(t, sql, "Expected non-empty SQL.")
 
 	t.Logf("✓ Method chaining works: %s", sql)
 }
@@ -471,13 +374,8 @@ func TestBuilderContext(t *testing.T) {
 
 	builder.WithContext(ctx).WithTimeout(10 * time.Second)
 
-	if builder.ctx != ctx {
-		t.Errorf("Expected context to be set")
-	}
-
-	if builder.timeout != 10*time.Second {
-		t.Errorf("Expected timeout to be 10 seconds, got %v", builder.timeout)
-	}
+	assert.Equal(t, ctx, builder.ctx, "Expected context to be set.")
+	assert.Equal(t, 10*time.Second, builder.timeout, "Expected timeout to be 10 seconds.")
 
 	t.Logf("✓ Context support works")
 }
@@ -495,17 +393,9 @@ func TestBuilderWhereRaw(t *testing.T) {
 		WhereRaw("(age > ? AND balance > ?) OR name = ?", 25, 500.0, "VIP").
 		ToSQL()
 
-	if !strings.Contains(sql, "AND") {
-		t.Errorf("Expected AND. Got: %s", sql)
-	}
-
-	if !strings.Contains(sql, "OR") {
-		t.Errorf("Expected OR. Got: %s", sql)
-	}
-
-	if len(args) != 3 {
-		t.Errorf("Expected 3 args, got %d", len(args))
-	}
+	assert.Contains(t, sql, "AND", "Expected AND.")
+	assert.Contains(t, sql, "OR", "Expected OR.")
+	assert.Len(t, args, 3, "Expected 3 args.")
 
 	t.Logf("✓ WhereRaw SQL: %s with args %v", sql, args)
 }
@@ -524,13 +414,8 @@ func TestBuilderSet(t *testing.T) {
 		Where("id", "=", 1).
 		ToSQL()
 
-	if !strings.Contains(sql, "UPDATE") {
-		t.Errorf("Expected UPDATE. Got: %s", sql)
-	}
-
-	if len(args) != 3 {
-		t.Errorf("Expected 3 args, got %d", len(args))
-	}
+	assert.Contains(t, sql, "UPDATE", "Expected UPDATE.")
+	assert.Len(t, args, 3, "Expected 3 args.")
 
 	t.Logf("✓ Set SQL: %s", sql)
 }
@@ -548,9 +433,7 @@ func TestBuilderTableAlias(t *testing.T) {
 		Select("u.id", "u.name").
 		ToSQL()
 
-	if !strings.Contains(sql, "AS u") {
-		t.Errorf("Expected 'AS u'. Got: %s", sql)
-	}
+	assert.Contains(t, sql, "AS u", "Expected 'AS u'.")
 
 	t.Logf("✓ Table alias SQL: %s", sql)
 }
@@ -567,9 +450,7 @@ func TestBuilderSelectRaw(t *testing.T) {
 		SelectRaw("COUNT(*) as total, SUM(balance) as sum_balance").
 		ToSQL()
 
-	if !strings.Contains(sql, "COUNT(*)") {
-		t.Errorf("Expected COUNT(*). Got: %s", sql)
-	}
+	assert.Contains(t, sql, "COUNT(*)", "Expected COUNT(*).")
 
 	t.Logf("✓ SelectRaw SQL: %s", sql)
 }
@@ -610,20 +491,12 @@ func TestBuilderMultipleWheres(t *testing.T) {
 		Where("balance", ">", 100).
 		ToSQL()
 
-	if len(args) != 3 {
-		t.Errorf("Expected 3 args, got %d", len(args))
-	}
-
+	assert.Len(t, args, 3, "Expected 3 args.")
 	countWhere := strings.Count(sql, "WHERE")
 	countAnd := strings.Count(sql, "AND")
 
-	if countWhere != 1 {
-		t.Errorf("Expected 1 WHERE, got %d", countWhere)
-	}
-
-	if countAnd < 2 {
-		t.Errorf("Expected at least 2 AND, got %d", countAnd)
-	}
+	assert.Equal(t, 1, countWhere, "Expected 1 WHERE.")
+	assert.GreaterOrEqual(t, countAnd, 2, "Expected at least 2 AND.")
 
 	t.Logf("✓ Multiple WHERE SQL: %s", sql)
 }

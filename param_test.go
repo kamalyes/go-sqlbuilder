@@ -2,8 +2,8 @@
  * @Author: kamalyes 501893067@qq.com
  * @Date: 2025-11-11 00:00:00
  * @LastEditors: kamalyes 501893067@qq.com
- * @LastEditTime: 2025-11-11 00:00:00
- * @FilePath: \go-sqlbuilder\cache_advanced_query_test.go
+ * @LastEditTime: 2025-11-11 15:51:31
+ * @FilePath: \go-sqlbuilder\param_test.go
  * @Description: 缓存和高级查询测试
  *
  * Copyright (c) 2025 by kamalyes, All Rights Reserved.
@@ -149,9 +149,9 @@ func TestAdvancedQueryParam_Filters(t *testing.T) {
 	aq := NewAdvancedQueryParam()
 
 	// 测试添加过滤
-	aq.AddEQFilter("status", "active").
-		AddLikeFilter("name", "test").
-		AddInFilter("id", 1, 2, 3)
+	aq.AddEQ("status", "active").
+		AddLike("name", "test").
+		AddIn("id", 1, 2, 3)
 
 	if len(aq.Filters) != 3 {
 		t.Errorf("Expected 3 filters, got %d", len(aq.Filters))
@@ -224,9 +224,9 @@ func TestAdvancedQueryParam_Pagination(t *testing.T) {
 func TestAdvancedQueryParam_BuildWhereClause(t *testing.T) {
 	aq := NewAdvancedQueryParam()
 
-	aq.AddEQFilter("status", "active").
-		AddLikeFilter("name", "test").
-		AddInFilter("id", 1, 2, 3)
+	aq.AddEQ("status", "active").
+		AddLike("name", "test").
+		AddIn("id", 1, 2, 3)
 
 	where, args := aq.BuildWhereClause()
 
@@ -407,8 +407,8 @@ func TestFilterOperators(t *testing.T) {
 
 func TestAdvancedQueryParam_FluentAPI(t *testing.T) {
 	aq := NewAdvancedQueryParam().
-		AddEQFilter("status", "active").
-		AddLikeFilter("name", "test").
+		AddEQ("status", "active").
+		AddLike("name", "test").
 		SetPage(1, 20).
 		AddOrder("created_at", "DESC").
 		SetDistinct(true).
@@ -443,8 +443,8 @@ func TestCacheAndQueryIntegration(t *testing.T) {
 
 	// 模拟高级查询参数的缓存
 	aq := NewAdvancedQueryParam().
-		AddEQFilter("status", "active").
-		AddLikeFilter("name", "test")
+		AddEQ("status", "active").
+		AddLike("name", "test")
 
 	// 生成缓存键
 	cacheKey := "query:" + aq.Filters[0].Field
@@ -472,7 +472,7 @@ func TestCacheAndQueryIntegration(t *testing.T) {
 func BenchmarkAdvancedQueryParam_BuildWhereClause(b *testing.B) {
 	aq := NewAdvancedQueryParam()
 	for i := 0; i < 10; i++ {
-		aq.AddEQFilter("field"+string(rune(i)), "value"+string(rune(i)))
+		aq.AddEQ("field"+string(rune(i)), "value"+string(rune(i)))
 	}
 
 	b.ResetTimer()
@@ -496,7 +496,7 @@ func BenchmarkMockCacheStore_SetGet(b *testing.B) {
 
 func TestAdvancedQueryParam_LikeStartFilter(t *testing.T) {
 	aq := NewAdvancedQueryParam()
-	aq.AddLikeStartFilter("name", "test")
+	aq.AddStartsWith("name", "test")
 
 	if len(aq.Filters) != 1 {
 		t.Error("Filter not added")
@@ -510,38 +510,12 @@ func TestAdvancedQueryParam_LikeStartFilter(t *testing.T) {
 
 func TestAdvancedQueryParam_AddOrFilter(t *testing.T) {
 	aq := NewAdvancedQueryParam()
-	aq.AddEQFilter("status", "active")
+	aq.AddEQ("status", "active")
 	// 使用新增的便捷方法 AddOrEQ
 	aq.AddOrEQ("status", "pending")
 
-	// 验证OR逻辑（使用 assert 教育）
+	// 验证OR逻辑（使用 assert 校验）
 	assert.Equal(t, "OR", aq.Filters[0].Logic, "First filter should have OR logic after AddOrEQ")
-}
-
-func TestCacheManager(t *testing.T) {
-	cache := NewMockCacheStore()
-	manager := NewCacheManager(cache)
-
-	// 记录命中和未命中
-	manager.RecordHit()
-	manager.RecordHit()
-	manager.RecordMiss()
-
-	stats := manager.GetStats()
-	if stats.TotalHits != 2 || stats.TotalMisses != 1 {
-		t.Error("Cache stats not recorded correctly")
-	}
-
-	if stats.HitRate != 2.0/3.0 {
-		t.Errorf("Expected hit rate 0.667, got %f", stats.HitRate)
-	}
-
-	// 重置统计
-	manager.ResetStats()
-	stats = manager.GetStats()
-	if stats.TotalHits != 0 || stats.TotalMisses != 0 {
-		t.Error("Stats should be reset")
-	}
 }
 
 func TestFilter_BuildSQL(t *testing.T) {

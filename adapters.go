@@ -19,15 +19,8 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	"gorm.io/gorm"
-)
 
-// ==================== 常量定义 ====================
-
-const (
-	ErrNoDatabaseConnection         = "no database connection available"
-	ErrCannotBeginInTransaction     = "cannot begin transaction within transaction"
-	ErrCannotCommitNonTransaction   = "cannot commit on non-transaction adapter"
-	ErrCannotRollbackNonTransaction = "cannot rollback on non-transaction adapter"
+	"github.com/kamalyes/go-sqlbuilder/errors"
 )
 
 // ==================== SQLX 适配器 ====================
@@ -273,7 +266,7 @@ func (a *SqlxAdapter) ExecContext(ctx context.Context, query string, args ...int
 
 func (a *SqlxAdapter) Begin() (TransactionInterface, error) {
 	if a.db == nil {
-		return nil, fmt.Errorf(ErrNoDatabaseConnection)
+		return nil, errors.NewError(errors.ErrCodeCacheStoreNotFound, "no database connection available")
 	}
 	tx, err := a.db.Beginx()
 	if err != nil {
@@ -284,7 +277,7 @@ func (a *SqlxAdapter) Begin() (TransactionInterface, error) {
 
 func (a *SqlxAdapter) BeginTx(ctx context.Context, opts *sql.TxOptions) (TransactionInterface, error) {
 	if a.db == nil {
-		return nil, fmt.Errorf(ErrNoDatabaseConnection)
+		return nil, errors.NewError(errors.ErrCodeCacheStoreNotFound, "no database connection available")
 	}
 	tx, err := a.db.BeginTxx(ctx, opts)
 	if err != nil {
@@ -890,11 +883,11 @@ func (a *GormTxAdapterLegacy) ExecContext(ctx context.Context, query string, arg
 }
 
 func (a *GormTxAdapterLegacy) Begin() (TransactionInterface, error) {
-	return nil, fmt.Errorf(ErrCannotBeginInTransaction)
+	return nil, errors.NewError(errors.ErrCodeBuilderNotInitialized, "cannot begin transaction within transaction")
 }
 
 func (a *GormTxAdapterLegacy) BeginTx(ctx context.Context, opts *sql.TxOptions) (TransactionInterface, error) {
-	return nil, fmt.Errorf(ErrCannotBeginInTransaction)
+	return nil, errors.NewError(errors.ErrCodeBuilderNotInitialized, "cannot begin transaction within transaction")
 }
 
 func (a *GormTxAdapterLegacy) GetTx() *gorm.DB {
