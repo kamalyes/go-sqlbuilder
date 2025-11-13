@@ -2,7 +2,7 @@
  * @Author: kamalyes 501893067@qq.com
  * @Date: 2025-11-11 21:13:15
  * @LastEditors: kamalyes 501893067@qq.com
- * @LastEditTime: 2025-11-11 21:13:24
+ * @LastEditTime: 2025-11-13 11:07:41
  * @FilePath: \go-sqlbuilder\persist\query_param.go
  * @Description:
  *
@@ -10,15 +10,18 @@
  */
 package persist
 
-import "gorm.io/gorm"
+import (
+	"github.com/kamalyes/go-sqlbuilder/meta"
+	"gorm.io/gorm"
+)
 
 type QueryParam struct {
 	Filters Filters
-	Page    *Paging
+	Page    *meta.Paging
 	Options []Option
 }
 
-func NewQueryParam(filters []Filter, page *Paging, opts ...Option) *QueryParam {
+func NewQueryParam(filters []Filter, page *meta.Paging, opts ...Option) *QueryParam {
 	return &QueryParam{Filters: filters, Page: page, Options: opts}
 }
 
@@ -61,11 +64,11 @@ func WithOrders(orders ...Order) Option {
 	}
 }
 
-func withPaging(page *Paging) Option {
+func withPaging(page *meta.Paging) Option {
 	return func(db *gorm.DB) *gorm.DB {
 		ret := db
 		if page != nil {
-			ret = ret.Offset(page.Offset).Limit(page.Limit)
+			ret = ret.Offset(int(page.Offset)).Limit(int(page.PageSize))
 		}
 		return ret
 	}

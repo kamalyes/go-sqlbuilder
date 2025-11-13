@@ -17,11 +17,17 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"sync"
 	"time"
+
+	"github.com/kamalyes/go-sqlbuilder/errors"
 )
 
-// Builder 通用SQL查询构建器
+// Builder 通用SQL查询构建器 (并发安全)
 type Builder struct {
+	// 并发保护
+	mu sync.RWMutex
+
 	adapter UniversalAdapterInterface
 	ctx     context.Context
 	timeout time.Duration
@@ -73,56 +79,72 @@ func New(dbInstance interface{}) (*Builder, error) {
 	}, nil
 }
 
-// WithContext 设置上下文
+// WithContext 设置上下文 (并发安全)
 func (b *Builder) WithContext(ctx context.Context) *Builder {
+	b.mu.Lock()
+	defer b.mu.Unlock()
 	b.ctx = ctx
 	return b
 }
 
-// WithTimeout 设置超时时间
+// WithTimeout 设置超时时间 (并发安全)
 func (b *Builder) WithTimeout(timeout time.Duration) *Builder {
+	b.mu.Lock()
+	defer b.mu.Unlock()
 	b.timeout = timeout
 	return b
 }
 
 // ==================== 表操作 ====================
 
-// Table 设置表名
+// Table 设置表名 (并发安全)
 func (b *Builder) Table(table string) *Builder {
+	b.mu.Lock()
+	defer b.mu.Unlock()
 	b.table = table
 	b.queryType = "select"
 	return b
 }
 
-// As 设置表别名
+// As 设置表别名 (并发安全)
 func (b *Builder) As(alias string) *Builder {
+	b.mu.Lock()
+	defer b.mu.Unlock()
 	b.tableAlias = alias
 	return b
 }
 
 // ==================== SELECT ====================
 
-// Select 选择列
+// Select 选择列 (并发安全)
 func (b *Builder) Select(columns ...string) *Builder {
+	b.mu.Lock()
+	defer b.mu.Unlock()
 	b.queryType = "select"
 	if len(columns) == 0 {
 		b.columns = []string{"*"}
 	} else {
-		b.columns = columns
+		// 预分配以提高性能
+		b.columns = make([]string, len(columns))
+		copy(b.columns, columns)
 	}
 	return b
 }
 
-// SelectRaw 选择原始SQL
+// SelectRaw 选择原始SQL (并发安全)
 func (b *Builder) SelectRaw(sql string, args ...interface{}) *Builder {
+	b.mu.Lock()
+	defer b.mu.Unlock()
 	b.queryType = "select"
 	b.columns = []string{sql}
 	b.args = append(b.args, args...)
 	return b
 }
 
-// Distinct 去重
+// Distinct 去重 (并发安全)
 func (b *Builder) Distinct() *Builder {
+	b.mu.Lock()
+	defer b.mu.Unlock()
 	b.distinct = true
 	return b
 }
@@ -426,12 +448,12 @@ func (b *Builder) Get(dest interface{}) error {
 	// 使用反射处理扫描
 	destVal := reflect.ValueOf(dest)
 	if destVal.Kind() != reflect.Ptr {
-		return fmt.Errorf("dest must be a pointer")
+		return errors.NewError(errors.ErrorCodeInvalidInput, errors.MsgDestMustBePointer)
 	}
 
 	sliceVal := destVal.Elem()
 	if sliceVal.Kind() != reflect.Slice {
-		return fmt.Errorf("dest must be a slice pointer")
+		return errors.NewError(errors.ErrorCodeInvalidInput, errors.MsgDestMustBePointer)
 	}
 
 	elemType := sliceVal.Type().Elem()

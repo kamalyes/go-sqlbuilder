@@ -13,8 +13,9 @@ package cache
 
 import (
 	"context"
-	"fmt"
 	"time"
+
+	"github.com/kamalyes/go-sqlbuilder/errors"
 )
 
 // MockStore 模拟缓存存储实现（用于开发和测试）
@@ -38,13 +39,13 @@ func NewMockStore() *MockStore {
 func (m *MockStore) Get(ctx context.Context, key string) (string, error) {
 	entry, exists := m.data[key]
 	if !exists {
-		return "", fmt.Errorf("key not found")
+		return "", errors.NewError(errors.ErrorCodeCacheKeyNotFound, errors.MsgKeyNotFound)
 	}
 
 	// 检查是否过期
 	if time.Now().After(entry.expireTime) {
 		delete(m.data, key)
-		return "", fmt.Errorf("key expired")
+		return "", errors.NewError(errors.ErrorCodeCacheExpired, errors.MsgKeyNotFound)
 	}
 
 	return entry.value, nil

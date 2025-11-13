@@ -135,8 +135,18 @@ func (a *SqlxAdapter) BatchInsert(ctx context.Context, table string, data []map[
 		columns = append(columns, col)
 	}
 
-	// 构建批量插入SQL
-	query := fmt.Sprintf("INSERT INTO %s (%s) VALUES ", table, strings.Join(columns, ", "))
+	// 构建批量插入SQL (优化: 使用 strings.Builder)
+	var queryBuf strings.Builder
+	queryBuf.WriteString("INSERT INTO ")
+	queryBuf.WriteString(table)
+	queryBuf.WriteString(" (")
+	for i, col := range columns {
+		if i > 0 {
+			queryBuf.WriteString(", ")
+		}
+		queryBuf.WriteString(col)
+	}
+	queryBuf.WriteString(") VALUES ")
 
 	var values []interface{}
 	var placeholders []string
@@ -150,7 +160,14 @@ func (a *SqlxAdapter) BatchInsert(ctx context.Context, table string, data []map[
 		placeholders = append(placeholders, "("+strings.Join(rowPlaceholders, ", ")+")")
 	}
 
-	query += strings.Join(placeholders, ", ")
+	for i, p := range placeholders {
+		if i > 0 {
+			queryBuf.WriteString(", ")
+		}
+		queryBuf.WriteString(p)
+	}
+	
+	query := queryBuf.String()
 
 	// 执行批量插入
 	if a.tx != nil {
@@ -161,7 +178,7 @@ func (a *SqlxAdapter) BatchInsert(ctx context.Context, table string, data []map[
 		return err
 	}
 
-	return fmt.Errorf("no database connection available")
+	return errors.NewError(errors.ErrorCodeNoDatabaseConn, "no database connection available")
 }
 
 // BatchUpdate 批量更新
@@ -180,7 +197,7 @@ func (a *SqlxAdapter) BatchUpdate(ctx context.Context, table string, data []map[
 	} else if a.db != nil {
 		tx, err = a.db.BeginTxx(ctx, nil)
 		if err != nil {
-			return fmt.Errorf("failed to begin transaction: %w", err)
+			return errors.NewErrorf(errors.ErrorCodeDBError, errors.MsgDatabaseOperationFailed+": %v", err)
 		}
 		shouldCommit = true
 		defer func() {
@@ -189,7 +206,7 @@ func (a *SqlxAdapter) BatchUpdate(ctx context.Context, table string, data []map[
 			}
 		}()
 	} else {
-		return fmt.Errorf("no database connection available")
+		return errors.NewError(errors.ErrorCodeNoDatabaseConn, "no database connection available")
 	}
 
 	for _, row := range data {
@@ -228,7 +245,7 @@ func (a *SqlxAdapter) BatchUpdate(ctx context.Context, table string, data []map[
 		args := append(setValues, whereValues...)
 		_, err = tx.ExecContext(ctx, query, args...)
 		if err != nil {
-			return fmt.Errorf("failed to execute update: %w", err)
+			return errors.Wrap(err, errors.ErrorCodeDBFailedUpdate)
 		}
 	}
 
@@ -266,7 +283,7 @@ func (a *SqlxAdapter) ExecContext(ctx context.Context, query string, args ...int
 
 func (a *SqlxAdapter) Begin() (TransactionInterface, error) {
 	if a.db == nil {
-		return nil, errors.NewError(errors.ErrCodeCacheStoreNotFound, "no database connection available")
+		return nil, errors.NewError(errors.ErrorCodeCacheStoreNotFound, errors.MsgNoDatabaseConnection)
 	}
 	tx, err := a.db.Beginx()
 	if err != nil {
@@ -277,7 +294,7 @@ func (a *SqlxAdapter) Begin() (TransactionInterface, error) {
 
 func (a *SqlxAdapter) BeginTx(ctx context.Context, opts *sql.TxOptions) (TransactionInterface, error) {
 	if a.db == nil {
-		return nil, errors.NewError(errors.ErrCodeCacheStoreNotFound, "no database connection available")
+		return nil, errors.NewError(errors.ErrorCodeCacheStoreNotFound, errors.MsgNoDatabaseConnection)
 	}
 	tx, err := a.db.BeginTxx(ctx, opts)
 	if err != nil {
@@ -311,11 +328,11 @@ func (a *SqlxAdapter) PingContext(ctx context.Context) error {
 }
 
 func (a *SqlxAdapter) Commit() error {
-	return fmt.Errorf("cannot commit on non-transaction adapter")
+	return errors.NewError(errors.ErrorCodeBuilderNotInitialized, "not in a transaction")
 }
 
 func (a *SqlxAdapter) Rollback() error {
-	return fmt.Errorf("cannot rollback on non-transaction adapter")
+	return errors.NewError(errors.ErrorCodeBuilderNotInitialized, "not in a transaction")
 }
 
 func (a *SqlxAdapter) Close() error {
@@ -420,11 +437,11 @@ func (a *SqlxTxAdapter) Rollback() error {
 }
 
 func (a *SqlxTxAdapter) Begin() (TransactionInterface, error) {
-	return nil, fmt.Errorf("cannot begin transaction within transaction")
+	return nil, errors.NewError(errors.ErrorCodeNestedTransaction, "cannot begin transaction within transaction")
 }
 
 func (a *SqlxTxAdapter) BeginTx(ctx context.Context, opts *sql.TxOptions) (TransactionInterface, error) {
-	return nil, fmt.Errorf("cannot begin transaction within transaction")
+	return nil, errors.NewError(errors.ErrorCodeNestedTransaction, "cannot begin transaction within transaction")
 }
 
 func (a *SqlxTxAdapter) Get(dest interface{}, query string, args ...interface{}) error {
@@ -598,7 +615,7 @@ func (a *GormAdapter) BatchInsert(ctx context.Context, table string, data []map[
 
 	db := a.getDB()
 	if db == nil {
-		return fmt.Errorf("no database connection available")
+		return errors.NewError(errors.ErrorCodeDBError, "no database connection available")
 	}
 
 	// 使用GORM的CreateInBatches功能
@@ -613,7 +630,7 @@ func (a *GormAdapter) BatchUpdate(ctx context.Context, table string, data []map[
 
 	db := a.getDB()
 	if db == nil {
-		return fmt.Errorf("no database connection available")
+		return errors.NewError(errors.ErrorCodeDBError, "no database connection available")
 	}
 
 	// 使用事务进行批量更新
@@ -653,7 +670,7 @@ func (a *GormAdapter) BatchUpdate(ctx context.Context, table string, data []map[
 
 			args := append(setValues, whereValues...)
 			if err := tx.Exec(query, args...).Error; err != nil {
-				return fmt.Errorf("failed to execute update: %w", err)
+				return errors.NewErrorf(errors.ErrorCodeDBFailedUpdate, errors.MsgFailedToExecuteUpdate+": %v", err)
 			}
 		}
 		return nil
@@ -704,11 +721,11 @@ func (a *GormAdapter) BeginTx(ctx context.Context, opts *sql.TxOptions) (Transac
 }
 
 func (a *GormAdapter) Prepare(query string) (StatementInterface, error) {
-	return nil, fmt.Errorf("gorm does not support prepared statements directly")
+	return nil, errors.NewError(errors.ErrorCodeAdapterNotSupported, "gorm does not support prepared statements directly")
 }
 
 func (a *GormAdapter) PrepareContext(ctx context.Context, query string) (StatementInterface, error) {
-	return nil, fmt.Errorf("gorm does not support prepared statements directly")
+	return nil, errors.NewError(errors.ErrorCodeAdapterNotSupported, "gorm does not support prepared statements directly")
 }
 
 func (a *GormAdapter) Ping() error {
@@ -736,11 +753,11 @@ func (a *GormAdapter) Close() error {
 }
 
 func (a *GormAdapter) Commit() error {
-	return fmt.Errorf("cannot commit on non-transaction adapter")
+	return errors.NewError(errors.ErrorCodeBuilderNotInitialized, "cannot commit on non-transaction adapter")
 }
 
 func (a *GormAdapter) Rollback() error {
-	return fmt.Errorf("cannot rollback on non-transaction adapter")
+	return errors.NewError(errors.ErrorCodeBuilderNotInitialized, "cannot rollback on non-transaction adapter")
 }
 
 func (a *GormAdapter) GetDB() *gorm.DB {
@@ -883,11 +900,11 @@ func (a *GormTxAdapterLegacy) ExecContext(ctx context.Context, query string, arg
 }
 
 func (a *GormTxAdapterLegacy) Begin() (TransactionInterface, error) {
-	return nil, errors.NewError(errors.ErrCodeBuilderNotInitialized, "cannot begin transaction within transaction")
+	return nil, errors.NewError(errors.ErrorCodeNestedTransaction, "cannot begin transaction within transaction")
 }
 
 func (a *GormTxAdapterLegacy) BeginTx(ctx context.Context, opts *sql.TxOptions) (TransactionInterface, error) {
-	return nil, errors.NewError(errors.ErrCodeBuilderNotInitialized, "cannot begin transaction within transaction")
+	return nil, errors.NewError(errors.ErrorCodeNestedTransaction, "cannot begin transaction within transaction")
 }
 
 func (a *GormTxAdapterLegacy) GetTx() *gorm.DB {
@@ -902,7 +919,7 @@ type GormResult struct {
 }
 
 func (r *GormResult) LastInsertId() (int64, error) {
-	return 0, fmt.Errorf("gorm does not support LastInsertId, use returning clause")
+	return 0, errors.NewError(errors.ErrorCodeUnsupported, "gorm does not support LastInsertId, use returning clause")
 }
 
 func (r *GormResult) RowsAffected() (int64, error) {
@@ -1069,7 +1086,7 @@ func (a *PostgreSQLDriverAdapter) ConvertScanValue(src interface{}) (interface{}
 }
 
 func (a *PostgreSQLDriverAdapter) LastInsertId(result sql.Result) (int64, error) {
-	return 0, fmt.Errorf("postgres does not support LastInsertId, use RETURNING clause")
+	return 0, errors.NewError(errors.ErrorCodeDBError, errors.MsgPostgresNotSupportLastInsertId)
 }
 
 func (a *PostgreSQLDriverAdapter) RowsAffected(result sql.Result) (int64, error) {
@@ -1110,7 +1127,7 @@ func (f *AdapterFactory) Register(name string, creator func() DriverAdapterInter
 func (f *AdapterFactory) Create(name string) (DriverAdapterInterface, error) {
 	creator, exists := f.adapters[name]
 	if !exists {
-		return nil, fmt.Errorf("unknown adapter: %s", name)
+		return nil, errors.NewErrorf(errors.ErrorCodeAdapterNotSupported, "unknown adapter: %s", name)
 	}
 	return creator(), nil
 }
@@ -1355,7 +1372,7 @@ func NewUniversalAdapter(instance interface{}) (UniversalAdapterInterface, error
 	case *gorm.DB:
 		return NewGormAdapter(db), nil
 	default:
-		return nil, fmt.Errorf("unsupported database instance type: %T", instance)
+		return nil, errors.NewErrorf(errors.ErrorCodeUnsupported, "unsupported database instance type: %T", instance)
 	}
 }
 

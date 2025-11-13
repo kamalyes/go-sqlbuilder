@@ -2,8 +2,8 @@
  * @Author: kamalyes 501893067@qq.com
  * @Date: 2025-11-11 21:18:55
  * @LastEditors: kamalyes 501893067@qq.com
- * @LastEditTime: 2025-11-11 22:00:40
- * @FilePath: \go-sqlbuilder\persist\tx.go
+ * @LastEditTime: 2025-11-13 11:07:30
+ * @FilePath: \go-sqlbuilder\persist\persist.go
  * @Description:
  *
  * Copyright (c) 2025 by kamalyes, All Rights Reserved.
@@ -15,6 +15,7 @@ import (
 	"time"
 
 	jsoniter "github.com/json-iterator/go"
+	"github.com/kamalyes/go-sqlbuilder/meta"
 	"gorm.io/gorm"
 )
 
@@ -50,7 +51,7 @@ func GetByFilters[T Model](ctx context.Context, tx DBHandler, filters Filters, o
 	return
 }
 
-func List[T Model](ctx context.Context, tx DBHandler, filters Filters, page *Paging, orders ...Order) (tList []*T, err error) {
+func List[T Model](ctx context.Context, tx DBHandler, filters Filters, page *meta.Paging, orders ...Order) (tList []*T, err error) {
 	var opts []Option
 	if orders != nil {
 		opts = append(opts, WithOrders(orders...))

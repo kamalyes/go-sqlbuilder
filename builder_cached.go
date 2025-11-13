@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/kamalyes/go-sqlbuilder/cache"
+	"github.com/kamalyes/go-sqlbuilder/errors"
 )
 
 // CachedBuilder 带缓存的查询构建器
@@ -68,7 +69,7 @@ func (cb *CachedBuilder) EnableCache() *CachedBuilder {
 // ClearCache 清除所有缓存
 func (cb *CachedBuilder) ClearCache() error {
 	if cb.cacheStore == nil {
-		return fmt.Errorf("cache store not configured")
+		return errors.NewError(errors.ErrorCodeCacheStoreNotConfigured, errors.MsgCacheStoreNotInitialized)
 	}
 	return cb.cacheStore.Clear(cb.ctx, cb.config.KeyPrefix)
 }
@@ -173,7 +174,7 @@ func (cb *CachedBuilder) CountCached() (int64, error) {
 // InvalidateCache 使特定查询的缓存失效
 func (cb *CachedBuilder) InvalidateCache() error {
 	if cb.cacheStore == nil {
-		return fmt.Errorf("cache store not configured")
+		return errors.NewError(errors.ErrorCodeCacheStoreNotConfigured, errors.MsgCacheStoreNotInitialized)
 	}
 
 	cacheKey := cb.generateCacheKey()
@@ -203,13 +204,13 @@ func NewMockCacheStore() *MockCacheStore {
 func (m *MockCacheStore) Get(ctx context.Context, key string) (string, error) {
 	entry, exists := m.data[key]
 	if !exists {
-		return "", fmt.Errorf("key not found")
+		return "", errors.NewError(errors.ErrorCodeCacheKeyNotFound, errors.MsgKeyNotFound)
 	}
 
 	// 检查是否过期
 	if time.Now().After(entry.expireTime) {
 		delete(m.data, key)
-		return "", fmt.Errorf("key expired")
+		return "", errors.NewError(errors.ErrorCodeCacheExpired, errors.MsgKeyNotFound)
 	}
 
 	return entry.value, nil

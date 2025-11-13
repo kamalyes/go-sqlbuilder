@@ -2,8 +2,8 @@
  * @Author: kamalyes 501893067@qq.com
  * @Date: 2025-11-11 00:00:00
  * @LastEditors: kamalyes 501893067@qq.com
- * @LastEditTime: 2025-11-11 00:00:00
- * @FilePath: \go-sqlbuilder\cache\interface.go
+ * @LastEditTime: 2025-11-13 11:02:21
+ * @FilePath: \go-sqlbuilder\cache\handler.go
  * @Description: 缓存存储接口定义
  *
  * Copyright (c) 2025 by kamalyes, All Rights Reserved.

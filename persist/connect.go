@@ -16,6 +16,7 @@ import (
 	"time"
 
 	jsoniter "github.com/json-iterator/go"
+	"github.com/kamalyes/go-sqlbuilder/errors"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -48,7 +49,7 @@ func NewDBHandler(config *DBConfig) (*gorm.DB, error) {
 		}
 		db, err = gorm.Open(sqlite.Open(dsn), opts)
 	default:
-		return nil, fmt.Errorf("unsupported db type: %s", config.Type)
+		return nil, errors.NewErrorf(errors.ErrorCodeDBError, errors.MsgUnsupportedDBType, config.Type)
 	}
 	if err != nil {
 		return nil, err
