@@ -14,6 +14,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/kamalyes/go-sqlbuilder/constant"
 	"github.com/kamalyes/go-sqlbuilder/db"
 	"github.com/kamalyes/go-sqlbuilder/errors"
 	"github.com/kamalyes/go-sqlbuilder/meta"
@@ -304,11 +305,11 @@ func applyFilter(dbQuery *gorm.DB, filter *Filter) *gorm.DB {
 		return dbQuery.Where(fmt.Sprintf("%s <= ?", filter.Field), filter.Value)
 	case "!=":
 		return dbQuery.Where(fmt.Sprintf("%s != ?", filter.Field), filter.Value)
-	case "in":
+	case string(constant.OP_IN):
 		return dbQuery.Where(fmt.Sprintf("%s IN ?", filter.Field), filter.Value)
-	case "like":
+	case string(constant.OP_LIKE):
 		return dbQuery.Where(fmt.Sprintf("%s LIKE ?", filter.Field), filter.Value)
-	case "between":
+	case string(constant.OP_BETWEEN):
 		if values, ok := filter.Value.([]interface{}); ok && len(values) == 2 {
 			return dbQuery.Where(fmt.Sprintf("%s BETWEEN ? AND ?", filter.Field), values[0], values[1])
 		}

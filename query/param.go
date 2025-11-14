@@ -16,6 +16,7 @@ import (
 	"strings"
 
 	logger "github.com/kamalyes/go-logger"
+	"github.com/kamalyes/go-sqlbuilder/constant"
 )
 
 // Param 高级查询参数 - 支持复杂过滤、排序、分页
@@ -57,7 +58,7 @@ func (p *Param) AddFilter(field string, operator Operator, value interface{}) *P
 		Field:    field,
 		Operator: operator,
 		Value:    value,
-		Logic:    "AND",
+		Logic:    string(constant.LOGIC_AND),
 	})
 	return p
 }
@@ -65,7 +66,7 @@ func (p *Param) AddFilter(field string, operator Operator, value interface{}) *P
 // AddOrFilter 添加 OR 过滤条件
 func (p *Param) AddOrFilter(field string, operator Operator, value interface{}) *Param {
 	if len(p.Filters) > 0 {
-		p.Filters[len(p.Filters)-1].Logic = "OR"
+		p.Filters[len(p.Filters)-1].Logic = string(constant.LOGIC_OR)
 	}
 	return p.AddFilter(field, operator, value)
 }

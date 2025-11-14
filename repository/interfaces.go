@@ -14,6 +14,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/kamalyes/go-sqlbuilder/constant"
 	"github.com/kamalyes/go-sqlbuilder/meta"
 )
 
@@ -26,47 +27,47 @@ type Filter struct {
 
 // NewEqFilter 创建等于过滤条件
 func NewEqFilter(field string, value interface{}) *Filter {
-	return &Filter{Field: field, Operator: "=", Value: value}
+	return &Filter{Field: field, Operator: string(constant.OP_EQ), Value: value}
 }
 
 // NewGtFilter 创建大于过滤条件
 func NewGtFilter(field string, value interface{}) *Filter {
-	return &Filter{Field: field, Operator: ">", Value: value}
+	return &Filter{Field: field, Operator: string(constant.OP_GT), Value: value}
 }
 
 // NewLtFilter 创建小于过滤条件
 func NewLtFilter(field string, value interface{}) *Filter {
-	return &Filter{Field: field, Operator: "<", Value: value}
+	return &Filter{Field: field, Operator: string(constant.OP_LT), Value: value}
 }
 
 // NewGteFilter 创建大于等于过滤条件
 func NewGteFilter(field string, value interface{}) *Filter {
-	return &Filter{Field: field, Operator: ">=", Value: value}
+	return &Filter{Field: field, Operator: string(constant.OP_GTE), Value: value}
 }
 
 // NewLteFilter 创建小于等于过滤条件
 func NewLteFilter(field string, value interface{}) *Filter {
-	return &Filter{Field: field, Operator: "<=", Value: value}
+	return &Filter{Field: field, Operator: string(constant.OP_LTE), Value: value}
 }
 
 // NewInFilter 创建 IN 过滤条件
 func NewInFilter(field string, values ...interface{}) *Filter {
-	return &Filter{Field: field, Operator: "in", Value: values}
+	return &Filter{Field: field, Operator: string(constant.OP_IN), Value: values}
 }
 
 // NewLikeFilter 创建 LIKE 过滤条件
 func NewLikeFilter(field string, value string) *Filter {
-	return &Filter{Field: field, Operator: "like", Value: "%" + value + "%"}
+	return &Filter{Field: field, Operator: string(constant.OP_LIKE), Value: "%" + value + "%"}
 }
 
 // NewNeqFilter 创建不等于过滤条件
 func NewNeqFilter(field string, value interface{}) *Filter {
-	return &Filter{Field: field, Operator: "!=", Value: value}
+	return &Filter{Field: field, Operator: string(constant.OP_NEQ), Value: value}
 }
 
 // NewBetweenFilter 创建 BETWEEN 过滤条件
 func NewBetweenFilter(field string, min, max interface{}) *Filter {
-	return &Filter{Field: field, Operator: "between", Value: []interface{}{min, max}}
+	return &Filter{Field: field, Operator: string(constant.OP_BETWEEN), Value: []interface{}{min, max}}
 }
 
 // Query 查询条件

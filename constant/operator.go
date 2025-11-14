@@ -37,6 +37,10 @@ const (
 
 	// MySQL 特定
 	OP_FIND_IN_SET Operator = "FIND_IN_SET"
+
+	// 逻辑操作符
+	LOGIC_AND Operator = "AND"
+	LOGIC_OR  Operator = "OR"
 )
 
 // 兼容操作符映射

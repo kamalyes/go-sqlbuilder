@@ -2,8 +2,8 @@
  * @Author: kamalyes 501893067@qq.com
  * @Date: 2025-11-11 00:00:00
  * @LastEditors: kamalyes 501893067@qq.com
- * @LastEditTime: 2025-11-11 00:00:00
- * @FilePath: \go-sqlbuilder\builder.go
+ * @LastEditTime: 2025-11-14 13:36:39
+ * @FilePath: \engine-im-service\go-sqlbuilder\builder.go
  * @Description: 高效、完整的SQL查询构建器 - 支持所有主流框架
  *
  * Copyright (c) 2025 by kamalyes, All Rights Reserved.
