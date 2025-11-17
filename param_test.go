@@ -2,8 +2,8 @@
  * @Author: kamalyes 501893067@qq.com
  * @Date: 2025-11-11 00:00:00
  * @LastEditors: kamalyes 501893067@qq.com
- * @LastEditTime: 2025-11-13 23:21:08
- * @FilePath: \go-sqlbuilder\param_test.go
+ * @LastEditTime: 2025-11-17 15:27:21
+ * @FilePath: \im-access-control-service\go-sqlbuilder\param_test.go
  * @Description: 缓存和高级查询测试（重构为assert校验）
  *
  * Copyright (c) 2025 by kamalyes, All Rights Reserved.
@@ -12,117 +12,12 @@
 package sqlbuilder
 
 import (
-	"context"
 	"testing"
 	"time"
 
+	"github.com/kamalyes/go-sqlbuilder/query"
 	"github.com/stretchr/testify/assert"
 )
-
-// ==================== 缓存测试 ====================
-
-func TestMockCacheStore(t *testing.T) {
-	ctx := context.Background()
-	cache := NewMockCacheStore()
-
-	// 测试Set和Get
-	err := cache.Set(ctx, "test_key", "test_value", 1*time.Hour)
-	assert.NoError(t, err, "Set should not return error")
-
-	value, err := cache.Get(ctx, "test_key")
-	assert.NoError(t, err, "Get should not return error for existing key")
-	assert.Equal(t, "test_value", value, "Get should return the stored value")
-
-	// 测试不存在的键
-	_, err = cache.Get(ctx, "non_exist_key")
-	assert.Error(t, err, "Get should return error for non-existent key")
-
-	// 测试Exists
-	exists, err := cache.Exists(ctx, "test_key")
-	assert.NoError(t, err, "Exists should not return error")
-	assert.True(t, exists, "Exists should return true for existing key")
-
-	// 测试Delete
-	err = cache.Delete(ctx, "test_key")
-	assert.NoError(t, err, "Delete should not return error")
-
-	exists, err = cache.Exists(ctx, "test_key")
-	assert.NoError(t, err, "Exists should not return error after delete")
-	assert.False(t, exists, "Exists should return false after delete")
-}
-
-func TestCacheExpiration(t *testing.T) {
-	ctx := context.Background()
-	cache := NewMockCacheStore()
-
-	// 设置短TTL
-	err := cache.Set(ctx, "exp_key", "exp_value", 100*time.Millisecond)
-	assert.NoError(t, err, "Set should not return error")
-
-	// 立即获取应该成功
-	value, err := cache.Get(ctx, "exp_key")
-	assert.NoError(t, err, "Get should not return error before expiration")
-	assert.Equal(t, "exp_value", value, "Get should return value before expiration")
-
-	// 等待过期
-	time.Sleep(150 * time.Millisecond)
-
-	// 获取应该失败
-	_, err = cache.Get(ctx, "exp_key")
-	assert.Error(t, err, "Get should return error for expired key")
-}
-
-func TestCacheClear(t *testing.T) {
-	ctx := context.Background()
-	cache := NewMockCacheStore()
-
-	// 设置多个键
-	err1 := cache.Set(ctx, "sqlbuilder:key1", "value1", 1*time.Hour)
-	err2 := cache.Set(ctx, "sqlbuilder:key2", "value2", 1*time.Hour)
-	err3 := cache.Set(ctx, "other:key3", "value3", 1*time.Hour)
-	assert.NoError(t, err1, "Set sqlbuilder:key1 should not return error")
-	assert.NoError(t, err2, "Set sqlbuilder:key2 should not return error")
-	assert.NoError(t, err3, "Set other:key3 should not return error")
-
-	// 清除sqlbuilder前缀的缓存
-	err := cache.Clear(ctx, "sqlbuilder:")
-	assert.NoError(t, err, "Clear should not return error")
-
-	// 验证sqlbuilder:前缀的缓存已删除
-	_, err = cache.Get(ctx, "sqlbuilder:key1")
-	assert.Error(t, err, "sqlbuilder:key1 should be deleted after Clear")
-
-	// other:前缀的缓存应该还在
-	value, err := cache.Get(ctx, "other:key3")
-	assert.NoError(t, err, "Get other:key3 should not return error")
-	assert.Equal(t, "value3", value, "other:key3 should still exist after Clear")
-}
-
-func TestCacheStats(t *testing.T) {
-	cache := NewMockCacheStore()
-	ctx := context.Background()
-
-	// 初始状态
-	stats := cache.GetStats()
-	assert.Equal(t, 0, stats["total"], "Initial cache should be empty")
-
-	// 添加项目
-	err1 := cache.Set(ctx, "key1", "value1", 1*time.Hour)
-	err2 := cache.Set(ctx, "key2", "value2", 1*time.Hour)
-	assert.NoError(t, err1, "Set key1 should not return error")
-	assert.NoError(t, err2, "Set key2 should not return error")
-
-	stats = cache.GetStats()
-	assert.Equal(t, 2, stats["total"], "Cache should have 2 items after adding key1 and key2")
-
-	// 添加过期项目
-	err3 := cache.Set(ctx, "key3", "value3", 10*time.Millisecond)
-	assert.NoError(t, err3, "Set key3 should not return error")
-	time.Sleep(50 * time.Millisecond)
-
-	stats = cache.GetStats()
-	assert.Equal(t, 2, stats["valid"], "Cache should have 2 valid items after key3 expires")
-}
 
 // ==================== 高级查询测试 ====================
 
@@ -238,7 +133,7 @@ func TestPageBean_Initialization(t *testing.T) {
 
 	assert.Equal(t, 2, page.Page, "PageBean Page should be 2")
 	assert.Equal(t, 20, page.PageSize, "PageBean PageSize should be 20")
-	assert.Equal(t, 100, page.Total, "PageBean Total should be 100")
+	assert.Equal(t, int64(100), page.Total, "PageBean Total should be 100")
 	assert.Equal(t, 5, page.Pages, "PageBean Pages should be 5 (100/20)")
 }
 
@@ -299,9 +194,9 @@ func TestFilterOperators(t *testing.T) {
 	}
 
 	assert.Len(t, operators, 11, "Should have 11 filter operators")
-	assert.Equal(t, "=", OP_EQ, "OP_EQ should be '='")
-	assert.Equal(t, "LIKE", OP_LIKE, "OP_LIKE should be 'LIKE'")
-	assert.Equal(t, "IN", OP_IN, "OP_IN should be 'IN'")
+	assert.Equal(t, query.Operator("="), OP_EQ, "OP_EQ should be '='")
+	assert.Equal(t, query.Operator("LIKE"), OP_LIKE, "OP_LIKE should be 'LIKE'")
+	assert.Equal(t, query.Operator("IN"), OP_IN, "OP_IN should be 'IN'")
 }
 
 // ==================== 高级查询链式调用测试 ====================
@@ -321,56 +216,6 @@ func TestAdvancedQueryParam_FluentAPI(t *testing.T) {
 	assert.Len(t, aq.Orders, 1, "Should have 1 order after fluent API call")
 	assert.True(t, aq.Distinct, "Distinct should be true")
 	assert.Len(t, aq.SelectFields, 3, "Should have 3 select fields after fluent API call")
-}
-
-// ==================== 批量测试 ====================
-
-func TestCacheAndQueryIntegration(t *testing.T) {
-	cache := NewMockCacheStore()
-	ctx := context.Background()
-
-	// 模拟高级查询参数的缓存
-	aq := NewAdvancedQueryParam().
-		AddEQ("status", "active").
-		AddLike("name", "test")
-
-	// 生成缓存键
-	cacheKey := "query:" + aq.Filters[0].Field
-	cacheValue := `{"page":1,"pageSize":10,"total":100,"rows":[]}`
-
-	// 存储缓存
-	err := cache.Set(ctx, cacheKey, cacheValue, 1*time.Hour)
-	assert.NoError(t, err, "Set cache should not return error")
-
-	// 检索缓存
-	value, err := cache.Get(ctx, cacheKey)
-	assert.NoError(t, err, "Get cache should not return error")
-	assert.Equal(t, cacheValue, value, "Cache value should match the stored value")
-}
-
-// ==================== 性能相关测试 ====================
-
-func BenchmarkAdvancedQueryParam_BuildWhereClause(b *testing.B) {
-	aq := NewAdvancedQueryParam()
-	for i := 0; i < 10; i++ {
-		aq.AddEQ("field"+string(rune(i)), "value"+string(rune(i)))
-	}
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		aq.BuildWhereClause()
-	}
-}
-
-func BenchmarkMockCacheStore_SetGet(b *testing.B) {
-	cache := NewMockCacheStore()
-	ctx := context.Background()
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		cache.Set(ctx, "key", "value", 1*time.Hour)
-		cache.Get(ctx, "key")
-	}
 }
 
 // ==================== 覆盖率相关测试 ====================

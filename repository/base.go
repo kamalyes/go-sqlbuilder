@@ -286,6 +286,212 @@ func (r *BaseRepository[T]) Exists(ctx context.Context, filters ...*Filter) (boo
 	return count > 0, nil
 }
 
+// GetAll 获取所有记录（不分页）
+func (r *BaseRepository[T]) GetAll(ctx context.Context) ([]*T, error) {
+	var entities []*T
+	result := r.db.DB().WithContext(ctx).Table(r.table).Find(&entities)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return entities, nil
+}
+
+// First 获取第一条记录
+func (r *BaseRepository[T]) First(ctx context.Context, filters ...*Filter) (*T, error) {
+	var entity T
+	db := r.db.DB().WithContext(ctx).Table(r.table)
+
+	for _, filter := range filters {
+		db = applyFilter(db, filter)
+	}
+
+	result := db.First(&entity)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	return &entity, nil
+}
+
+// Last 获取最后一条记录
+func (r *BaseRepository[T]) Last(ctx context.Context, filters ...*Filter) (*T, error) {
+	var entity T
+	db := r.db.DB().WithContext(ctx).Table(r.table)
+
+	for _, filter := range filters {
+		db = applyFilter(db, filter)
+	}
+
+	result := db.Last(&entity)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	return &entity, nil
+}
+
+// FindOne 查找单条记录（不存在返回 nil）
+func (r *BaseRepository[T]) FindOne(ctx context.Context, filters ...*Filter) (*T, error) {
+	var entity T
+	db := r.db.DB().WithContext(ctx).Table(r.table)
+
+	for _, filter := range filters {
+		db = applyFilter(db, filter)
+	}
+
+	result := db.Limit(1).Find(&entity)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	if result.RowsAffected == 0 {
+		return nil, nil
+	}
+
+	return &entity, nil
+}
+
+// UpdateFields 更新指定字段
+func (r *BaseRepository[T]) UpdateFields(ctx context.Context, id interface{}, fields map[string]interface{}) error {
+	if len(fields) == 0 {
+		return nil
+	}
+
+	result := r.db.DB().WithContext(ctx).Table(r.table).Where("id = ?", id).Updates(fields)
+	return result.Error
+}
+
+// UpdateFieldsByFilters 按过滤条件更新指定字段
+func (r *BaseRepository[T]) UpdateFieldsByFilters(ctx context.Context, fields map[string]interface{}, filters ...*Filter) error {
+	if len(fields) == 0 {
+		return nil
+	}
+
+	if len(filters) == 0 {
+		return errors.NewError(errors.ErrorCodeInvalidInput, errors.MsgAtLeastOneFilterRequired)
+	}
+
+	db := r.db.DB().WithContext(ctx).Table(r.table)
+	for _, filter := range filters {
+		db = applyFilter(db, filter)
+	}
+
+	result := db.Updates(fields)
+	return result.Error
+}
+
+// SoftDelete 软删除（需要指定删除标记字段和值）
+// field: 软删除字段名，如 "deleted_at", "is_deleted" 等
+// value: 软删除标记值，如 time.Now(), 1 等
+func (r *BaseRepository[T]) SoftDelete(ctx context.Context, id interface{}, field string, value interface{}) error {
+	result := r.db.DB().WithContext(ctx).Table(r.table).Where("id = ?", id).Update(field, value)
+	return result.Error
+}
+
+// SoftDeleteBatch 批量软删除
+// field: 软删除字段名，如 "deleted_at", "is_deleted" 等
+// value: 软删除标记值，如 time.Now(), 1 等
+func (r *BaseRepository[T]) SoftDeleteBatch(ctx context.Context, ids []interface{}, field string, value interface{}) error {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	result := r.db.DB().WithContext(ctx).Table(r.table).Where("id IN ?", ids).Update(field, value)
+	return result.Error
+}
+
+// SoftDeleteByFilters 按过滤条件软删除
+// field: 软删除字段名，如 "deleted_at", "is_deleted" 等
+// value: 软删除标记值，如 time.Now(), 1 等
+func (r *BaseRepository[T]) SoftDeleteByFilters(ctx context.Context, field string, value interface{}, filters ...*Filter) error {
+	if len(filters) == 0 {
+		return errors.NewError(errors.ErrorCodeInvalidInput, errors.MsgAtLeastOneFilterRequired)
+	}
+
+	db := r.db.DB().WithContext(ctx).Table(r.table)
+	for _, filter := range filters {
+		db = applyFilter(db, filter)
+	}
+
+	result := db.Update(field, value)
+	return result.Error
+}
+
+// Restore 恢复软删除的记录
+// field: 软删除字段名，如 "deleted_at", "is_deleted" 等
+// restoreValue: 恢复时的值，如 nil, 0 等
+func (r *BaseRepository[T]) Restore(ctx context.Context, id interface{}, field string, restoreValue interface{}) error {
+	result := r.db.DB().WithContext(ctx).Table(r.table).Where("id = ?", id).Update(field, restoreValue)
+	return result.Error
+}
+
+// RestoreBatch 批量恢复软删除的记录
+// field: 软删除字段名，如 "deleted_at", "is_deleted" 等
+// restoreValue: 恢复时的值，如 nil, 0 等
+func (r *BaseRepository[T]) RestoreBatch(ctx context.Context, ids []interface{}, field string, restoreValue interface{}) error {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	result := r.db.DB().WithContext(ctx).Table(r.table).Where("id IN ?", ids).Update(field, restoreValue)
+	return result.Error
+}
+
+// CountByField 按字段计数（GROUP BY）
+func (r *BaseRepository[T]) CountByField(ctx context.Context, field string) (map[interface{}]int64, error) {
+	type Result struct {
+		Field interface{}
+		Count int64
+	}
+
+	var results []Result
+	query := fmt.Sprintf("%s as field, COUNT(*) as count", field)
+	db := r.db.DB().WithContext(ctx).Table(r.table).Select(query).Group(field)
+
+	if err := db.Scan(&results).Error; err != nil {
+		return nil, err
+	}
+
+	countMap := make(map[interface{}]int64)
+	for _, result := range results {
+		countMap[result.Field] = result.Count
+	}
+
+	return countMap, nil
+}
+
+// Pluck 提取单个字段的值列表
+func (r *BaseRepository[T]) Pluck(ctx context.Context, field string, filters ...*Filter) ([]interface{}, error) {
+	var values []interface{}
+	db := r.db.DB().WithContext(ctx).Table(r.table)
+
+	for _, filter := range filters {
+		db = applyFilter(db, filter)
+	}
+
+	if err := db.Pluck(field, &values).Error; err != nil {
+		return nil, err
+	}
+
+	return values, nil
+}
+
+// Distinct 获取去重后的字段值列表
+func (r *BaseRepository[T]) Distinct(ctx context.Context, field string, filters ...*Filter) ([]interface{}, error) {
+	var values []interface{}
+	db := r.db.DB().WithContext(ctx).Table(r.table).Distinct(field)
+
+	for _, filter := range filters {
+		db = applyFilter(db, filter)
+	}
+
+	if err := db.Pluck(field, &values).Error; err != nil {
+		return nil, err
+	}
+
+	return values, nil
+}
+
 // applyFilter 应用单个过滤条件到 GORM 查询
 func applyFilter(dbQuery *gorm.DB, filter *Filter) *gorm.DB {
 	if filter == nil {
@@ -293,29 +499,45 @@ func applyFilter(dbQuery *gorm.DB, filter *Filter) *gorm.DB {
 	}
 
 	switch filter.Operator {
-	case "=":
+	case constant.OP_EQ:
 		return dbQuery.Where(fmt.Sprintf("%s = ?", filter.Field), filter.Value)
-	case ">":
+	case constant.OP_GT:
 		return dbQuery.Where(fmt.Sprintf("%s > ?", filter.Field), filter.Value)
-	case "<":
+	case constant.OP_LT:
 		return dbQuery.Where(fmt.Sprintf("%s < ?", filter.Field), filter.Value)
-	case ">=":
+	case constant.OP_GTE:
 		return dbQuery.Where(fmt.Sprintf("%s >= ?", filter.Field), filter.Value)
-	case "<=":
+	case constant.OP_LTE:
 		return dbQuery.Where(fmt.Sprintf("%s <= ?", filter.Field), filter.Value)
-	case "!=":
+	case constant.OP_NEQ:
 		return dbQuery.Where(fmt.Sprintf("%s != ?", filter.Field), filter.Value)
-	case string(constant.OP_IN):
+	case constant.OP_IN:
 		return dbQuery.Where(fmt.Sprintf("%s IN ?", filter.Field), filter.Value)
-	case string(constant.OP_LIKE):
+	case constant.OP_NOT_IN:
+		return dbQuery.Where(fmt.Sprintf("%s NOT IN ?", filter.Field), filter.Value)
+	case constant.OP_LIKE:
 		return dbQuery.Where(fmt.Sprintf("%s LIKE ?", filter.Field), filter.Value)
-	case string(constant.OP_BETWEEN):
+	case constant.OP_BETWEEN:
 		if values, ok := filter.Value.([]interface{}); ok && len(values) == 2 {
 			return dbQuery.Where(fmt.Sprintf("%s BETWEEN ? AND ?", filter.Field), values[0], values[1])
 		}
+	case constant.OP_IS_NULL:
+		return dbQuery.Where(fmt.Sprintf("%s IS NULL", filter.Field))
+	case constant.OP_IS_NOT_NULL:
+		return dbQuery.Where(fmt.Sprintf("%s IS NOT NULL", filter.Field))
 	}
 
 	return dbQuery
+}
+
+// DB 获取数据库处理器
+func (r *BaseRepository[T]) DB() db.Handler {
+	return r.db
+}
+
+// Table 获取表名
+func (r *BaseRepository[T]) Table() string {
+	return r.table
 }
 
 // transactionWrapper 事务包装器

@@ -14,10 +14,11 @@ import (
 	"github.com/kamalyes/go-sqlbuilder/constant"
 )
 
+// Filter 过滤条件
 type Filter struct {
-	Field    string
-	Operator constant.Operator
-	Value    interface{}
+	Field    string            // 字段名
+	Operator constant.Operator // 操作符
+	Value    interface{}       // 值
 }
 
 type OrderBy struct {
