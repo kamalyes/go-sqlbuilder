@@ -31,9 +31,11 @@ type Order struct {
 
 // Query 查询条件
 type Query struct {
-	Filters    []*Filter
-	Orders     []Order
-	Pagination *meta.Paging
+	Filters     []*Filter
+	Orders      []Order
+	Pagination  *meta.Paging
+	LimitValue  *int
+	OffsetValue *int
 }
 
 // NewEqFilter 创建等于过滤条件
@@ -153,6 +155,18 @@ func (q *Query) WithPaging(page, pageSize int) *Query {
 		Page:     int32(page),
 		PageSize: int32(pageSize),
 	}
+	return q
+}
+
+// Limit 设置查询限制数量
+func (q *Query) Limit(limit int) *Query {
+	q.LimitValue = &limit
+	return q
+}
+
+// Offset 设置查询偏移量
+func (q *Query) Offset(offset int) *Query {
+	q.OffsetValue = &offset
 	return q
 }
 

@@ -127,6 +127,16 @@ func (r *BaseRepository[T]) List(ctx context.Context, query *Query) ([]*T, error
 		db = db.Order(order.Field + " " + order.Direction)
 	}
 
+	// 应用 Limit
+	if query.LimitValue != nil {
+		db = db.Limit(*query.LimitValue)
+	}
+
+	// 应用 Offset
+	if query.OffsetValue != nil {
+		db = db.Offset(*query.OffsetValue)
+	}
+
 	result := db.Find(&entities)
 	if result.Error != nil {
 		return nil, result.Error
