@@ -3,12 +3,11 @@ module github.com/kamalyes/go-sqlbuilder
 go 1.24.0
 
 require (
-	github.com/go-sql-driver/mysql v1.8.1
+	github.com/go-sql-driver/mysql v1.9.3
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/json-iterator/go v1.1.12
 	github.com/kamalyes/go-logger v0.3.0
 	github.com/stretchr/testify v1.11.1
-	gorm.io/driver/mysql v1.6.0
 	gorm.io/driver/sqlite v1.6.0
 	gorm.io/gorm v1.30.0
 )
