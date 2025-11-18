@@ -114,7 +114,7 @@ jobs:
         args: -no-fail -fmt json -out gosec-results.json ./...
     
     - name: Upload Gosec results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v5
       with:
         name: gosec-results
         path: gosec-results.json
