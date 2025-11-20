@@ -2,8 +2,8 @@
  * @Author: kamalyes 501893067@qq.com
  * @Date: 2025-11-11 21:13:15
  * @LastEditors: kamalyes 501893067@qq.com
- * @LastEditTime: 2025-11-13 11:07:41
- * @FilePath: \go-sqlbuilder\persist\query_param.go
+ * @LastEditTime: 2025-11-20 13:33:13
+ * @FilePath: \go-sqlbuilder\repository\base.go
  * @Description:
  *
  * Copyright (c) 2025 by kamalyes, All Rights Reserved.
@@ -191,7 +191,7 @@ func (r *BaseRepository[T]) Find(ctx context.Context, options *FindOptions) ([]*
 	}
 
 	query := NewQuery()
-	
+
 	// 转换条件
 	for _, condition := range options.Conditions {
 		filter := &Filter{
@@ -201,17 +201,17 @@ func (r *BaseRepository[T]) Find(ctx context.Context, options *FindOptions) ([]*
 		}
 		query.AddFilter(filter)
 	}
-	
+
 	// 转换排序
 	for _, order := range options.Orders {
 		query.AddOrder(order.Field, order.Direction)
 	}
-	
+
 	// 应用限制
 	if options.Limit > 0 {
 		query.Limit(options.Limit)
 	}
-	
+
 	// 应用偏移量
 	if options.Offset > 0 {
 		query.Offset(options.Offset)
@@ -576,8 +576,8 @@ func applyFilter(dbQuery *gorm.DB, filter *Filter) *gorm.DB {
 	return dbQuery
 }
 
-// DB 获取数据库处理器
-func (r *BaseRepository[T]) DB() db.Handler {
+// DBHandler 获取数据库处理器
+func (r *BaseRepository[T]) DBHandler() db.Handler {
 	return r.db
 }
 
