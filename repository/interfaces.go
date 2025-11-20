@@ -12,12 +12,11 @@ package repository
 
 import (
 	"context"
-	"time"
-
 	"github.com/kamalyes/go-sqlbuilder/cache"
 	"github.com/kamalyes/go-sqlbuilder/constant"
 	"github.com/kamalyes/go-sqlbuilder/core"
 	"github.com/kamalyes/go-sqlbuilder/meta"
+	"time"
 )
 
 // Filter 过滤条件（复用 core.Filter）
@@ -119,6 +118,27 @@ func NewQuery() *Query {
 		Filters: make([]*Filter, 0),
 		Orders:  make([]Order, 0),
 	}
+}
+
+// FindOptions 兼容旧API的查询选项结构
+type FindOptions struct {
+	Conditions []Condition
+	Orders     []OrderBy
+	Limit      int
+	Offset     int
+}
+
+// Condition 查询条件结构
+type Condition struct {
+	Field string
+	Op    constant.Operator
+	Value interface{}
+}
+
+// OrderBy 排序条件结构
+type OrderBy struct {
+	Field     string
+	Direction string
 }
 
 // AddFilter 添加过滤条件

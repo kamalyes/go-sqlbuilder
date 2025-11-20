@@ -184,6 +184,42 @@ func (r *BaseRepository[T]) ListWithPagination(ctx context.Context, query *Query
 	return entities, page, nil
 }
 
+// Find 通用查询方法，兼容旧的API调用方式
+func (r *BaseRepository[T]) Find(ctx context.Context, options *FindOptions) ([]*T, error) {
+	if options == nil {
+		return r.GetAll(ctx)
+	}
+
+	query := NewQuery()
+	
+	// 转换条件
+	for _, condition := range options.Conditions {
+		filter := &Filter{
+			Field:    condition.Field,
+			Operator: condition.Op,
+			Value:    condition.Value,
+		}
+		query.AddFilter(filter)
+	}
+	
+	// 转换排序
+	for _, order := range options.Orders {
+		query.AddOrder(order.Field, order.Direction)
+	}
+	
+	// 应用限制
+	if options.Limit > 0 {
+		query.Limit(options.Limit)
+	}
+	
+	// 应用偏移量
+	if options.Offset > 0 {
+		query.Offset(options.Offset)
+	}
+
+	return r.List(ctx, query)
+}
+
 // Update 更新单个记录
 func (r *BaseRepository[T]) Update(ctx context.Context, entity *T) (*T, error) {
 	if entity == nil {
