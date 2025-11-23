@@ -201,6 +201,7 @@ NewCustomFilter("YEAR(created_at) = ?", 2024)
 - 📓 [EnhancedRepository](docs/ENHANCED-REPOSITORY.MD) - 便利方法详解
 - 📔 [模型定义](docs/MODELS.MD) - BaseModel、AuditModel 使用
 - 📒 [错误处理](docs/ERROR-HANDLING.MD) - 错误管理和日志记录
+- 🔄 [Context 使用指南](docs/CONTEXT-USAGE.MD) - 上下文、超时控制、日志追踪
 
 ## 🏗️ 内置模型
 
