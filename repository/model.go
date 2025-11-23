@@ -1,10 +1,10 @@
 /*
  * @Author: kamalyes 501893067@qq.com
- * @Date: 2025-11-11 18:17:15
+ * @Date: 2025-11-11 00:00:00
  * @LastEditors: kamalyes 501893067@qq.com
- * @LastEditTime: 2025-11-17 16:26:44
- * @FilePath: \go-sqlbuilder\repository\model.go
- * @Description: 基础模型定义模型
+ * @LastEditTime: 2025-11-23 22:50:00
+ * @FilePath: \go-sqlbuilder\model.go
+ * @Description: 基础模型定义 - BaseModel、AuditModel、UUIDModel 等
  *
  * Copyright (c) 2025 by kamalyes, All Rights Reserved.
  */
@@ -111,6 +111,14 @@ func (m *UUIDModel) GetID() string {
 
 func (m *UUIDModel) IsNew() bool {
 	return m.ID == ""
+}
+
+func (m *UUIDModel) GetVersion() int {
+	return m.Version
+}
+
+func (m *UUIDModel) IsDeleted() bool {
+	return m.DeletedAt.Valid
 }
 
 func (m *UUIDModel) BeforeUpdate(tx *gorm.DB) error {

@@ -1,550 +1,488 @@
 /*
  * @Author: kamalyes 501893067@qq.com
- * @Date: 2025-11-17 16:30:00
+ * @Date: 2025-11-23 23:15:00
  * @LastEditors: kamalyes 501893067@qq.com
- * @LastEditTime: 2025-11-17 16:30:00
- * @FilePath: \go-sqlbuilder\repository\model_test.go
- * @Description: 模型测试文件
+ * @LastEditTime: 2025-11-23 23:15:00
+ * @FilePath: \go-sqlbuilder\model_test.go
+ * @Description: 模型定义测试用例
  *
  * Copyright (c) 2025 by kamalyes, All Rights Reserved.
  */
 package repository
 
 import (
-	"context"
-	"testing"
-	"time"
-
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/suite"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+	"testing"
+	"time"
 )
 
-// User 测试用户模型
-type User struct {
-	BaseModel
-	Name  string `json:"name" gorm:"type:varchar(100);not null;comment:用户名"`
-	Email string `json:"email" gorm:"type:varchar(100);uniqueIndex;comment:邮箱"`
-	Age   int    `json:"age" gorm:"comment:年龄"`
-}
+// TestBaseModel 测试BaseModel
+func TestBaseModel(t *testing.T) {
+	model := &BaseModel{}
 
-// Product 测试产品模型
-type Product struct {
-	LightModel
-	Name  string  `json:"name" gorm:"type:varchar(200);not null;comment:产品名称"`
-	Price float64 `json:"price" gorm:"type:decimal(10,2);comment:价格"`
-}
+	// 测试IsNew
+	assert.True(t, model.IsNew(), "新模型的ID应为0")
 
-// AuditUser 测试审计用户模型（包含审计字段）
-type AuditUser struct {
-	AuditModel
-	Name  string `json:"name" gorm:"type:varchar(100);not null;comment:用户名"`
-	Email string `json:"email" gorm:"type:varchar(100);uniqueIndex;comment:邮箱"`
-}
+	// 测试Enable/Disable/IsEnabled
+	model.Disable()
+	assert.False(t, model.IsEnabled(), "禁用后应返回false")
+	assert.Equal(t, int8(0), model.Status, "状态应为0")
 
-// ModelTestSuite 模型测试套件
-type ModelTestSuite struct {
-	suite.Suite
-	db *gorm.DB
-}
+	model.Enable()
+	assert.True(t, model.IsEnabled(), "启用后应返回true")
+	assert.Equal(t, int8(1), model.Status, "状态应为1")
 
-// SetupSuite 测试套件初始化
-func (s *ModelTestSuite) SetupSuite() {
-	// 使用内存数据库
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	assert.NoError(s.T(), err)
-	s.db = db
+	// 测试SetRemark
+	model.SetRemark("测试备注")
+	assert.Equal(t, "测试备注", model.Remark, "备注应正确设置")
 
-	// 自动迁移
-	err = db.AutoMigrate(&User{}, &Product{}, &AuditUser{})
-	assert.NoError(s.T(), err)
-}
+	// 测试GetID
+	model.ID = 123
+	assert.Equal(t, uint(123), model.GetID(), "GetID应返回正确的ID")
+	assert.False(t, model.IsNew(), "ID不为0时不应是新记录")
 
-// TearDownSuite 测试套件清理
-func (s *ModelTestSuite) TearDownSuite() {
-	sqlDB, _ := s.db.DB()
-	if sqlDB != nil {
-		sqlDB.Close()
-	}
-}
+	// 测试GetVersion
+	model.Version = 5
+	assert.Equal(t, 5, model.GetVersion(), "GetVersion应返回正确的版本号")
 
-// TestBaseModel_SettersAndGetters 测试基础模型的设置和获取方法
-func (s *ModelTestSuite) TestBaseModel_SettersAndGetters() {
-	user := &User{
-		Name:  "张三",
-		Email: "zhangsan@example.com",
-		Age:   25,
-	}
+	// 测试IsDeleted
+	assert.False(t, model.IsDeleted(), "未删除的记录应返回false")
 
-	// 测试设置备注
-	user.SetRemark("测试用户")
-	assert.Equal(s.T(), "测试用户", user.Remark)
-
-	// 测试启用/禁用
-	user.Enable()
-	assert.True(s.T(), user.IsEnabled())
-	assert.Equal(s.T(), int8(1), user.Status)
-
-	user.Disable()
-	assert.False(s.T(), user.IsEnabled())
-	assert.Equal(s.T(), int8(0), user.Status)
-
-	// 测试时间设置
+	// 测试SetCreatedAt和SetUpdatedAt
 	now := time.Now()
-	user.SetCreatedAt(now)
-	user.SetUpdatedAt(now)
-	assert.Equal(s.T(), now, user.CreatedAt)
-	assert.Equal(s.T(), now, user.UpdatedAt)
-
-	// 测试新记录判断
-	assert.True(s.T(), user.IsNew())
-	assert.Equal(s.T(), uint(0), user.GetID())
+	model.SetCreatedAt(now)
+	model.SetUpdatedAt(now)
+	assert.Equal(t, now, model.CreatedAt, "创建时间应正确设置")
+	assert.Equal(t, now, model.UpdatedAt, "更新时间应正确设置")
 }
 
-// TestBaseModel_Create 测试创建记录
-func (s *ModelTestSuite) TestBaseModel_Create() {
-	user := &User{
-		Name:  "李四",
-		Email: "lisi@example.com",
-		Age:   30,
+// TestBaseModel_BeforeUpdate 测试BaseModel的BeforeUpdate钩子
+func TestBaseModel_BeforeUpdate(t *testing.T) {
+	// 创建数据库
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	assert.NoError(t, err)
+
+	// 定义测试结构
+	type TestModel struct {
+		BaseModel
+		Name string `gorm:"column:name"`
 	}
-	user.SetRemark("新用户")
-	user.Enable()
+
+	// 迁移表
+	err = db.AutoMigrate(&TestModel{})
+	assert.NoError(t, err)
 
 	// 创建记录
-	result := s.db.Create(user)
-	assert.NoError(s.T(), result.Error)
-	assert.NotZero(s.T(), user.ID)
-	assert.False(s.T(), user.IsNew())
-	assert.Equal(s.T(), 1, user.GetVersion())
-	assert.True(s.T(), user.IsEnabled())
+	model := &TestModel{Name: "Initial"}
+	err = db.Create(model).Error
+	assert.NoError(t, err)
+	assert.Equal(t, 1, model.Version, "初始版本应为1")
+
+	// 更新记录（触发BeforeUpdate钩子）
+	model.Name = "Updated"
+	err = db.Save(model).Error
+	assert.NoError(t, err)
+	assert.Equal(t, 2, model.Version, "更新后版本应自增为2")
+
+	// 再次更新
+	model.Name = "Updated Again"
+	err = db.Save(model).Error
+	assert.NoError(t, err)
+	assert.Equal(t, 3, model.Version, "再次更新后版本应为3")
 }
 
-// TestBaseModel_Update 测试更新记录（版本号自增）
-func (s *ModelTestSuite) TestBaseModel_Update() {
-	// 创建用户
-	user := &User{
-		Name:  "王五",
-		Email: "wangwu@example.com",
-		Age:   28,
-	}
-	s.db.Create(user)
+// TestSimpleModel 测试SimpleModel
+func TestSimpleModel(t *testing.T) {
+	model := &SimpleModel{}
 
-	// 记录初始版本号
-	initialVersion := user.Version
-	assert.Equal(s.T(), 1, initialVersion)
+	// 测试IsNew
+	assert.True(t, model.IsNew(), "新模型应返回true")
+	assert.Equal(t, uint(0), model.GetID(), "新模型ID应为0")
 
-	// 更新用户
-	user.Age = 29
-	result := s.db.Save(user)
-	assert.NoError(s.T(), result.Error)
+	// 设置ID
+	model.ID = 456
+	assert.False(t, model.IsNew(), "ID不为0时应返回false")
+	assert.Equal(t, uint(456), model.GetID(), "GetID应返回正确的ID")
 
-	// 验证版本号自增
-	assert.Equal(s.T(), initialVersion+1, user.Version)
-	assert.Equal(s.T(), 2, user.GetVersion())
+	// 测试时间字段
+	now := time.Now()
+	model.CreatedAt = now
+	model.UpdatedAt = now
+	assert.Equal(t, now, model.CreatedAt, "创建时间应正确设置")
+	assert.Equal(t, now, model.UpdatedAt, "更新时间应正确设置")
 }
 
-// TestBaseModel_SoftDelete 测试软删除
-func (s *ModelTestSuite) TestBaseModel_SoftDelete() {
-	// 创建用户
-	user := &User{
-		Name:  "赵六",
-		Email: "zhaoliu@example.com",
-		Age:   35,
-	}
-	s.db.Create(user)
+// TestUUIDModel 测试UUIDModel
+func TestUUIDModel(t *testing.T) {
+	model := &UUIDModel{}
 
-	userID := user.ID
-	assert.False(s.T(), user.IsDeleted())
+	// 测试IsNew
+	assert.True(t, model.IsNew(), "空UUID应返回true")
+	assert.Equal(t, "", model.GetID(), "新模型ID应为空字符串")
 
-	// 软删除
-	result := s.db.Delete(user)
-	assert.NoError(s.T(), result.Error)
+	// 设置UUID
+	uuid := "123e4567-e89b-12d3-a456-426614174000"
+	model.ID = uuid
+	assert.False(t, model.IsNew(), "有UUID时应返回false")
+	assert.Equal(t, uuid, model.GetID(), "GetID应返回正确的UUID")
 
-	// 验证软删除
-	var deletedUser User
-	err := s.db.Unscoped().First(&deletedUser, userID).Error
-	assert.NoError(s.T(), err)
-	assert.True(s.T(), deletedUser.IsDeleted())
-	assert.True(s.T(), deletedUser.DeletedAt.Valid)
-
-	// 普通查询应该找不到
-	err = s.db.First(&User{}, userID).Error
-	assert.Error(s.T(), err)
-	assert.Equal(s.T(), gorm.ErrRecordNotFound, err)
+	// 测试版本号
+	model.Version = 10
+	assert.Equal(t, 10, model.Version, "版本号应正确设置")
 }
 
-// TestBaseModel_Restore 测试恢复软删除
-func (s *ModelTestSuite) TestBaseModel_Restore() {
-	// 创建并删除用户
-	user := &User{
-		Name:  "孙七",
-		Email: "sunqi@example.com",
-		Age:   40,
-	}
-	s.db.Create(user)
-	userID := user.ID
-	s.db.Delete(user)
+// TestUUIDModel_BeforeUpdate 测试UUIDModel的BeforeUpdate钩子
+func TestUUIDModel_BeforeUpdate(t *testing.T) {
+	// 创建数据库
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	assert.NoError(t, err)
 
-	// 验证已删除
-	var deletedUser User
-	s.db.Unscoped().First(&deletedUser, userID)
-	assert.True(s.T(), deletedUser.IsDeleted())
-
-	// 恢复记录
-	result := s.db.Model(&User{}).Unscoped().Where("id = ?", userID).Update("deleted_at", nil)
-	assert.NoError(s.T(), result.Error)
-
-	// 验证已恢复
-	var restoredUser User
-	err := s.db.First(&restoredUser, userID).Error
-	assert.NoError(s.T(), err)
-	assert.False(s.T(), restoredUser.IsDeleted())
-}
-
-// TestBaseModel_StatusManagement 测试状态管理
-func (s *ModelTestSuite) TestBaseModel_StatusManagement() {
-	user := &User{
-		Name:  "周八",
-		Email: "zhouba@example.com",
-		Age:   22,
+	// 定义测试结构
+	type TestUUIDModel struct {
+		UUIDModel
+		Name string `gorm:"column:name"`
 	}
 
-	// 默认启用
-	s.db.Create(user)
-	assert.True(s.T(), user.IsEnabled())
-
-	// 禁用
-	user.Disable()
-	s.db.Save(user)
-
-	var updatedUser User
-	s.db.First(&updatedUser, user.ID)
-	assert.False(s.T(), updatedUser.IsEnabled())
-	assert.Equal(s.T(), int8(0), updatedUser.Status)
-
-	// 重新启用
-	updatedUser.Enable()
-	s.db.Save(&updatedUser)
-
-	var enabledUser User
-	s.db.First(&enabledUser, user.ID)
-	assert.True(s.T(), enabledUser.IsEnabled())
-	assert.Equal(s.T(), int8(1), enabledUser.Status)
-}
-
-// TestLightModel 测试轻量级模型
-func (s *ModelTestSuite) TestLightModel() {
-	product := &Product{
-		Name:  "笔记本电脑",
-		Price: 5999.99,
-	}
-
-	// 测试新记录
-	assert.True(s.T(), product.IsNew())
+	// 迁移表
+	err = db.AutoMigrate(&TestUUIDModel{})
+	assert.NoError(t, err)
 
 	// 创建记录
-	result := s.db.Create(product)
-	assert.NoError(s.T(), result.Error)
-	assert.NotZero(s.T(), product.ID)
-	assert.False(s.T(), product.IsNew())
-	assert.Equal(s.T(), product.ID, product.GetID())
-	assert.True(s.T(), product.IsEnabled())
+	model := &TestUUIDModel{
+		UUIDModel: UUIDModel{ID: "550e8400-e29b-41d4-a716-446655440000"},
+		Name:      "Initial",
+	}
+	err = db.Create(model).Error
+	assert.NoError(t, err)
+	assert.Equal(t, 1, model.Version, "初始版本应为1")
 
-	// LightModel没有软删除，是硬删除
-	productID := product.ID
-	s.db.Delete(product)
-	var deletedProduct Product
-	err := s.db.First(&deletedProduct, productID).Error
-	assert.Error(s.T(), err) // 应该找不到，因为是硬删除
+	// 更新记录
+	model.Name = "Updated"
+	err = db.Save(model).Error
+	assert.NoError(t, err)
+	assert.Equal(t, 2, model.Version, "更新后版本应为2")
 }
 
-// TestBaseModel_BatchOperations 测试批量操作
-func (s *ModelTestSuite) TestBaseModel_BatchOperations() {
-	users := []*User{
-		{Name: "用户1", Email: "user1@example.com", Age: 20},
-		{Name: "用户2", Email: "user2@example.com", Age: 21},
-		{Name: "用户3", Email: "user3@example.com", Age: 22},
-	}
+// TestAuditModel 测试AuditModel
+func TestAuditModel(t *testing.T) {
+	model := &AuditModel{}
 
-	// 设置统一备注
-	for _, user := range users {
-		user.SetRemark("批量创建用户")
-		user.Enable()
-	}
+	// 测试继承的BaseModel方法
+	assert.True(t, model.IsNew(), "新模型应返回true")
+	model.Enable()
+	assert.True(t, model.IsEnabled(), "启用后应返回true")
 
-	// 批量创建
-	result := s.db.Create(&users)
-	assert.NoError(s.T(), result.Error)
-	assert.Equal(s.T(), int64(3), result.RowsAffected)
+	// 测试SetCreatedBy和GetCreatedBy
+	model.SetCreatedBy(100)
+	assert.Equal(t, uint(100), model.GetCreatedBy(), "创建人ID应正确")
+	assert.Equal(t, uint(100), model.CreatedBy, "CreatedBy字段应正确设置")
 
-	// 验证所有记录
-	for _, user := range users {
-		assert.NotZero(s.T(), user.ID)
-		assert.True(s.T(), user.IsEnabled())
-		assert.Equal(s.T(), "批量创建用户", user.Remark)
-	}
+	// 测试SetUpdatedBy和GetUpdatedBy
+	model.SetUpdatedBy(200)
+	assert.Equal(t, uint(200), model.GetUpdatedBy(), "更新人ID应正确")
+	assert.Equal(t, uint(200), model.UpdatedBy, "UpdatedBy字段应正确设置")
 
-	// 批量更新状态
-	result = s.db.Model(&User{}).Where("age >= ?", 20).Update("status", 0)
-	assert.NoError(s.T(), result.Error)
-
-	// 验证更新
-	var disabledUsers []User
-	s.db.Where("age >= ?", 20).Find(&disabledUsers)
-	for _, user := range disabledUsers {
-		assert.False(s.T(), user.IsEnabled())
-	}
+	// 测试ID和版本
+	model.ID = 999
+	assert.Equal(t, uint(999), model.GetID(), "GetID应返回正确的ID")
+	model.Version = 7
+	assert.Equal(t, 7, model.GetVersion(), "GetVersion应返回正确的版本号")
 }
 
-// TestBaseModel_QueryWithFilters 测试带过滤条件的查询
-func (s *ModelTestSuite) TestBaseModel_QueryWithFilters() {
-	// 清理所有现有数据以避免测试间干扰
-	s.db.Unscoped().Where("1=1").Delete(&User{})
+// TestLightModel 测试LightModel
+func TestLightModel(t *testing.T) {
+	model := &LightModel{}
 
-	// 创建测试数据
-	userA := &User{Name: "测试A", Email: "testa@example.com", Age: 25}
-	s.db.Create(userA)
-	// 确保启用（虽然默认就是启用）
-	userA.Enable()
-	s.db.Save(userA)
+	// 测试IsNew
+	assert.True(t, model.IsNew(), "新模型应返回true")
+	assert.Equal(t, uint(0), model.GetID(), "新模型ID应为0")
 
-	userB := &User{Name: "测试B", Email: "testb@example.com", Age: 30}
-	s.db.Create(userB)
-	// 禁用用户B
-	userB.Disable()
-	s.db.Save(userB)
+	// 测试Enable/Disable/IsEnabled
+	model.Disable()
+	assert.False(t, model.IsEnabled(), "禁用后应返回false")
+	assert.Equal(t, int8(0), model.Status, "状态应为0")
 
-	userC := &User{Name: "测试C", Email: "testc@example.com", Age: 35}
-	s.db.Create(userC)
-	// 确保启用
-	userC.Enable()
-	s.db.Save(userC)
+	model.Enable()
+	assert.True(t, model.IsEnabled(), "启用后应返回true")
+	assert.Equal(t, int8(1), model.Status, "状态应为1")
 
-	// 查询启用的用户
-	var enabledUsers []User
-	s.db.Where("status = ?", 1).Find(&enabledUsers)
-	assert.Len(s.T(), enabledUsers, 2)
-	assert.Equal(s.T(), "测试A", enabledUsers[0].Name)
-	assert.Equal(s.T(), "测试C", enabledUsers[1].Name)
+	// 设置ID
+	model.ID = 789
+	assert.False(t, model.IsNew(), "ID不为0时应返回false")
+	assert.Equal(t, uint(789), model.GetID(), "GetID应返回正确的ID")
 
-	// 查询年龄大于25的用户
-	var olderUsers []User
-	s.db.Where("age > ?", 25).Find(&olderUsers)
-	assert.Len(s.T(), olderUsers, 2)
-
-	// 组合查询（启用且年龄>=30）
-	var filteredUsers []User
-	s.db.Where("status = ? AND age >= ?", 1, 30).Find(&filteredUsers)
-	assert.Len(s.T(), filteredUsers, 1)
-	assert.Equal(s.T(), "测试C", filteredUsers[0].Name)
+	// 测试时间字段
+	now := time.Now()
+	model.CreatedAt = now
+	model.UpdatedAt = now
+	assert.Equal(t, now, model.CreatedAt, "创建时间应正确设置")
+	assert.Equal(t, now, model.UpdatedAt, "更新时间应正确设置")
 }
 
-// TestBaseModel_Concurrency 测试并发更新（乐观锁）
-func (s *ModelTestSuite) TestBaseModel_Concurrency() {
-	// 创建用户
-	user := &User{
-		Name:  "并发测试",
-		Email: "concurrent@example.com",
-		Age:   25,
-	}
-	s.db.Create(user)
+// TestTimestampModel 测试TimestampModel
+func TestTimestampModel(t *testing.T) {
+	model := &TimestampModel{}
 
-	// 模拟两个并发更新
-	var user1, user2 User
-	s.db.First(&user1, user.ID)
-	s.db.First(&user2, user.ID)
-
-	assert.Equal(s.T(), user1.Version, user2.Version)
-	initialVersion := user1.Version
-
-	// 第一个更新成功
-	user1.Age = 26
-	result1 := s.db.Save(&user1)
-	assert.NoError(s.T(), result1.Error)
-	assert.Equal(s.T(), initialVersion+1, user1.Version)
-
-	// 第二个更新也会成功（GORM默认行为），但版本号会继续增加
-	user2.Age = 27
-	result2 := s.db.Save(&user2)
-	assert.NoError(s.T(), result2.Error)
-
-	// 验证最终状态
-	var finalUser User
-	s.db.First(&finalUser, user.ID)
-	assert.Equal(s.T(), 27, finalUser.Age) // 后面的更新覆盖
-	// 版本号至少增加了一次
-	assert.GreaterOrEqual(s.T(), finalUser.Version, initialVersion+1)
+	// 测试时间字段
+	now := time.Now()
+	model.CreatedAt = now
+	model.UpdatedAt = now
+	assert.Equal(t, now, model.CreatedAt, "创建时间应正确设置")
+	assert.Equal(t, now, model.UpdatedAt, "更新时间应正确设置")
 }
 
 // TestModelInterfaces 测试模型接口实现
-func (s *ModelTestSuite) TestModelInterfaces() {
-	user := &User{
-		Name:  "接口测试",
-		Email: "interface@example.com",
-		Age:   30,
-	}
+func TestModelInterfaces(t *testing.T) {
+	// 测试BaseModel实现接口
+	var _ ModelInterface = (*BaseModel)(nil)
+	var _ VersionedModel = (*BaseModel)(nil)
+	var _ SoftDeletableModel = (*BaseModel)(nil)
+	var _ StatusModel = (*BaseModel)(nil)
+	var _ RemarkableModel = (*BaseModel)(nil)
 
-	// 测试 ModelInterface
-	var m ModelInterface = user
-	assert.True(s.T(), m.IsNew())
+	// 测试SimpleModel实现接口
+	var _ ModelInterface = (*SimpleModel)(nil)
 
-	// 测试 VersionedModel
-	var vm VersionedModel = user
-	assert.Equal(s.T(), 0, vm.GetVersion()) // 未保存前为0
+	// 测试UUIDModel实现接口
+	var _ ModelInterface = (*UUIDModel)(nil)
+	var _ VersionedModel = (*UUIDModel)(nil)
+	var _ SoftDeletableModel = (*UUIDModel)(nil)
 
-	// 测试 StatusModel
-	var sm StatusModel = user
+	// 测试AuditModel实现接口
+	var _ ModelInterface = (*AuditModel)(nil)
+	var _ VersionedModel = (*AuditModel)(nil)
+	var _ SoftDeletableModel = (*AuditModel)(nil)
+	var _ AuditableModel = (*AuditModel)(nil)
+	var _ StatusModel = (*AuditModel)(nil)
+	var _ RemarkableModel = (*AuditModel)(nil)
+
+	// 测试LightModel实现接口
+	var _ ModelInterface = (*LightModel)(nil)
+	var _ StatusModel = (*LightModel)(nil)
+
+	// 验证接口方法可以正常调用
+	baseModel := &BaseModel{}
+	var mi ModelInterface = baseModel
+	assert.True(t, mi.IsNew(), "接口方法IsNew应正常工作")
+
+	var vm VersionedModel = baseModel
+	baseModel.Version = 3
+	assert.Equal(t, 3, vm.GetVersion(), "接口方法GetVersion应正常工作")
+
+	var sm StatusModel = baseModel
 	sm.Enable()
-	assert.True(s.T(), sm.IsEnabled())
-	sm.Disable()
-	assert.False(s.T(), sm.IsEnabled())
-
-	// 测试 RemarkableModel
-	var rm RemarkableModel = user
-	rm.SetRemark("接口测试备注")
-
-	// 创建后测试
-	s.db.Create(user)
-	assert.False(s.T(), m.IsNew())
-	assert.Equal(s.T(), 1, vm.GetVersion())
-
-	// 测试 SoftDeletableModel
-	var sdm SoftDeletableModel = user
-	assert.False(s.T(), sdm.IsDeleted())
+	assert.True(t, sm.IsEnabled(), "接口方法Enable和IsEnabled应正常工作")
 }
 
-// TestUUIDModel 测试UUID模型
-func (s *ModelTestSuite) TestUUIDModel() {
-	type Document struct {
-		UUIDModel
-		Title   string `json:"title"`
-		Content string `json:"content"`
+// TestBaseModel_WithGORM 测试BaseModel与GORM集成
+func TestBaseModel_WithGORM(t *testing.T) {
+	// 创建数据库
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	assert.NoError(t, err)
+
+	// 定义测试结构
+	type Product struct {
+		BaseModel
+		Name  string `gorm:"column:name"`
+		Price int    `gorm:"column:price"`
 	}
 
-	// 注意：实际使用时需要自己生成UUID
-	doc := &Document{
-		UUIDModel: UUIDModel{ID: "550e8400-e29b-41d4-a716-446655440000"},
-		Title:     "测试文档",
-		Content:   "这是一个测试文档",
-	}
-
-	assert.False(s.T(), doc.IsNew())
-	assert.Equal(s.T(), "550e8400-e29b-41d4-a716-446655440000", doc.GetID())
-}
-
-// TestTimestampModel 测试时间戳模型
-func (s *ModelTestSuite) TestTimestampModel() {
-	type Log struct {
-		TimestampModel
-		Message string `json:"message"`
-		Level   string `json:"level"`
-	}
-
-	log := &Log{
-		Message: "测试日志",
-		Level:   "INFO",
-	}
-
-	// 时间戳模型不应该有时间值（创建前）
-	assert.True(s.T(), log.CreatedAt.IsZero())
-	assert.True(s.T(), log.UpdatedAt.IsZero())
-}
-
-// TestAuditModel 测试审计模型
-func (s *ModelTestSuite) TestAuditModel() {
-	// 创建审计用户
-	auditUser := &AuditUser{
-		Name:  "审计用户",
-		Email: "audit@example.com",
-	}
-	auditUser.SetCreatedBy(1001)
-	auditUser.SetUpdatedBy(1001)
-	auditUser.Enable()
-	auditUser.SetRemark("需要审计的用户")
+	// 迁移表
+	err = db.AutoMigrate(&Product{})
+	assert.NoError(t, err)
 
 	// 创建记录
-	result := s.db.Create(auditUser)
-	assert.NoError(s.T(), result.Error)
-	assert.NotZero(s.T(), auditUser.ID)
-	assert.Equal(s.T(), uint(1001), auditUser.GetCreatedBy())
-	assert.Equal(s.T(), uint(1001), auditUser.GetUpdatedBy())
+	product := &Product{Name: "测试产品", Price: 100}
+	err = db.Create(product).Error
+	assert.NoError(t, err)
+	assert.Greater(t, product.ID, uint(0), "ID应被自动生成")
+	assert.NotZero(t, product.CreatedAt, "创建时间应被自动设置")
+	assert.NotZero(t, product.UpdatedAt, "更新时间应被自动设置")
+	assert.Equal(t, 1, product.Version, "默认版本应为1")
+	assert.Equal(t, int8(1), product.Status, "默认状态应为1")
 
 	// 更新记录
-	auditUser.Name = "更新后的审计用户"
-	auditUser.SetUpdatedBy(1002)
-	result = s.db.Save(auditUser)
-	assert.NoError(s.T(), result.Error)
-	assert.Equal(s.T(), uint(1001), auditUser.GetCreatedBy()) // 创建人不变
-	assert.Equal(s.T(), uint(1002), auditUser.GetUpdatedBy()) // 更新人改变
+	product.Name = "更新后的产品"
+	err = db.Save(product).Error
+	assert.NoError(t, err)
+	assert.Equal(t, 2, product.Version, "版本应自增")
 
-	// 验证审计接口
-	var am AuditableModel = auditUser
-	assert.Equal(s.T(), uint(1001), am.GetCreatedBy())
-	assert.Equal(s.T(), uint(1002), am.GetUpdatedBy())
+	// 软删除
+	err = db.Delete(product).Error
+	assert.NoError(t, err)
+	assert.True(t, product.IsDeleted(), "DeletedAt应被设置")
+
+	// 验证软删除后无法查询到
+	var count int64
+	db.Model(&Product{}).Count(&count)
+	assert.Equal(t, int64(0), count, "软删除后不应查询到记录")
+
+	// 包含已删除记录的查询
+	db.Unscoped().Model(&Product{}).Count(&count)
+	assert.Equal(t, int64(1), count, "Unscoped查询应能找到软删除的记录")
 }
 
-// TestRepositoryIntegration 测试Repository集成
-func (s *ModelTestSuite) TestRepositoryIntegration() {
-	ctx := context.Background()
+// TestAuditModel_WithGORM 测试AuditModel与GORM集成
+func TestAuditModel_WithGORM(t *testing.T) {
+	// 创建数据库
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	assert.NoError(t, err)
 
-	// 创建BaseRepository
-	dbHandler := &mockDBHandler{db: s.db}
-	userRepo := NewBaseRepository[User](dbHandler, "users")
-
-	// 创建用户
-	user := &User{
-		Name:  "Repository测试",
-		Email: "repo@example.com",
-		Age:   28,
+	// 定义测试结构
+	type Order struct {
+		AuditModel
+		OrderNo string `gorm:"column:order_no"`
+		Amount  int    `gorm:"column:amount"`
 	}
-	user.Enable()
-	user.SetRemark("通过Repository创建")
 
-	createdUser, err := userRepo.Create(ctx, user)
-	assert.NoError(s.T(), err)
-	assert.NotNil(s.T(), createdUser)
-	assert.NotZero(s.T(), createdUser.ID)
-	assert.True(s.T(), createdUser.IsEnabled())
-	assert.Equal(s.T(), "通过Repository创建", createdUser.Remark)
+	// 迁移表
+	err = db.AutoMigrate(&Order{})
+	assert.NoError(t, err)
 
-	// 获取用户
-	fetchedUser, err := userRepo.Get(ctx, createdUser.ID)
-	assert.NoError(s.T(), err)
-	assert.Equal(s.T(), createdUser.ID, fetchedUser.ID)
-	assert.Equal(s.T(), createdUser.Name, fetchedUser.Name)
+	// 创建订单
+	order := &Order{OrderNo: "ORD001", Amount: 500}
+	order.SetCreatedBy(1001)
+	err = db.Create(order).Error
+	assert.NoError(t, err)
+	assert.Greater(t, order.ID, uint(0), "ID应被自动生成")
+	assert.Equal(t, uint(1001), order.CreatedBy, "创建人ID应正确保存")
 
-	// 更新用户
-	fetchedUser.Age = 29
-	fetchedUser.Disable()
-	_, err = userRepo.Update(ctx, fetchedUser)
-	assert.NoError(s.T(), err)
+	// 更新订单
+	order.Amount = 600
+	order.SetUpdatedBy(1002)
+	err = db.Save(order).Error
+	assert.NoError(t, err)
+	assert.Equal(t, uint(1002), order.UpdatedBy, "更新人ID应正确保存")
+	assert.Equal(t, 2, order.Version, "版本应自增")
 
-	// 验证更新
-	updatedUser, err := userRepo.Get(ctx, fetchedUser.ID)
-	assert.NoError(s.T(), err)
-	assert.Equal(s.T(), 29, updatedUser.Age)
-	assert.False(s.T(), updatedUser.IsEnabled())
-	assert.Greater(s.T(), updatedUser.Version, 1)
+	// 查询验证
+	var savedOrder Order
+	err = db.First(&savedOrder, order.ID).Error
+	assert.NoError(t, err)
+	assert.Equal(t, uint(1001), savedOrder.GetCreatedBy(), "创建人ID应正确")
+	assert.Equal(t, uint(1002), savedOrder.GetUpdatedBy(), "更新人ID应正确")
 }
 
-// mockDBHandler 模拟数据库处理器
-type mockDBHandler struct {
-	db *gorm.DB
+// TestSimpleModel_WithGORM 测试SimpleModel与GORM集成
+func TestSimpleModel_WithGORM(t *testing.T) {
+	// 创建数据库
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	assert.NoError(t, err)
+
+	// 定义测试结构
+	type Category struct {
+		SimpleModel
+		Name string `gorm:"column:name"`
+	}
+
+	// 迁移表
+	err = db.AutoMigrate(&Category{})
+	assert.NoError(t, err)
+
+	// 创建记录
+	category := &Category{Name: "分类1"}
+	assert.True(t, category.IsNew(), "创建前应为新记录")
+
+	err = db.Create(category).Error
+	assert.NoError(t, err)
+	assert.Greater(t, category.ID, uint(0), "ID应被自动生成")
+	assert.False(t, category.IsNew(), "创建后不应为新记录")
+	assert.NotZero(t, category.CreatedAt, "创建时间应被自动设置")
+	assert.NotZero(t, category.UpdatedAt, "更新时间应被自动设置")
 }
 
-func (m *mockDBHandler) DB() *gorm.DB {
-	return m.db
+// TestLightModel_WithGORM 测试LightModel与GORM集成
+func TestLightModel_WithGORM(t *testing.T) {
+	// 创建数据库
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	assert.NoError(t, err)
+
+	// 定义测试结构
+	type Tag struct {
+		LightModel
+		Name string `gorm:"column:name"`
+	}
+
+	// 迁移表
+	err = db.AutoMigrate(&Tag{})
+	assert.NoError(t, err)
+
+	// 创建标签
+	tag := &Tag{Name: "标签1"}
+	err = db.Create(tag).Error
+	assert.NoError(t, err)
+	assert.Greater(t, tag.ID, uint(0), "ID应被自动生成")
+	assert.Equal(t, int8(1), tag.Status, "默认状态应为1")
+	assert.True(t, tag.IsEnabled(), "默认应为启用状态")
+
+	// 禁用标签
+	tag.Disable()
+	err = db.Save(tag).Error
+	assert.NoError(t, err)
+
+	// 查询验证
+	var savedTag Tag
+	err = db.First(&savedTag, tag.ID).Error
+	assert.NoError(t, err)
+	assert.False(t, savedTag.IsEnabled(), "应为禁用状态")
+	assert.Equal(t, int8(0), savedTag.Status, "状态应为0")
 }
 
-func (m *mockDBHandler) Transaction(ctx context.Context, fn func(context.Context) error) error {
-	return m.db.Transaction(func(tx *gorm.DB) error {
-		return fn(ctx)
-	})
+// TestUUIDModel_WithGORM 测试UUIDModel与GORM集成
+func TestUUIDModel_WithGORM(t *testing.T) {
+	// 创建数据库
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	assert.NoError(t, err)
+
+	// 定义测试结构
+	type Session struct {
+		UUIDModel
+		Token string `gorm:"column:token"`
+	}
+
+	// 迁移表
+	err = db.AutoMigrate(&Session{})
+	assert.NoError(t, err)
+
+	// 创建会话（手动设置UUID）
+	uuid := "123e4567-e89b-12d3-a456-426614174000"
+	session := &Session{
+		UUIDModel: UUIDModel{ID: uuid},
+		Token:     "test-token",
+	}
+	err = db.Create(session).Error
+	assert.NoError(t, err)
+	assert.Equal(t, uuid, session.ID, "UUID应正确保存")
+	assert.Equal(t, 1, session.Version, "默认版本应为1")
+
+	// 更新会话
+	session.Token = "updated-token"
+	err = db.Save(session).Error
+	assert.NoError(t, err)
+	assert.Equal(t, 2, session.Version, "版本应自增")
 }
 
-// TestSuite 运行测试套件
-func TestModelTestSuite(t *testing.T) {
-	suite.Run(t, new(ModelTestSuite))
+// TestUUIDModel_GetVersion 测试 UUIDModel GetVersion 方法
+func TestUUIDModel_GetVersion(t *testing.T) {
+	// 新模型版本为 1
+	model := &UUIDModel{Version: 1}
+	assert.Equal(t, 1, model.GetVersion())
+
+	// 更新后版本递增
+	model.Version = 5
+	assert.Equal(t, 5, model.GetVersion())
+}
+
+// TestUUIDModel_IsDeleted 测试 UUIDModel IsDeleted 方法
+func TestUUIDModel_IsDeleted(t *testing.T) {
+	// 未删除状态
+	model := &UUIDModel{}
+	assert.False(t, model.IsDeleted())
+
+	// 已删除状态
+	now := time.Now()
+	model.DeletedAt = gorm.DeletedAt{Time: now, Valid: true}
+	assert.True(t, model.IsDeleted())
 }

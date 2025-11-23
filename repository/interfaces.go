@@ -1,10 +1,10 @@
 /*
  * @Author: kamalyes 501893067@qq.com
- * @Date: 2025-11-10 01:00:00
+ * @Date: 2025-11-11 00:00:00
  * @LastEditors: kamalyes 501893067@qq.com
- * @LastEditTime: 2025-11-11 09:20:54
+ * @LastEditTime: 2025-11-23 00:00:00
  * @FilePath: \go-sqlbuilder\repository\interfaces.go
- * @Description:
+ * @Description: 核心接口定义 - Repository、Transaction、Query 等
  *
  * Copyright (c) 2025 by kamalyes, All Rights Reserved.
  */
@@ -12,199 +12,17 @@ package repository
 
 import (
 	"context"
-	"github.com/kamalyes/go-sqlbuilder/cache"
-	"github.com/kamalyes/go-sqlbuilder/constant"
-	"github.com/kamalyes/go-sqlbuilder/core"
-	"github.com/kamalyes/go-sqlbuilder/meta"
-	"time"
 )
 
-// Filter 过滤条件（复用 core.Filter）
-type Filter = core.Filter
-
-// Order 排序条件
-type Order struct {
-	Field     string
-	Direction string // "ASC" or "DESC"
-}
-
-// Query 查询条件
-type Query struct {
-	Filters     []*Filter
-	Orders      []Order
-	Pagination  *meta.Paging
-	LimitValue  *int
-	OffsetValue *int
-}
-
-// NewEqFilter 创建等于过滤条件
-func NewEqFilter(field string, value interface{}) *Filter {
-	return &Filter{Field: field, Operator: constant.OP_EQ, Value: value}
-}
-
-// NewGtFilter 创建大于过滤条件
-func NewGtFilter(field string, value interface{}) *Filter {
-	return &Filter{Field: field, Operator: constant.OP_GT, Value: value}
-}
-
-// NewLtFilter 创建小于过滤条件
-func NewLtFilter(field string, value interface{}) *Filter {
-	return &Filter{Field: field, Operator: constant.OP_LT, Value: value}
-}
-
-// NewGteFilter 创建大于等于过滤条件
-func NewGteFilter(field string, value interface{}) *Filter {
-	return &Filter{Field: field, Operator: constant.OP_GTE, Value: value}
-}
-
-// NewLteFilter 创建小于等于过滤条件
-func NewLteFilter(field string, value interface{}) *Filter {
-	return &Filter{Field: field, Operator: constant.OP_LTE, Value: value}
-}
-
-// NewInFilter 创建 IN 过滤条件
-func NewInFilter(field string, values ...interface{}) *Filter {
-	return &Filter{Field: field, Operator: constant.OP_IN, Value: values}
-}
-
-// NewLikeFilter 创建 LIKE 过滤条件
-func NewLikeFilter(field string, value string) *Filter {
-	return &Filter{Field: field, Operator: constant.OP_LIKE, Value: "%" + value + "%"}
-}
-
-// NewNeqFilter 创建不等于过滤条件
-func NewNeqFilter(field string, value interface{}) *Filter {
-	return &Filter{Field: field, Operator: constant.OP_NEQ, Value: value}
-}
-
-// NewBetweenFilter 创建 BETWEEN 过滤条件
-func NewBetweenFilter(field string, min, max interface{}) *Filter {
-	return &Filter{Field: field, Operator: constant.OP_BETWEEN, Value: []interface{}{min, max}}
-}
-
-// NewNotInFilter 创建 NOT IN 过滤条件
-func NewNotInFilter(field string, values ...interface{}) *Filter {
-	return &Filter{Field: field, Operator: constant.OP_NOT_IN, Value: values}
-}
-
-// NewIsNullFilter 创建 IS NULL 过滤条件
-func NewIsNullFilter(field string) *Filter {
-	return &Filter{Field: field, Operator: constant.OP_IS_NULL, Value: nil}
-}
-
-// NewIsNotNullFilter 创建 IS NOT NULL 过滤条件
-func NewIsNotNullFilter(field string) *Filter {
-	return &Filter{Field: field, Operator: constant.OP_IS_NOT_NULL, Value: nil}
-}
-
-// NewStartsWithFilter 创建前缀匹配过滤条件
-func NewStartsWithFilter(field string, value string) *Filter {
-	return &Filter{Field: field, Operator: constant.OP_LIKE, Value: value + "%"}
-}
-
-// NewEndsWithFilter 创建后缀匹配过滤条件
-func NewEndsWithFilter(field string, value string) *Filter {
-	return &Filter{Field: field, Operator: constant.OP_LIKE, Value: "%" + value}
-}
-
-// NewContainsFilter 创建包含匹配过滤条件（与 NewLikeFilter 相同）
-func NewContainsFilter(field string, value string) *Filter {
-	return NewLikeFilter(field, value)
-}
-
-// NewQuery 创建查询条件
-func NewQuery() *Query {
-	return &Query{
-		Filters: make([]*Filter, 0),
-		Orders:  make([]Order, 0),
-	}
-}
-
-// FindOptions 兼容旧API的查询选项结构
-type FindOptions struct {
-	Conditions []Condition
-	Orders     []OrderBy
-	Limit      int
-	Offset     int
-}
-
-// Condition 查询条件结构
-type Condition struct {
-	Field string
-	Op    constant.Operator
-	Value interface{}
-}
-
-// OrderBy 排序条件结构
-type OrderBy struct {
-	Field     string
-	Direction string
-}
-
-// AddFilter 添加过滤条件
-func (q *Query) AddFilter(filter *Filter) *Query {
-	if filter != nil {
-		q.Filters = append(q.Filters, filter)
-	}
-	return q
-}
-
-// AddFilters 批量添加过滤条件
-func (q *Query) AddFilters(filters ...*Filter) *Query {
-	for _, f := range filters {
-		q.AddFilter(f)
-	}
-	return q
-}
-
-// AddOrder 添加排序条件
-func (q *Query) AddOrder(field, direction string) *Query {
-	q.Orders = append(q.Orders, Order{Field: field, Direction: direction})
-	return q
-}
-
-// WithPaging 设置分页条件
-func (q *Query) WithPaging(page, pageSize int) *Query {
-	if page <= 0 {
-		page = 1
-	}
-	if pageSize <= 0 {
-		pageSize = 10
-	}
-	q.Pagination = &meta.Paging{
-		Page:     int32(page),
-		PageSize: int32(pageSize),
-	}
-	return q
-}
-
-// Limit 设置查询限制数量
-func (q *Query) Limit(limit int) *Query {
-	q.LimitValue = &limit
-	return q
-}
-
-// Offset 设置查询偏移量
-func (q *Query) Offset(offset int) *Query {
-	q.OffsetValue = &offset
-	return q
-}
-
 // Transaction 事务接口
-type Transaction interface {
+type Transaction[T any] interface {
 	// 执行事务内的操作
-	Create(ctx context.Context, entity interface{}) error
-	CreateBatch(ctx context.Context, entities ...interface{}) error
-	Update(ctx context.Context, entity interface{}) error
-	UpdateBatch(ctx context.Context, entities ...interface{}) error
-	Delete(ctx context.Context, entity interface{}) error
-	DeleteBatch(ctx context.Context, entities ...interface{}) error
-}
-
-// CacheConfig 缓存配置
-type CacheConfig struct {
-	Enabled bool
-	TTL     time.Duration
+	Create(ctx context.Context, entity *T) error
+	CreateBatch(ctx context.Context, entities ...*T) error
+	Update(ctx context.Context, entity *T) error
+	UpdateBatch(ctx context.Context, entities ...*T) error
+	Delete(ctx context.Context, entity *T) error
+	DeleteBatch(ctx context.Context, entities ...*T) error
 }
 
 // Repository 通用仓储接口
@@ -222,7 +40,7 @@ type Repository[T any] interface {
 	Last(ctx context.Context, filters ...*Filter) (*T, error)
 	FindOne(ctx context.Context, filters ...*Filter) (*T, error)
 	List(ctx context.Context, query *Query) ([]*T, error)
-	ListWithPagination(ctx context.Context, query *Query, page *meta.Paging) ([]*T, *meta.Paging, error)
+	ListWithPagination(ctx context.Context, query *Query, page *Pagination) ([]*T, *Pagination, error)
 
 	// 更新
 	Update(ctx context.Context, entity *T) (*T, error)
@@ -242,7 +60,7 @@ type Repository[T any] interface {
 	RestoreBatch(ctx context.Context, ids []interface{}, field string, restoreValue interface{}) error
 
 	// 事务
-	Transaction(ctx context.Context, fn func(tx Transaction) error) error
+	Transaction(ctx context.Context, fn func(tx Transaction[T]) error) error
 
 	// 工具方法
 	Count(ctx context.Context, filters ...*Filter) (int64, error)
@@ -252,53 +70,27 @@ type Repository[T any] interface {
 	Distinct(ctx context.Context, field string, filters ...*Filter) ([]interface{}, error)
 }
 
-// CacheManager 缓存管理接口
-type CacheManager interface {
-	// 获取
-	Get(ctx context.Context, key string) (interface{}, error)
+// SoftDeleteHelper 软删除辅助接口
+type SoftDeleteHelper[T any] interface {
+	// 使用 deleted_at 字段的软删除
+	SoftDeleteWithDeletedAt(ctx context.Context, id interface{}) error
+	SoftDeleteBatchWithDeletedAt(ctx context.Context, ids []interface{}) error
+	SoftDeleteByFiltersWithDeletedAt(ctx context.Context, filters ...*Filter) error
+	RestoreWithDeletedAt(ctx context.Context, id interface{}) error
+	RestoreBatchWithDeletedAt(ctx context.Context, ids []interface{}) error
 
-	// 设置
-	Set(ctx context.Context, key string, value interface{}, ttl time.Duration) error
-
-	// 删除
-	Delete(ctx context.Context, keys ...string) error
-
-	// 删除匹配的键
-	DeletePattern(ctx context.Context, pattern string) error
-
-	// 检查存在
-	Exists(ctx context.Context, key string) (bool, error)
-
-	// 获取 TTL
-	TTL(ctx context.Context, key string) (time.Duration, error)
-
-	// 批量操作
-	BatchGet(ctx context.Context, keys ...string) (map[string]interface{}, error)
-	BatchSet(ctx context.Context, items map[string]interface{}, ttl time.Duration) error
-	BatchDelete(ctx context.Context, keys ...string) error
-}
-
-// CachedRepository 带缓存的仓储接口
-type CachedRepository[T cache.Cacheable] interface {
-	Repository[T]
-
-	// 带缓存的操作
-	GetWithCache(ctx context.Context, id interface{}) (*T, error)
-	CreateWithCache(ctx context.Context, entity *T) (*T, error)
-	UpdateWithCache(ctx context.Context, entity *T) (*T, error)
-	DeleteWithCache(ctx context.Context, id interface{}) error
-	ListWithCache(ctx context.Context, cacheKey string, ttl time.Duration, query *Query) ([]*T, error)
-	GetOrLoad(ctx context.Context, cacheKey string, ttl time.Duration, loadFn func() (*T, error)) (*T, error)
-
-	// 缓存管理
-	InvalidateCache(ctx context.Context, keys ...string) error
-	InvalidateCacheByEntities(ctx context.Context, entities ...*T) error
+	// 使用 is_deleted 字段的软删除
+	SoftDeleteWithIsDeleted(ctx context.Context, id interface{}) error
+	SoftDeleteBatchWithIsDeleted(ctx context.Context, ids []interface{}) error
+	SoftDeleteByFiltersWithIsDeleted(ctx context.Context, filters ...*Filter) error
+	RestoreWithIsDeleted(ctx context.Context, id interface{}) error
+	RestoreBatchWithIsDeleted(ctx context.Context, ids []interface{}) error
 }
 
 // RepositoryFactory 仓储工厂接口
-type RepositoryFactory interface {
-	// 缓存管理
-	CacheManager() CacheManager
+type RepositoryFactory[T any] interface {
+	// 创建仓储
+	CreateRepository(table string) Repository[T]
 
 	// 关闭工厂
 	Close() error
