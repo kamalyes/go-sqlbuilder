@@ -1,3 +1,13 @@
+/*
+ * @Author: kamalyes 501893067@qq.com
+ * @Date: 2025-11-23 00:00:00
+ * @LastEditors: kamalyes 501893067@qq.com
+ * @LastEditTime: 2025-11-23 22:50:00
+ * @FilePath: \go-sqlbuilder\mapopt.go
+ * @Description: Map类型扩展 - MapAny、MapString、StringSlice的数据库序列化
+ *
+ * Copyright (c) 2025 by kamalyes, All Rights Reserved.
+ */
 package sqlbuilder
 
 import (
