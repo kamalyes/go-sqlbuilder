@@ -1,3 +1,13 @@
+/*
+ * @Author: kamalyes 501893067@qq.com
+ * @Date: 2025-11-23 00:00:00
+ * @LastEditors: kamalyes 501893067@qq.com
+ * @LastEditTime: 2025-11-23 23:55:48
+ * @FilePath: \go-sqlbuilder\helpers_test.go
+ * @Description: 仓储辅助工具 - 软删除、查询辅助等功能
+ *
+ * Copyright (c) 2025 by kamalyes, All Rights Reserved.
+ */
 package sqlbuilder
 
 import (
@@ -370,4 +380,312 @@ func TestSoftDeleteHelpersWithOrdering(t *testing.T) {
 	assert.Equal(t, "Bob", deletedOrderedByAge[0].Name)   // 35岁
 	assert.Equal(t, "Zoe", deletedOrderedByAge[1].Name)   // 30岁
 	assert.Equal(t, "Alice", deletedOrderedByAge[2].Name) // 25岁
+}
+
+// TestRepositoryWithSoftDelete_DeletedAt 测试使用 deleted_at 的软删除仓储
+func TestRepositoryWithSoftDelete_DeletedAt(t *testing.T) {
+	gormDB, err := setupTestDB()
+	assert.NoError(t, err)
+
+	dbHandler := MustNewGormHandler(gormDB)
+	baseRepo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+
+	// 创建软删除仓储
+	repo := NewRepositoryWithSoftDelete(baseRepo)
+	ctx := context.Background()
+
+	// 创建测试数据
+	users := []*TestUser{
+		{Name: "User1", Email: "user1@soft.com", Age: 25, Status: "active"},
+		{Name: "User2", Email: "user2@soft.com", Age: 30, Status: "active"},
+		{Name: "User3", Email: "user3@soft.com", Age: 35, Status: "active"},
+	}
+
+	var userIDs []uint
+	for _, user := range users {
+		createdUser, err := baseRepo.Create(ctx, user)
+		assert.NoError(t, err)
+		userIDs = append(userIDs, createdUser.ID)
+	}
+
+	// 测试单个软删除
+	err = repo.SoftDeleteWithDeletedAt(ctx, userIDs[0])
+	assert.NoError(t, err)
+
+	// 验证软删除成功
+	deleted, err := GetDeleted[TestUser](ctx, gormDB, nil)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(deleted))
+	assert.Equal(t, "User1", deleted[0].Name)
+
+	// 测试恢复
+	err = repo.RestoreWithDeletedAt(ctx, userIDs[0])
+	assert.NoError(t, err)
+
+	// 验证恢复成功
+	deleted, err = GetDeleted[TestUser](ctx, gormDB, nil)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(deleted))
+
+	// 测试批量软删除
+	ids := []interface{}{userIDs[0], userIDs[1]}
+	err = repo.SoftDeleteBatchWithDeletedAt(ctx, ids)
+	assert.NoError(t, err)
+
+	// 验证批量软删除成功
+	deleted, err = GetDeleted[TestUser](ctx, gormDB, nil)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(deleted))
+
+	// 测试批量恢复
+	err = repo.RestoreBatchWithDeletedAt(ctx, ids)
+	assert.NoError(t, err)
+
+	// 验证批量恢复成功
+	deleted, err = GetDeleted[TestUser](ctx, gormDB, nil)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(deleted))
+
+	// 测试按条件软删除
+	filters := []*Filter{
+		{Field: "name", Operator: OP_EQ, Value: "User1"},
+	}
+	err = repo.SoftDeleteByFiltersWithDeletedAt(ctx, filters...)
+	assert.NoError(t, err)
+
+	// 验证按条件软删除成功
+	deleted, err = GetDeleted[TestUser](ctx, gormDB, nil)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(deleted))
+	assert.Equal(t, "User1", deleted[0].Name)
+}
+
+// TestRepositoryWithSoftDelete_ListMethods 测试列表查询方法
+func TestRepositoryWithSoftDelete_ListMethods(t *testing.T) {
+	gormDB, err := setupTestDB()
+	assert.NoError(t, err)
+
+	dbHandler := MustNewGormHandler(gormDB)
+	baseRepo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+
+	// 创建软删除仓储
+	repo := NewRepositoryWithSoftDelete(baseRepo)
+	ctx := context.Background()
+
+	// 创建测试数据
+	users := []*TestUser{
+		{Name: "ActiveUser1", Email: "active1@list.com", Age: 25, Status: "active"},
+		{Name: "ActiveUser2", Email: "active2@list.com", Age: 30, Status: "active"},
+		{Name: "DeletedUser", Email: "deleted@list.com", Age: 35, Status: "inactive"},
+	}
+
+	var userIDs []uint
+	for _, user := range users {
+		createdUser, err := baseRepo.Create(ctx, user)
+		assert.NoError(t, err)
+		userIDs = append(userIDs, createdUser.ID)
+	}
+
+	// 软删除第三个用户
+	err = repo.SoftDeleteWithDeletedAt(ctx, userIDs[2])
+	assert.NoError(t, err)
+
+	// 测试 ListNotDeleted
+	query := NewQuery().AddOrder("id", "ASC")
+	notDeleted, err := repo.ListNotDeleted(ctx, query)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(notDeleted), "应该有2个未删除的用户")
+	if len(notDeleted) >= 2 {
+		assert.Equal(t, "ActiveUser1", notDeleted[0].Name)
+		assert.Equal(t, "ActiveUser2", notDeleted[1].Name)
+	}
+
+	// 测试 ListDeleted
+	deletedQuery := NewQuery().AddOrder("id", "ASC")
+	deleted, err := repo.ListDeleted(ctx, deletedQuery)
+	assert.NoError(t, err)
+	assert.GreaterOrEqual(t, len(deleted), 1, "应该至少有1个已删除的用户")
+	if len(deleted) > 0 {
+		assert.Equal(t, "DeletedUser", deleted[0].Name)
+	}
+
+	// 测试带过滤条件的 ListNotDeleted
+	queryWithFilter := NewQuery().
+		AddFilter(&Filter{
+			Field:    "age",
+			Operator: OP_GT,
+			Value:    25,
+		}).
+		AddOrder("id", "ASC")
+	notDeletedFiltered, err := repo.ListNotDeleted(ctx, queryWithFilter)
+	assert.NoError(t, err)
+	assert.GreaterOrEqual(t, len(notDeletedFiltered), 1, "应该至少有1个符合条件的用户")
+	if len(notDeletedFiltered) > 0 {
+		assert.Equal(t, "ActiveUser2", notDeletedFiltered[0].Name)
+	}
+}
+
+// TestNewRepositoryWithSoftDelete 测试创建软删除仓储
+func TestNewRepositoryWithSoftDelete(t *testing.T) {
+	gormDB, err := setupTestDB()
+	assert.NoError(t, err)
+
+	dbHandler := MustNewGormHandler(gormDB)
+	baseRepo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+
+	// 测试创建软删除仓储
+	repo := NewRepositoryWithSoftDelete(baseRepo)
+	assert.NotNil(t, repo)
+	assert.NotNil(t, repo.BaseRepository)
+	assert.Equal(t, baseRepo, repo.BaseRepository)
+}
+
+// TestGormHandler_IsConnected 测试数据库连接检测
+func TestGormHandler_IsConnected(t *testing.T) {
+	gormDB, err := setupTestDB()
+	assert.NoError(t, err)
+
+	dbHandler := MustNewGormHandler(gormDB)
+
+	// 测试正常连接
+	assert.True(t, dbHandler.IsConnected())
+
+	// 测试 nil DB
+	nilHandler := &GormHandler{db: nil}
+	assert.False(t, nilHandler.IsConnected())
+}
+
+// TestRepositoryWithSoftDelete_IsDeletedMethods 测试 is_deleted 字段的软删除方法
+func TestRepositoryWithSoftDelete_IsDeletedMethods(t *testing.T) {
+	gormDB, err := setupTestDB()
+	assert.NoError(t, err)
+
+	// 自动迁移创建表
+	err = gormDB.AutoMigrate(&TestUserWithIsDeleted{})
+	assert.NoError(t, err)
+
+	dbHandler := MustNewGormHandler(gormDB)
+	baseRepo := NewBaseRepository[TestUserWithIsDeleted](dbHandler, logger.NewLogger(nil), "test_users_is_deleted")
+	repo := NewRepositoryWithSoftDelete(baseRepo)
+
+	ctx := context.Background()
+
+	// 创建测试数据
+	user1 := &TestUserWithIsDeleted{Name: "User1", Email: "user1@test.com"}
+	user2 := &TestUserWithIsDeleted{Name: "User2", Email: "user2@test.com"}
+	user3 := &TestUserWithIsDeleted{Name: "User3", Email: "user3@test.com"}
+
+	_, err = repo.Create(ctx, user1)
+	assert.NoError(t, err)
+	_, err = repo.Create(ctx, user2)
+	assert.NoError(t, err)
+	_, err = repo.Create(ctx, user3)
+	assert.NoError(t, err)
+
+	// 测试 SoftDeleteWithIsDeleted
+	err = repo.SoftDeleteWithIsDeleted(ctx, user1.ID)
+	assert.NoError(t, err)
+
+	found, err := repo.BaseRepository.FindOne(ctx, NewEqFilter("id", user1.ID))
+	assert.NoError(t, err)
+	assert.NotNil(t, found)
+	assert.Equal(t, 1, found.IsDeleted)
+
+	// 测试 SoftDeleteBatchWithIsDeleted
+	err = repo.SoftDeleteBatchWithIsDeleted(ctx, []interface{}{user2.ID})
+	assert.NoError(t, err)
+
+	found, err = repo.BaseRepository.FindOne(ctx, NewEqFilter("id", user2.ID))
+	assert.NoError(t, err)
+	assert.NotNil(t, found)
+	assert.Equal(t, 1, found.IsDeleted)
+
+	// 测试 ListDeletedByIsDeleted
+	query := NewQuery()
+	deleted, err := repo.ListDeletedByIsDeleted(ctx, query)
+	assert.NoError(t, err)
+	assert.GreaterOrEqual(t, len(deleted), 2)
+
+	// 测试 ListNotDeletedByIsDeleted (新的 Query 实例)
+	query2 := NewQuery()
+	notDeleted, err := repo.ListNotDeletedByIsDeleted(ctx, query2)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(notDeleted)) // user3 未删除
+
+	// 测试 RestoreWithIsDeleted
+	err = repo.RestoreWithIsDeleted(ctx, user1.ID)
+	assert.NoError(t, err)
+
+	found, err = repo.BaseRepository.FindOne(ctx, NewEqFilter("id", user1.ID))
+	assert.NoError(t, err)
+	assert.NotNil(t, found)
+	assert.Equal(t, 0, found.IsDeleted)
+
+	// 测试 RestoreBatchWithIsDeleted
+	err = repo.RestoreBatchWithIsDeleted(ctx, []interface{}{user2.ID})
+	assert.NoError(t, err)
+
+	found, err = repo.BaseRepository.FindOne(ctx, NewEqFilter("id", user2.ID))
+	assert.NoError(t, err)
+	assert.NotNil(t, found)
+	assert.Equal(t, 0, found.IsDeleted)
+
+	// 测试 SoftDeleteByFiltersWithIsDeleted
+	filters := []*Filter{NewEqFilter("name", "User3")}
+	err = repo.SoftDeleteByFiltersWithIsDeleted(ctx, filters...)
+	assert.NoError(t, err)
+
+	found, err = repo.BaseRepository.FindOne(ctx, NewEqFilter("id", user3.ID))
+	assert.NoError(t, err)
+	assert.NotNil(t, found)
+	assert.Equal(t, 1, found.IsDeleted)
+}
+
+// TestUserWithIsDeleted is_deleted 字段的测试模型
+type TestUserWithIsDeleted struct {
+	ID        uint   `gorm:"primarykey"`
+	Name      string `gorm:"size:100;not null"`
+	Email     string `gorm:"size:100"`
+	IsDeleted int    `gorm:"default:0;index"` // 0=未删除, 1=已删除
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+func (TestUserWithIsDeleted) TableName() string {
+	return "test_users_is_deleted"
+}
+
+// TestRepositoryWithSoftDelete_ListDeletedAndNotDeleted 测试 ListDeleted 和 ListNotDeleted 方法
+func TestRepositoryWithSoftDelete_ListDeletedAndNotDeleted(t *testing.T) {
+	gormDB, err := setupTestDB()
+	assert.NoError(t, err)
+
+	dbHandler := MustNewGormHandler(gormDB)
+	baseRepo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewRepositoryWithSoftDelete(baseRepo)
+
+	ctx := context.Background()
+
+	// 创建测试数据
+	user1 := &TestUser{Name: "User1", Email: "user1@test.com", Age: 25}
+	user2 := &TestUser{Name: "User2", Email: "user2@test.com", Age: 30}
+
+	_, err = repo.Create(ctx, user1)
+	assert.NoError(t, err)
+	_, err = repo.Create(ctx, user2)
+	assert.NoError(t, err)
+
+	// 软删除一个用户
+	err = repo.SoftDeleteWithDeletedAt(ctx, user1.ID)
+	assert.NoError(t, err)
+
+	// 测试 ListDeleted (nil query)
+	deleted, err := repo.ListDeleted(ctx, nil)
+	assert.NoError(t, err)
+	assert.GreaterOrEqual(t, len(deleted), 1)
+
+	// 测试 ListNotDeleted (nil query)
+	notDeleted, err := repo.ListNotDeleted(ctx, nil)
+	assert.NoError(t, err)
+	assert.GreaterOrEqual(t, len(notDeleted), 1)
 }

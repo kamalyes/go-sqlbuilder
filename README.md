@@ -2,7 +2,7 @@
  * @Author: kamalyes 501893067@qq.com
  * @Date: 2025-11-23 22:53:25
  * @LastEditors: kamalyes 501893067@qq.com
- * @LastEditTime: 2025-11-23 22:55:12
+ * @LastEditTime: 2025-11-23 23:09:39
  * @FilePath: \go-sqlbuilder\README.md
  * @Description: 
  * 
@@ -251,6 +251,8 @@ go test ./... -v
 
 # 测试覆盖率
 go test ./... -cover
+go test -coverprofile=coverage -covermode=atomic
+go tool cover -func=coverage
 
 # 运行特定测试
 go test -v -run TestBaseRepository

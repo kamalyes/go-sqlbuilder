@@ -112,6 +112,14 @@ func (m *UUIDModel) IsNew() bool {
 	return m.ID == ""
 }
 
+func (m *UUIDModel) GetVersion() int {
+	return m.Version
+}
+
+func (m *UUIDModel) IsDeleted() bool {
+	return m.DeletedAt.Valid
+}
+
 func (m *UUIDModel) BeforeUpdate(tx *gorm.DB) error {
 	m.Version++
 	return nil

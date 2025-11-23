@@ -2,7 +2,7 @@
  * @Author: kamalyes 501893067@qq.com
  * @Date: 2025-11-23 15:45:00
  * @LastEditors: kamalyes 501893067@qq.com
- * @LastEditTime: 2025-11-23 22:42:33
+ * @LastEditTime: 2025-11-23 23:57:00
  * @FilePath: \go-sqlbuilder\base_test.go
  * @Description:
  *
