@@ -48,10 +48,10 @@ func TestPagination_GetLimit(t *testing.T) {
 
 	// 测试边界情况
 	pageZero := &Pagination{PageSize: 0}
-	assert.Equal(t, 10, pageZero.GetLimit()) // PageSize<=0 会被设为 10
+	assert.Equal(t, 20, pageZero.GetLimit()) // PageSize<=0 会被设为 DefaultPageSize=20
 
 	pageNegative := &Pagination{PageSize: -5}
-	assert.Equal(t, 10, pageNegative.GetLimit()) // PageSize<=0 会被设为 10
+	assert.Equal(t, 20, pageNegative.GetLimit()) // PageSize<=0 会被设为 DefaultPageSize=20
 }
 
 // TestPagination_GetTotalPages 测试 Pagination GetTotalPages 方法
@@ -98,8 +98,9 @@ func TestGetLimit(t *testing.T) {
 	p.PageSize = 5
 	assert.Equal(t, 5, p.GetLimit())
 
-	p.PageSize = constants.MinPageSize - 1
-	assert.Equal(t, constants.MinPageSize, p.GetLimit()) // 应用最小值限制
+	// MinPageSize = 1，所以测试 PageSize = 0 应用默认值
+	p.PageSize = 0
+	assert.Equal(t, constants.DefaultPageSize, p.GetLimit()) // PageSize<=0 先设为 DefaultPageSize
 
 	p.PageSize = constants.MaxPageSize + 1
 	assert.Equal(t, constants.MaxPageSize, p.GetLimit()) // 应用最大值限制

@@ -167,3 +167,101 @@ func (q *Query) flattenFilters(group *FilterGroup) []*Filter {
 
 	return filters
 }
+
+// AddFilterIfNotEmpty 添加过滤条件（仅当值不为空时）
+// 支持泛型自动处理不同类型的值
+func (q *Query) AddFilterIfNotEmpty(field string, value interface{}) *Query {
+	if value == nil {
+		return q
+	}
+
+	switch v := value.(type) {
+	case string:
+		if v != "" {
+			q.AddFilter(NewEqFilter(field, v))
+		}
+	case *string:
+		if v != nil && *v != "" {
+			q.AddFilter(NewEqFilter(field, *v))
+		}
+	case []string:
+		if len(v) > 0 {
+			values := make([]interface{}, len(v))
+			for i, s := range v {
+				values[i] = s
+			}
+			q.AddFilter(NewInFilterSlice(field, values))
+		}
+	case []int:
+		if len(v) > 0 {
+			values := make([]interface{}, len(v))
+			for i, n := range v {
+				values[i] = n
+			}
+			q.AddFilter(NewInFilterSlice(field, values))
+		}
+	case []int32:
+		if len(v) > 0 {
+			values := make([]interface{}, len(v))
+			for i, n := range v {
+				values[i] = n
+			}
+			q.AddFilter(NewInFilterSlice(field, values))
+		}
+	case []int64:
+		if len(v) > 0 {
+			values := make([]interface{}, len(v))
+			for i, n := range v {
+				values[i] = n
+			}
+			q.AddFilter(NewInFilterSlice(field, values))
+		}
+	case int, int32, int64, uint, uint32, uint64:
+		q.AddFilter(NewEqFilter(field, v))
+	case bool:
+		q.AddFilter(NewEqFilter(field, v))
+	default:
+		// 处理枚举类型（通过反射）
+		// 尝试将切片类型转换为 []interface{}
+		if IsSliceType(v) {
+			if slice := ConvertToInterfaceSlice(v); len(slice) > 0 {
+				q.AddFilter(NewInFilterSlice(field, slice))
+			}
+		} else {
+			// 单个枚举值或其他类型
+			q.AddFilter(NewEqFilter(field, v))
+		}
+	}
+	return q
+}
+
+// AddLikeFilterIfNotEmpty 添加 LIKE 过滤条件（仅当关键词不为空时）
+func (q *Query) AddLikeFilterIfNotEmpty(field, keyword string) *Query {
+	if keyword != "" {
+		q.AddFilter(NewContainsFilter(field, keyword))
+	}
+	return q
+}
+
+// AddTimeRangeFilter 添加时间范围过滤条件
+func (q *Query) AddTimeRangeFilter(field string, startTime, endTime interface{}) *Query {
+	if startTime != nil {
+		q.AddFilter(NewGteFilter(field, startTime))
+	}
+	if endTime != nil {
+		q.AddFilter(NewLteFilter(field, endTime))
+	}
+	return q
+}
+
+// AddInFilterIfNotEmpty 添加 IN 过滤条件（仅当切片不为空时）
+func (q *Query) AddInFilterIfNotEmpty(field string, values interface{}) *Query {
+	if values == nil {
+		return q
+	}
+
+	if slice := ConvertToInterfaceSlice(values); len(slice) > 0 {
+		q.AddFilter(NewInFilterSlice(field, slice))
+	}
+	return q
+}

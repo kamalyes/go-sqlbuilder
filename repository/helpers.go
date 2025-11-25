@@ -13,12 +13,47 @@ package repository
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"strings"
 	"time"
 
 	"github.com/kamalyes/go-sqlbuilder/constants"
 	"gorm.io/gorm"
 )
+
+// === 反射辅助函数 ===
+
+// IsSliceType 判断是否为切片类型
+func IsSliceType(value interface{}) bool {
+	if value == nil {
+		return false
+	}
+	rv := reflect.ValueOf(value)
+	return rv.Kind() == reflect.Slice || rv.Kind() == reflect.Array
+}
+
+// ConvertToInterfaceSlice 将任意切片类型转换为 []interface{}
+func ConvertToInterfaceSlice(value interface{}) []interface{} {
+	if value == nil {
+		return nil
+	}
+
+	rv := reflect.ValueOf(value)
+	if rv.Kind() != reflect.Slice && rv.Kind() != reflect.Array {
+		return nil
+	}
+
+	length := rv.Len()
+	if length == 0 {
+		return nil
+	}
+
+	result := make([]interface{}, length)
+	for i := 0; i < length; i++ {
+		result[i] = rv.Index(i).Interface()
+	}
+	return result
+}
 
 // === 独立辅助函数 ===
 
