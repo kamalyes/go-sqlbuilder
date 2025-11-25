@@ -128,6 +128,14 @@ func NewInFilter(field string, values ...interface{}) *Filter {
 	return &Filter{Field: field, Operator: constants.OP_IN, Value: values}
 }
 
+// NewInFilterSlice 创建 IN 过滤条件（使用切片参数）
+func NewInFilterSlice(field string, values []interface{}) *Filter {
+	if values == nil {
+		values = make([]interface{}, 0)
+	}
+	return &Filter{Field: field, Operator: constants.OP_IN, Value: values}
+}
+
 // NewLikeFilter 创建 LIKE 过滤条件
 func NewLikeFilter(field string, value string) *Filter {
 	return &Filter{Field: field, Operator: constants.OP_LIKE, Value: "%" + value + "%"}
@@ -145,6 +153,14 @@ func NewBetweenFilter(field string, min, max interface{}) *Filter {
 
 // NewNotInFilter 创建 NOT IN 过滤条件
 func NewNotInFilter(field string, values ...interface{}) *Filter {
+	if values == nil {
+		values = make([]interface{}, 0)
+	}
+	return &Filter{Field: field, Operator: constants.OP_NOT_IN, Value: values}
+}
+
+// NewNotInFilterSlice 创建 NOT IN 过滤条件（使用切片参数）
+func NewNotInFilterSlice(field string, values []interface{}) *Filter {
 	if values == nil {
 		values = make([]interface{}, 0)
 	}
