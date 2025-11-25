@@ -11,9 +11,10 @@
 package repository
 
 import (
-	"testing"
-
+	"github.com/kamalyes/go-sqlbuilder/constants"
 	"github.com/stretchr/testify/assert"
+	"testing"
+	"time"
 )
 
 // TestPagination_GetOffset 测试 Pagination GetOffset 方法
@@ -74,4 +75,121 @@ func TestPagination_GetTotalPages(t *testing.T) {
 
 	pageNegative := &Pagination{Total: 100, PageSize: -10}
 	assert.Equal(t, int64(0), pageNegative.GetTotalPages()) // PageSize<=0 返回 0
+}
+
+func TestGetOffset(t *testing.T) {
+	p := &Pagination{Page: 1, PageSize: 10}
+	assert.Equal(t, 0, p.GetOffset())
+
+	p.Page = 2
+	assert.Equal(t, 10, p.GetOffset())
+
+	p.Page = -1
+	assert.Equal(t, 0, p.GetOffset()) // 默认 Page 应为 1
+
+	p.Page = 0
+	assert.Equal(t, 0, p.GetOffset()) // 默认 Page 应为 1
+}
+
+func TestGetLimit(t *testing.T) {
+	p := &Pagination{PageSize: 0}
+	assert.Equal(t, constants.DefaultPageSize, p.GetLimit())
+
+	p.PageSize = 5
+	assert.Equal(t, 5, p.GetLimit())
+
+	p.PageSize = constants.MinPageSize - 1
+	assert.Equal(t, constants.MinPageSize, p.GetLimit()) // 应用最小值限制
+
+	p.PageSize = constants.MaxPageSize + 1
+	assert.Equal(t, constants.MaxPageSize, p.GetLimit()) // 应用最大值限制
+}
+
+func TestGetTotalPages(t *testing.T) {
+	p := &Pagination{Total: 100, PageSize: 10}
+	assert.Equal(t, int64(10), p.GetTotalPages())
+
+	p.PageSize = 0
+	assert.Equal(t, int64(0), p.GetTotalPages()) // PageSize <= 0 应返回 0
+}
+
+func TestHasNextPage(t *testing.T) {
+	p := &Pagination{Total: 100, PageSize: 10, Page: 1}
+	assert.True(t, p.HasNextPage())
+
+	p.Page = 10
+	assert.False(t, p.HasNextPage())
+
+	p.Total = 0
+	assert.False(t, p.HasNextPage()) // 没有记录时
+}
+
+func TestHasPrevPage(t *testing.T) {
+	p := &Pagination{Page: 2}
+	assert.True(t, p.HasPrevPage())
+
+	p.Page = 1
+	assert.False(t, p.HasPrevPage())
+
+	p.Page = 0
+	assert.False(t, p.HasPrevPage()) // Page <= 1 时
+}
+
+func TestIsToday(t *testing.T) {
+	today := time.Now()
+	assert.True(t, IsToday(&today))
+
+	yesterday := today.AddDate(0, 0, -1)
+	assert.False(t, IsToday(&yesterday))
+
+	// 测试 nil 参数
+	assert.True(t, IsToday(nil))
+}
+
+func TestIsTodayRange(t *testing.T) {
+	startTime, endTime := GetTodayRange()
+
+	// 测试今天的范围
+	assert.True(t, IsTodayRange(&startTime, &endTime))
+
+	// 测试范围在今天之前
+	beforeToday := startTime.AddDate(0, 0, -1)
+	assert.False(t, IsTodayRange(&beforeToday, &beforeToday))
+
+	// 测试范围在今天之后
+	afterToday := endTime.AddDate(0, 0, 1)
+	assert.False(t, IsTodayRange(&afterToday, &afterToday))
+
+	// 测试范围跨越今天
+	assert.True(t, IsTodayRange(&beforeToday, &afterToday))
+
+	// 测试仅开始时间在今天
+	assert.True(t, IsTodayRange(&startTime, nil))
+
+	// 测试仅结束时间在今天
+	assert.True(t, IsTodayRange(nil, &endTime))
+
+	// 测试 nil 参数
+	assert.True(t, IsTodayRange(nil, nil))
+}
+
+func TestGetTodayRange(t *testing.T) {
+	start, end := GetTodayRange()
+	now := time.Now()
+
+	// 检查开始时间是否为今天的开始
+	assert.Equal(t, start.Year(), now.Year())
+	assert.Equal(t, start.Month(), now.Month())
+	assert.Equal(t, start.Day(), now.Day())
+	assert.Equal(t, start.Hour(), 0)
+	assert.Equal(t, start.Minute(), 0)
+	assert.Equal(t, start.Second(), 0)
+
+	// 检查结束时间是否为明天的开始
+	assert.Equal(t, end.Year(), now.Year())
+	assert.Equal(t, end.Month(), now.Month())
+	assert.Equal(t, end.Day(), now.Day()+1)
+	assert.Equal(t, end.Hour(), 0)
+	assert.Equal(t, end.Minute(), 0)
+	assert.Equal(t, end.Second(), 0)
 }

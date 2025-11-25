@@ -2,13 +2,20 @@
  * @Author: kamalyes 501893067@qq.com
  * @Date: 2025-11-11 00:00:00
  * @LastEditors: kamalyes 501893067@qq.com
- * @LastEditTime: 2025-11-23 22:50:00
- * @FilePath: \go-sqlbuilder\paging.go
+ * @LastEditTime: 2025-11-25 08:06:51
+ * @FilePath: \go-sqlbuilder\repository\paging.go
  * @Description: 分页工具 - Pagination分页元数据和辅助方法
  *
  * Copyright (c) 2025 by kamalyes, All Rights Reserved.
  */
 package repository
+
+import (
+	"time"
+
+	"github.com/kamalyes/go-sqlbuilder/constants"
+	"google.golang.org/protobuf/types/known/timestamppb"
+)
 
 // Pagination 分页元数据
 type Pagination struct {
@@ -22,15 +29,24 @@ type Pagination struct {
 // GetOffset 计算数据库偏移量
 func (p *Pagination) GetOffset() int {
 	if p.Page <= 0 {
-		p.Page = 1
+		p.Page = constants.DefaultPage
 	}
 	return int((p.Page - 1) * p.PageSize)
 }
 
-// GetLimit 获取查询限制数
+// GetLimit 获取查询限制数（自动应用默认值和最大值限制）
 func (p *Pagination) GetLimit() int {
+	// 应用默认值
 	if p.PageSize <= 0 {
-		p.PageSize = 10
+		p.PageSize = constants.DefaultPageSize
+	}
+	// 应用最小值限制
+	if p.PageSize < constants.MinPageSize {
+		p.PageSize = constants.MinPageSize
+	}
+	// 应用最大值限制
+	if p.PageSize > constants.MaxPageSize {
+		p.PageSize = constants.MaxPageSize
 	}
 	return int(p.PageSize)
 }
@@ -51,4 +67,68 @@ func (p *Pagination) HasNextPage() bool {
 // HasPrevPage 是否有上一页
 func (p *Pagination) HasPrevPage() bool {
 	return p.Page > 1
+}
+
+// IsToday 判断时间是否为今天（支持 *time.Time）
+func IsToday(t *time.Time) bool {
+	if t == nil {
+		return true // 未指定时间，默认为今天
+	}
+
+	now := time.Now()
+	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	return t.After(todayStart) || t.Equal(todayStart)
+}
+
+// IsTodayFromProto 判断 protobuf Timestamp 是否为今天
+func IsTodayFromProto(t *timestamppb.Timestamp) bool {
+	if t == nil {
+		return true // 未指定时间，默认为今天
+	}
+
+	tt := t.AsTime()
+	return IsToday(&tt)
+}
+
+// IsTodayRange 判断时间范围是否包含今天
+func IsTodayRange(startTime, endTime *time.Time) bool {
+	// 如果都未指定，默认为今天
+	if startTime == nil && endTime == nil {
+		return true
+	}
+
+	now := time.Now()
+	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	todayEnd := todayStart.Add(24 * time.Hour)
+
+	// 如果开始时间在今天范围内
+	if startTime != nil {
+		if startTime.Before(todayEnd) && (startTime.After(todayStart) || startTime.Equal(todayStart)) {
+			return true
+		}
+	}
+
+	// 如果结束时间在今天范围内
+	if endTime != nil {
+		if endTime.After(todayStart) && (endTime.Before(todayEnd) || endTime.Equal(todayEnd)) {
+			return true
+		}
+	}
+
+	// 如果时间范围跨越今天
+	if startTime != nil && endTime != nil {
+		if startTime.Before(todayStart) && endTime.After(todayEnd) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// GetTodayRange 获取今天的时间范围（00:00:00 - 23:59:59）
+func GetTodayRange() (startTime, endTime time.Time) {
+	now := time.Now()
+	startTime = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	endTime = startTime.Add(24 * time.Hour)
+	return
 }

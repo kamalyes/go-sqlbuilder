@@ -17,7 +17,13 @@ const (
 	DefaultPage = 1
 
 	// DefaultPageSize 默认每页大小
-	DefaultPageSize = 10
+	DefaultPageSize = 20
+
+	// MaxPageSize 最大每页大小
+	MaxPageSize = 100
+
+	// MinPageSize 最小每页大小
+	MinPageSize = 1
 )
 
 // ==================== 批处理默认值 ====================
