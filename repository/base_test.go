@@ -13,15 +13,14 @@ package repository
 import (
 	"context"
 	"fmt"
-	"testing"
-	"time"
-
 	"github.com/kamalyes/go-logger"
 	"github.com/kamalyes/go-sqlbuilder/constants"
 	"github.com/kamalyes/go-sqlbuilder/db"
 	"github.com/stretchr/testify/assert"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+	"testing"
+	"time"
 )
 
 // TestUser 测试用的用户实体
@@ -2545,4 +2544,212 @@ func TestApplyOrdering(t *testing.T) {
 	assert.Len(t, results4, 3)
 	// 应该回退到默认排序
 	assert.Equal(t, "Alice", results4[0].Name)
+}
+
+// TestSpecialOperatorsBugCheck 重点测试特殊操作符的bug
+func TestSpecialOperatorsBugCheck(t *testing.T) {
+	t.Run("STARTS_WITH operator", func(t *testing.T) {
+		// 测试字符串值
+		filter := &Filter{
+			Field:    "name",
+			Operator: constants.OP_STARTS_WITH,
+			Value:    "John",
+		}
+		condition, arg := buildFilterCondition(filter)
+		fmt.Printf("STARTS_WITH - Condition: %s, Arg: %v\n", condition, arg)
+
+		assert.Equal(t, "name LIKE ?", condition)
+		assert.Equal(t, "John%", arg)
+
+		// 测试非字符串值
+		filter = &Filter{
+			Field:    "name",
+			Operator: constants.OP_STARTS_WITH,
+			Value:    123,
+		}
+		condition, arg = buildFilterCondition(filter)
+		fmt.Printf("STARTS_WITH (non-string) - Condition: %s, Arg: %v\n", condition, arg)
+
+		assert.Equal(t, "", condition)
+		assert.Nil(t, arg)
+	})
+
+	t.Run("ENDS_WITH operator", func(t *testing.T) {
+		// 测试字符串值
+		filter := &Filter{
+			Field:    "email",
+			Operator: constants.OP_ENDS_WITH,
+			Value:    "@example.com",
+		}
+		condition, arg := buildFilterCondition(filter)
+		fmt.Printf("ENDS_WITH - Condition: %s, Arg: %v\n", condition, arg)
+
+		assert.Equal(t, "email LIKE ?", condition)
+		assert.Equal(t, "%@example.com", arg)
+
+		// 测试空字符串
+		filter = &Filter{
+			Field:    "email",
+			Operator: constants.OP_ENDS_WITH,
+			Value:    "",
+		}
+		condition, arg = buildFilterCondition(filter)
+		fmt.Printf("ENDS_WITH (empty) - Condition: %s, Arg: %v\n", condition, arg)
+
+		assert.Equal(t, "email LIKE ?", condition)
+		assert.Equal(t, "%", arg)
+	})
+
+	t.Run("CONTAINS operator", func(t *testing.T) {
+		// 测试字符串值
+		filter := &Filter{
+			Field:    "description",
+			Operator: constants.OP_CONTAINS,
+			Value:    "keyword",
+		}
+		condition, arg := buildFilterCondition(filter)
+		fmt.Printf("CONTAINS - Condition: %s, Arg: %v\n", condition, arg)
+
+		assert.Equal(t, "description LIKE ?", condition)
+		assert.Equal(t, "%keyword%", arg)
+
+		// 测试特殊字符
+		filter = &Filter{
+			Field:    "description",
+			Operator: constants.OP_CONTAINS,
+			Value:    "test_with_underscore",
+		}
+		condition, arg = buildFilterCondition(filter)
+		fmt.Printf("CONTAINS (special chars) - Condition: %s, Arg: %v\n", condition, arg)
+
+		assert.Equal(t, "description LIKE ?", condition)
+		assert.Equal(t, "%test_with_underscore%", arg)
+	})
+
+	t.Run("FIND_IN_SET operator", func(t *testing.T) {
+		// 测试正常值
+		filter := &Filter{
+			Field:    "tags",
+			Operator: constants.OP_FIND_IN_SET,
+			Value:    "important",
+		}
+		condition, arg := buildFilterCondition(filter)
+		fmt.Printf("FIND_IN_SET - Condition: %s, Arg: %v\n", condition, arg)
+
+		// 这里可能有bug！让我们检查实际输出
+		expectedCondition := "FIND_IN_SET(?, tags) > 0"
+		expectedArg := "important"
+
+		fmt.Printf("Expected: %s, %v\n", expectedCondition, expectedArg)
+		fmt.Printf("Actual: %s, %v\n", condition, arg)
+
+		assert.Equal(t, expectedCondition, condition)
+		assert.Equal(t, expectedArg, arg)
+
+		// 测试数字值
+		filter = &Filter{
+			Field:    "tags",
+			Operator: constants.OP_FIND_IN_SET,
+			Value:    123,
+		}
+		condition, arg = buildFilterCondition(filter)
+		fmt.Printf("FIND_IN_SET (number) - Condition: %s, Arg: %v\n", condition, arg)
+	})
+}
+
+// TestBuildFilterConditionVsApplyFilter 比较两个函数的输出差异
+func TestBuildFilterConditionVsApplyFilter(t *testing.T) {
+	filters := []*Filter{
+		{Field: "name", Operator: constants.OP_STARTS_WITH, Value: "John"},
+		{Field: "email", Operator: constants.OP_ENDS_WITH, Value: "@example.com"},
+		{Field: "description", Operator: constants.OP_CONTAINS, Value: "keyword"},
+		{Field: "tags", Operator: constants.OP_FIND_IN_SET, Value: "important"},
+	}
+
+	fmt.Println("\n=== 调试打印：比较 buildFilterCondition vs applyFilter ===")
+
+	for i, filter := range filters {
+		t.Run(fmt.Sprintf("filter_%d_%s", i, filter.Operator), func(t *testing.T) {
+			fmt.Printf("\n--- 过滤器 %d: %s ---\n", i, filter.Operator)
+			fmt.Printf("字段: %s, 值: %v (类型: %T)\n", filter.Field, filter.Value, filter.Value)
+
+			// 测试 buildFilterCondition
+			condition, arg := buildFilterCondition(filter)
+			fmt.Printf("buildFilterCondition 输出:\n")
+			fmt.Printf("  - 条件: '%s'\n", condition)
+			fmt.Printf("  - 参数: %v (类型: %T)\n", arg, arg)
+
+			// 检查 OperatorTemplateMap 中的模板
+			if template, exists := constants.OperatorTemplateMap[filter.Operator]; exists {
+				fmt.Printf("OperatorTemplateMap[%s] = '%s'\n", filter.Operator, template)
+				// 尝试使用模板生成条件
+				if template != "" {
+					templateCondition := fmt.Sprintf(template, filter.Field)
+					fmt.Printf("  模板生成的条件: '%s'\n", templateCondition)
+				}
+			} else {
+				fmt.Printf("OperatorTemplateMap[%s] = NOT_FOUND\n", filter.Operator)
+			}
+
+			// 检查常量值
+			fmt.Printf("操作符常量值: '%s'\n", string(filter.Operator))
+			fmt.Printf("通配符常量: any='%s', single='%s'\n",
+				constants.SQL_WILDCARD_ANY, constants.SQL_WILDCARD_SINGLE)
+
+			// 验证条件不为空（除非是无效类型转换）
+			if filter.Operator == constants.OP_STARTS_WITH ||
+				filter.Operator == constants.OP_ENDS_WITH ||
+				filter.Operator == constants.OP_CONTAINS {
+				if _, ok := filter.Value.(string); ok {
+					assert.NotEmpty(t, condition, "字符串类型的特殊操作符应该生成条件")
+				}
+			}
+		})
+	}
+
+	fmt.Println("=== 调试完成 ===")
+}
+
+// TestApplyFilterBehavior 测试applyFilter函数的行为
+func TestApplyFilterBehavior(t *testing.T) {
+	// 创建一个模拟的数据库查询
+	gormDB, err := setupTestDB()
+	assert.NoError(t, err)
+
+	baseQuery := gormDB.Table("test_table")
+
+	filters := []*Filter{
+		{Field: "name", Operator: constants.OP_STARTS_WITH, Value: "John"},
+		{Field: "email", Operator: constants.OP_ENDS_WITH, Value: "@example.com"},
+		{Field: "description", Operator: constants.OP_CONTAINS, Value: "keyword"},
+		{Field: "tags", Operator: constants.OP_FIND_IN_SET, Value: "important"},
+	}
+
+	fmt.Println("\n=== 调试打印：applyFilter 函数行为 ===")
+
+	for i, filter := range filters {
+		t.Run(fmt.Sprintf("apply_filter_%d_%s", i, filter.Operator), func(t *testing.T) {
+			fmt.Printf("\n--- applyFilter 测试 %d: %s ---\n", i, filter.Operator)
+			fmt.Printf("过滤器: Field=%s, Operator=%s, Value=%v\n",
+				filter.Field, filter.Operator, filter.Value)
+
+			// 应用过滤器
+			resultQuery := applyFilter(baseQuery, filter)
+
+			// 检查是否返回了修改后的查询
+			if resultQuery == baseQuery {
+				fmt.Printf("WARNING: applyFilter 返回了原始查询，可能没有处理这个操作符\n")
+			} else {
+				fmt.Printf("applyFilter 成功处理了操作符\n")
+			}
+
+			// 尝试获取生成的SQL（这可能不会显示实际的SQL，但至少不会报错）
+			stmt := resultQuery.Statement
+			if stmt != nil {
+				fmt.Printf("SQL 构建器状态: %+v\n", stmt.SQL)
+			}
+		})
+	}
+
+	fmt.Println("=== applyFilter 调试完成 ===")
 }

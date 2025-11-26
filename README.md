@@ -1,13 +1,3 @@
-<!--
- * @Author: kamalyes 501893067@qq.com
- * @Date: 2025-11-23 07:53:01
- * @LastEditors: kamalyes 501893067@qq.com
- * @LastEditTime: 2025-11-23 13:35:19
- * @FilePath: \go-sqlbuilder\README.md
- * @Description: 
- * 
- * Copyright (c) 2025 by kamalyes, All Rights Reserved. 
--->
 # go-sqlbuilder
 
 [![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/kamalyes/go-sqlbuilder)](https://github.com/kamalyes/go-sqlbuilder)
@@ -126,6 +116,51 @@ count, err := repo.Count(ctx)
 exists, err := repo.Exists(ctx, filter)
 ```
 
+### 便捷查询构建 🔥 新功能
+
+支持链式调用的查询构建，让代码更简洁直观：
+
+```go
+// 现在可以这样链式调用构建查询条件
+query := repository.NewQuery().
+    AddEqual("status", 1).
+    AddLike("name", "test").
+    AddTimeAfter("created_at", time.Now().AddDate(0, -1, 0)).
+    AddIn("category_id", 1, 2, 3).
+    AddOrderDesc("created_at").
+    Take(10)
+
+users, err := repo.List(ctx, query)
+
+// 使用时间便捷方法
+query := repository.NewQuery().
+    AddEqual("status", 1).
+    AddThisMonth("created_at").
+    AddOrderDesc("id")
+
+users, err := repo.List(ctx, query)
+
+// 复杂条件组合
+query := repository.NewQuery().
+    AddEqual("status", 1).
+    AddStartsWith("name", "user_").
+    AddBetween("age", 18, 65).
+    AddIsNotNull("email").
+    Page(1, 20)
+
+users, pagination, err := repo.ListWithPagination(ctx, query, nil)
+```
+
+### 便捷方法对照表
+
+| 传统方式 | 便捷方法 | 说明 |
+|---------|----------|------|
+| `AddFilter(NewEqFilter("field", value))` | `AddEqual("field", value)` | 等于条件 |
+| `AddFilter(NewLikeFilter("field", "%test%"))` | `AddLike("field", "test")` | 模糊匹配 |
+| `AddFilter(NewGtFilter("field", value))` | `AddGreaterThan("field", value)` | 大于条件 |
+| `AddOrder("field", "DESC")` | `AddOrderDesc("field")` | 降序排序 |
+| `WithPaging(1, 20)` | `Page(1, 20)` | 分页设置 |
+
 ### EnhancedRepository - 便利方法
 
 扩展方法提供更便捷的操作：
@@ -203,6 +238,7 @@ repository.NewCustomFilter("YEAR(created_at) = ?", 2024)
 - 📘 [快速开始](docs/QUICKSTART.MD) - 5 分钟上手指南
 - 📗 [Repository 基础](docs/REPOSITORY-BASICS.MD) - 完整 CRUD 操作详解
 - 📙 [高级查询](docs/ADVANCED-QUERIES.MD) - Query、Filter 和复杂查询
+- 🔥 [便捷查询示例](docs/QUERY-EXAMPLES.MD) - 链式查询构建实战指南
 - 📕 [FilterGroup 完整指南](docs/FILTERGROUP.MD) - 复杂条件组合和嵌套
 - 📓 [EnhancedRepository](docs/ENHANCED-REPOSITORY.MD) - 便利方法详解
 - 📔 [模型定义](docs/MODELS.MD) - BaseModel、AuditModel 使用
@@ -259,6 +295,8 @@ go test ./... -v
 go test ./... -cover
 go test -coverprofile=coverage -covermode=atomic
 go tool cover -func=coverage
+go test ./repository -coverprofile=coverage.out; go tool cover -html=coverage.out -o coverage.html
+go tool cover -func=coverage | findstr -v "100.0%"
 
 # 运行特定测试
 go test -v -run TestBaseRepository

@@ -2,8 +2,8 @@
  * @Author: kamalyes 501893067@qq.com
  * @Date: 2025-11-11 21:13:15
  * @LastEditors: kamalyes 501893067@qq.com
- * @LastEditTime: 2025-11-25 20:27:53
- * @FilePath: \engine-im-service\go-sqlbuilder\repository\base.go
+ * @LastEditTime: 2025-11-26 11:18:57
+ * @FilePath: \go-sqlbuilder\repository\base.go
  * @Description:
  *
  * Copyright (c) 2025 by kamalyes, All Rights Reserved.
@@ -13,10 +13,6 @@ package repository
 import (
 	"context"
 	"fmt"
-	"reflect"
-	"strings"
-	"time"
-
 	"github.com/kamalyes/go-logger"
 	gologger "github.com/kamalyes/go-logger"
 	"github.com/kamalyes/go-sqlbuilder/constants"
@@ -24,25 +20,14 @@ import (
 	"github.com/kamalyes/go-sqlbuilder/errors"
 	"github.com/kamalyes/go-toolbox/pkg/errorx"
 	"gorm.io/gorm"
+	"reflect"
+	"strings"
+	"time"
 )
 
 // ContextFieldExtractor context字段提取器函数类型
 // 用于从context中提取需要记录到日志的字段
 type ContextFieldExtractor func(ctx context.Context, log logger.ILogger) logger.ILogger
-
-// SQLLogConfig SQL日志配置
-type SQLLogConfig struct {
-	Enabled            bool          // 是否启用SQL日志
-	SlowQueryThreshold time.Duration // 慢查询阈值（超过此时间的查询会被标记为慢查询）
-	LogLevel           string        // 日志级别: "debug", "info", "warn", "error"
-}
-
-// DefaultSQLLogConfig 默认SQL日志配置
-var DefaultSQLLogConfig = SQLLogConfig{
-	Enabled:            true,
-	SlowQueryThreshold: 100 * time.Millisecond,
-	LogLevel:           "info",
-}
 
 // BaseRepository 基础仓储实现，包含通用的 CRUD 操作
 type BaseRepository[T any] struct {
@@ -55,7 +40,6 @@ type BaseRepository[T any] struct {
 	defaultOrder     string                // 默认排序
 	logger           gologger.ILogger      // 日志记录器
 	contextExtractor ContextFieldExtractor // context字段提取器
-	sqlLogConfig     SQLLogConfig          // SQL日志配置
 }
 
 // 编译时检查 - 确保 BaseRepository 实现了 Repository 接口
@@ -110,29 +94,14 @@ func WithLogger[T any](log gologger.ILogger) RepositoryOption[T] {
 	}
 }
 
-// WithSQLLogConfig 设置SQL日志配置
-func WithSQLLogConfig[T any](config SQLLogConfig) RepositoryOption[T] {
-	return func(r *BaseRepository[T]) {
-		r.sqlLogConfig = config
-	}
-}
-
-// WithSQLLogging 快速启用/禁用SQL日志
-func WithSQLLogging[T any](enabled bool) RepositoryOption[T] {
-	return func(r *BaseRepository[T]) {
-		r.sqlLogConfig.Enabled = enabled
-	}
-}
-
 // NewBaseRepository 创建基础仓储
 func NewBaseRepository[T any](dbHandler db.Handler, logger gologger.ILogger, table string, options ...RepositoryOption[T]) *BaseRepository[T] {
 	r := &BaseRepository[T]{
-		db:           dbHandler,
-		table:        table,
-		batchSize:    constants.DefaultBatchSize,
-		timeout:      constants.DefaultQueryTimeout,
-		logger:       logger,
-		sqlLogConfig: DefaultSQLLogConfig, // 初始化为默认配置
+		db:        dbHandler,
+		table:     table,
+		batchSize: constants.DefaultBatchSize,
+		timeout:   constants.DefaultQueryTimeout,
+		logger:    logger,
 	}
 
 	// 应用配置选项
@@ -153,14 +122,7 @@ func (r *BaseRepository[T]) Create(ctx context.Context, entity *T) (*T, error) {
 		return nil, errorx.NewError(errors.ErrorCodeInvalidInput)
 	}
 
-	// 记录开始时间
-	startTime := time.Now()
-
 	result := r.db.GetDB().WithContext(ctx).Table(r.table).Create(entity)
-
-	// 记录执行时间和日志
-	duration := time.Since(startTime)
-	r.logSQLExecution(ctx, "create", fmt.Sprintf("INSERT INTO %s", r.table), duration, result.RowsAffected)
 
 	if result.Error != nil {
 		return nil, r.handleErrorWithContext(ctx, result.Error, "create")
@@ -301,70 +263,6 @@ func (r *BaseRepository[T]) handleErrorWithContext(ctx context.Context, err erro
 	return err
 }
 
-// logSQLExecution 记录SQL执行日志
-func (r *BaseRepository[T]) logSQLExecution(ctx context.Context, operation string, sql string, duration time.Duration, rowsAffected int64) {
-	// 检查是否启用SQL日志
-	if !r.sqlLogConfig.Enabled {
-		return
-	}
-
-	// 使用 logger.WithContext 自动提取上下文字段
-	contextLogger := r.logger.WithContext(ctx)
-
-	// 添加SQL执行相关字段
-	fields := map[string]interface{}{
-		"table":         r.table,
-		"operation":     operation,
-		"sql":           sql,
-		"duration_ms":   float64(duration.Nanoseconds()) / 1000000, // 转换为毫秒
-		"rows_affected": rowsAffected,
-		"timestamp":     time.Now().Format(time.RFC3339),
-	}
-
-	// 根据执行时间和配置决定日志级别
-	isSlowQuery := duration > r.sqlLogConfig.SlowQueryThreshold
-
-	switch {
-	case isSlowQuery:
-		contextLogger.WithFields(fields).Warnf("🐌 [SLOW QUERY] %s executed in %.2fms, affected %d rows",
-			operation, float64(duration.Nanoseconds())/1000000, rowsAffected)
-	case r.sqlLogConfig.LogLevel == "debug":
-		contextLogger.WithFields(fields).Debugf("🔍 [SQL DEBUG] %s executed in %.3fms, affected %d rows",
-			operation, float64(duration.Nanoseconds())/1000000, rowsAffected)
-	case r.sqlLogConfig.LogLevel == "info":
-		contextLogger.WithFields(fields).Infof("✅ [SQL] %s executed in %.3fms, affected %d rows",
-			operation, float64(duration.Nanoseconds())/1000000, rowsAffected)
-	}
-}
-
-// buildSQLSummary 构建SQL摘要信息
-func (r *BaseRepository[T]) buildSQLSummary(sqlType string, query *Query) string {
-	summary := fmt.Sprintf("%s FROM %s", sqlType, r.table)
-
-	if query != nil {
-		// 添加主要过滤条件信息
-		if len(query.Filters) > 0 {
-			summary += fmt.Sprintf(" WHERE (%d filters)", len(query.Filters))
-		}
-
-		// 添加排序信息
-		if len(query.Orders) > 0 {
-			summary += fmt.Sprintf(" ORDER BY (%d fields)", len(query.Orders))
-		}
-
-		// 添加限制信息
-		if query.LimitValue != nil {
-			summary += fmt.Sprintf(" LIMIT %d", *query.LimitValue)
-		}
-
-		if query.OffsetValue != nil {
-			summary += fmt.Sprintf(" OFFSET %d", *query.OffsetValue)
-		}
-	}
-
-	return summary
-}
-
 // Get 获取单个记录
 func (r *BaseRepository[T]) Get(ctx context.Context, id interface{}) (*T, error) {
 	var entity T
@@ -376,14 +274,7 @@ func (r *BaseRepository[T]) Get(ctx context.Context, id interface{}) (*T, error)
 		query = query.Preload(preload)
 	}
 
-	// 记录开始时间
-	startTime := time.Now()
-
 	result := query.Where("id = ?", id).First(&entity)
-
-	// 记录执行时间和日志
-	duration := time.Since(startTime)
-	r.logSQLExecution(ctx, "get", fmt.Sprintf("SELECT FROM %s WHERE id = %v", r.table, id), duration, result.RowsAffected)
 
 	if result.Error != nil {
 		return nil, r.handleErrorWithContext(ctx, result.Error, "get by id")
@@ -509,14 +400,7 @@ func (r *BaseRepository[T]) List(ctx context.Context, query *Query) ([]*T, error
 		db = db.Offset(*query.OffsetValue)
 	}
 
-	// 记录开始时间
-	startTime := time.Now()
-
 	result := db.Find(&entities)
-
-	// 记录执行时间和日志
-	duration := time.Since(startTime)
-	r.logSQLExecution(ctx, "list", r.buildSQLSummary("SELECT", query), duration, result.RowsAffected)
 
 	if result.Error != nil {
 		return nil, r.handleErrorWithContext(ctx, result.Error, "list")
@@ -657,14 +541,7 @@ func (r *BaseRepository[T]) Update(ctx context.Context, entity *T) (*T, error) {
 		return nil, errorx.NewError(errors.ErrorCodeInvalidInput)
 	}
 
-	// 记录开始时间
-	startTime := time.Now()
-
 	result := r.db.GetDB().WithContext(ctx).Table(r.table).Save(entity)
-
-	// 记录执行时间和日志
-	duration := time.Since(startTime)
-	r.logSQLExecution(ctx, "update", fmt.Sprintf("UPDATE %s", r.table), duration, result.RowsAffected)
 
 	if result.Error != nil {
 		return nil, result.Error
@@ -711,15 +588,7 @@ func (r *BaseRepository[T]) UpdateByFilters(ctx context.Context, entity *T, filt
 
 // Delete 删除单个记录
 func (r *BaseRepository[T]) Delete(ctx context.Context, id interface{}) error {
-	// 记录开始时间
-	startTime := time.Now()
-
 	result := r.db.GetDB().WithContext(ctx).Table(r.table).Where("id = ?", id).Delete(new(T))
-
-	// 记录执行时间和日志
-	duration := time.Since(startTime)
-	r.logSQLExecution(ctx, "delete", fmt.Sprintf("DELETE FROM %s WHERE id = %v", r.table, id), duration, result.RowsAffected)
-
 	return result.Error
 }
 
@@ -729,15 +598,7 @@ func (r *BaseRepository[T]) DeleteBatch(ctx context.Context, ids ...interface{})
 		return nil
 	}
 
-	// 记录开始时间
-	startTime := time.Now()
-
 	result := r.db.GetDB().WithContext(ctx).Table(r.table).Where("id IN ?", ids).Delete(new(T))
-
-	// 记录执行时间和日志
-	duration := time.Since(startTime)
-	r.logSQLExecution(ctx, "delete_batch", fmt.Sprintf("DELETE FROM %s WHERE id IN (%d ids)", r.table, len(ids)), duration, result.RowsAffected)
-
 	return result.Error
 }
 
@@ -1022,6 +883,7 @@ func applyFilter(dbQuery *gorm.DB, filter *Filter) *gorm.DB {
 	case constants.OP_IS_NOT_NULL:
 		return dbQuery.Where(fmt.Sprintf("%s IS NOT NULL", filter.Field))
 	case constants.OP_FIND_IN_SET:
+		// 修复参数顺序：FIND_IN_SET(value, field_list)
 		return dbQuery.Where("FIND_IN_SET(?, ?)", filter.Value, filter.Field)
 	}
 
@@ -1208,6 +1070,30 @@ func buildFilterCondition(filter *Filter) (string, interface{}) {
 	case constants.OP_BETWEEN:
 		if values, ok := filter.Value.([]interface{}); ok && len(values) == 2 {
 			return fmt.Sprintf(constants.SQL_BETWEEN, filter.Field), values
+		}
+		return "", nil
+	case constants.OP_STARTS_WITH:
+		// STARTS_WITH 转换为 LIKE 'value%'
+		if valueStr, ok := filter.Value.(string); ok {
+			return fmt.Sprintf(constants.SQL_LIKE, filter.Field), valueStr + constants.SQL_WILDCARD_ANY
+		}
+		return "", nil
+	case constants.OP_ENDS_WITH:
+		// ENDS_WITH 转换为 LIKE '%value'
+		if valueStr, ok := filter.Value.(string); ok {
+			return fmt.Sprintf(constants.SQL_LIKE, filter.Field), constants.SQL_WILDCARD_ANY + valueStr
+		}
+		return "", nil
+	case constants.OP_CONTAINS:
+		// CONTAINS 转换为 LIKE '%value%'
+		if valueStr, ok := filter.Value.(string); ok {
+			return fmt.Sprintf(constants.SQL_LIKE, filter.Field), constants.SQL_WILDCARD_ANY + valueStr + constants.SQL_WILDCARD_ANY
+		}
+		return "", nil
+	case constants.OP_FIND_IN_SET:
+		// FIND_IN_SET 需要特殊处理参数位置
+		if template, ok := constants.OperatorTemplateMap[filter.Operator]; ok {
+			return fmt.Sprintf(template, filter.Field) + " > 0", filter.Value
 		}
 		return "", nil
 	}

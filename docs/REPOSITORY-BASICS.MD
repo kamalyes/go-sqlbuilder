@@ -1,6 +1,6 @@
 # Repository 基础操作
 
-BaseRepository 提供了完整的 CRUD 操作方法�?
+BaseRepository 提供了完整的 CRUD 操作方法
 
 ## 创建操作
 
@@ -29,10 +29,10 @@ err := repo.CreateBatch(ctx, users...)
 ### BulkCreate - 高性能批量创建
 
 ```go
-// 默认批次大小�?100
+// 默认批次大小100
 err := repo.BulkCreate(ctx, users)
 
-// 自定义批次大�?
+// 自定义批次大小
 err := repo.BulkCreate(ctx, users, 50)
 ```
 
@@ -44,11 +44,11 @@ created, isNew, err := repo.CreateIfNotExists(ctx, user, "email")
 if isNew {
     log.Println("创建了新用户")
 } else {
-    log.Println("用户已存�?)
+    log.Println("用户已存在")
 }
 ```
 
-### CreateOrUpdate - 创建或更�?
+### CreateOrUpdate - 创建或更新
 
 ```go
 user := &User{Email: "test@example.com", Name: "Updated Name"}
@@ -57,19 +57,19 @@ result, created, err := repo.CreateOrUpdate(ctx, user, "email")
 
 ## 查询操作
 
-### Get - �?ID 查询
+### Get - ID 查询
 
 ```go
 user, err := repo.Get(ctx, 1)
 ```
 
-### GetWithPreloads - 带预加载的查�?
+### GetWithPreloads - 带预加载的查询
 
 ```go
 user, err := repo.GetWithPreloads(ctx, 1, "Profile", "Orders")
 ```
 
-### GetByFields - 按多个字段查�?
+### GetByFields - 按多个字段查询
 
 ```go
 user, err := repo.GetByFields(ctx, map[string]interface{}{
@@ -78,14 +78,14 @@ user, err := repo.GetByFields(ctx, map[string]interface{}{
 })
 ```
 
-### GetByFilter - 按单个过滤条件查�?
+### GetByFilter - 按单个过滤条件查询
 
 ```go
 filter := repository.NewEqFilter("email", "test@example.com")
 user, err := repo.GetByFilter(ctx, filter)
 ```
 
-### GetByFilters - 按多个过滤条件查�?
+### GetByFilters - 按多个过滤条件查询
 
 ```go
 filters := []*repository.Filter{
@@ -118,34 +118,34 @@ paging := &repository.Paging{
 }
 
 users, paging, err := repo.ListWithPagination(ctx, query, paging)
-log.Printf("总记录数: %d, 总页�? %d", paging.Total, paging.GetTotalPages())
+log.Printf("总记录数: %d, 总页 %d", paging.Total, paging.GetTotalPages())
 ```
 
-### GetAll - 获取所有记�?
+### GetAll - 获取所有记
 
 ```go
 users, err := repo.GetAll(ctx)
 ```
 
-### First / Last - 获取第一�?最后一�?
+### First / Last - 获取第一最后一
 
 ```go
-// 第一�?
+// 第一
 firstUser, err := repo.First(ctx)
 
-// 带条件的第一�?
+// 带条件的第一
 activeFirst, err := repo.First(ctx, repository.NewEqFilter("status", "active"))
 
-// 最后一�?
+// 最后一
 lastUser, err := repo.Last(ctx)
 ```
 
-### FindOne - 查找单条（不存在返回 nil�?
+### FindOne - 查找单条（不存在返回 nil
 
 ```go
 user, err := repo.FindOne(ctx, repository.NewEqFilter("email", "test@example.com"))
 if user == nil {
-    log.Println("未找到用�?)
+    log.Println("未找到用)
 }
 ```
 
@@ -154,7 +154,7 @@ if user == nil {
 ### Update - 更新整个记录
 
 ```go
-user.Name = "新名�?
+user.Name = "新名
 user.Age = 30
 updated, err := repo.Update(ctx, user)
 ```
@@ -171,12 +171,12 @@ err := repo.UpdateBatch(ctx, users...)
 
 ```go
 err := repo.UpdateFields(ctx, 1, map[string]interface{}{
-    "name":       "新名�?,
+    "name":       "新名,
     "updated_at": time.Now(),
 })
 ```
 
-### UpdateFieldsByFilters - 按条件更新字�?
+### UpdateFieldsByFilters - 按条件更新字
 
 ```go
 filters := []*repository.Filter{
@@ -188,7 +188,7 @@ fields := map[string]interface{}{
 err := repo.UpdateFieldsByFilters(ctx, fields, filters...)
 ```
 
-### UpdateByFilters - 按条件更�?
+### UpdateByFilters - 按条件更
 
 ```go
 updateData := &User{Status: "archived"}
@@ -213,7 +213,7 @@ ids := []interface{}{1, 2, 3, 4, 5}
 err := repo.DeleteBatch(ctx, ids...)
 ```
 
-### DeleteByFilters - 按条件删�?
+### DeleteByFilters - 按条件删
 
 ```go
 filters := []*repository.Filter{
@@ -223,13 +223,13 @@ filters := []*repository.Filter{
 err := repo.DeleteByFilters(ctx, filters...)
 ```
 
-### 软删�?
+### 软删
 
 ```go
 // 使用 deleted_at 字段
 err := repo.SoftDelete(ctx, 1, "deleted_at", time.Now())
 
-// 批量软删�?
+// 批量软删
 ids := []interface{}{1, 2, 3}
 err := repo.SoftDeleteBatch(ctx, ids, "deleted_at", time.Now())
 
@@ -240,7 +240,7 @@ filters := []*repository.Filter{
 err := repo.SoftDeleteByFilters(ctx, "deleted_at", time.Now(), filters...)
 ```
 
-### 恢复软删�?
+### 恢复软删
 
 ```go
 // 恢复单个
@@ -259,30 +259,30 @@ err := repo.RestoreBatch(ctx, ids, "deleted_at", nil)
 // 总数
 total, err := repo.Count(ctx)
 
-// 按条件计�?
+// 按条件计
 count, err := repo.Count(ctx, repository.NewEqFilter("status", "active"))
 ```
 
-### Exists - 检查是否存�?
+### Exists - 检查是否存
 
 ```go
 exists, err := repo.Exists(ctx, repository.NewEqFilter("email", "test@example.com"))
 ```
 
-### CountByField - 按字段分组计�?
+### CountByField - 按字段分组计
 
 ```go
 countMap, err := repo.CountByField(ctx, "status")
 // 结果: map[interface{}]int64{"active": 100, "inactive": 50}
 ```
 
-### Pluck - 提取字段�?
+### Pluck - 提取字段
 
 ```go
 emails, err := repo.Pluck(ctx, "email", repository.NewEqFilter("status", "active"))
 ```
 
-### Distinct - 获取去重�?
+### Distinct - 获取去重
 
 ```go
 statuses, err := repo.Distinct(ctx, "status")
@@ -324,16 +324,16 @@ repo := repository.NewBaseRepository[User](
     handler,
     logger,
     "users",
-    repository.WithBatchSize[User](200),              // 批处理大�?
-    repository.WithTimeout[User](60),                 // 查询超时(�?
+    repository.WithBatchSize[User](200),              // 批处理大
+    repository.WithTimeout[User](60),                 // 查询超时(
     repository.WithReadOnly[User](),                  // 只读模式
-    repository.WithDefaultPreloads[User]("Profile"),  // 默认预加�?
+    repository.WithDefaultPreloads[User]("Profile"),  // 默认预加
     repository.WithDefaultOrder[User]("id DESC"),     // 默认排序
 )
 ```
 
-## 下一�?
+## 下一
 
-- 🔍 [高级查询](./ADVANCED-QUERIES.MD) - Query �?Filter 的高级用�?
+- 🔍 [高级查询](./ADVANCED-QUERIES.MD) - Query Filter 的高级用
 - 🎯 [FilterGroup](./FILTERGROUP.MD) - 复杂 WHERE 条件构建
 - 🚀 [EnhancedRepository](./ENHANCED-REPOSITORY.MD) - 便利方法详解

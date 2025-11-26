@@ -63,6 +63,10 @@ const (
 
 	// SQL_DECREMENT 字段自减模板
 	SQL_DECREMENT = "%s - ?"
+
+	// SQL通配符常量
+	SQL_WILDCARD_ANY    = "%" // 匹配任意字符
+	SQL_WILDCARD_SINGLE = "_" // 匹配单个字符
 )
 
 // OperatorTemplateMap 操作符到SQL模板的映射

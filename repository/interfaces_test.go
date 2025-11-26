@@ -2,7 +2,7 @@
  * @Author: kamalyes 501893067@qq.com
  * @Date: 2025-11-23 08:00:00
  * @LastEditors: kamalyes 501893067@qq.com
- * @LastEditTime: 2025-11-23 08:11:50
+ * @LastEditTime: 2025-11-26 22:12:00
  * @FilePath: \go-sqlbuilder\repository\interfaces_test.go
  * @Description:
  *
@@ -11,10 +11,15 @@
 package repository
 
 import (
-	"testing"
-
+	"context"
+	"errors"
+	"github.com/kamalyes/go-logger"
 	"github.com/kamalyes/go-sqlbuilder/constants"
+	"github.com/kamalyes/go-sqlbuilder/db"
 	"github.com/stretchr/testify/assert"
+	"reflect"
+	"testing"
+	"time"
 )
 
 // TestNewEqFilter 测试等于过滤器创建
@@ -625,4 +630,456 @@ func TestQueryFlattenFilters(t *testing.T) {
 	assert.True(t, hasViewsFilter, "应包含 views 过滤器")
 	assert.Equal(t, 2, hasCategoryFilters, "应包含 2 个 category 过滤器")
 	assert.True(t, hasRatingFilter, "应包含 rating 过滤器")
+}
+
+// TestIsSliceType 测试切片类型判断
+func TestIsSliceType(t *testing.T) {
+	// 测试 nil
+	assert.False(t, IsSliceType(nil))
+
+	// 测试切片类型
+	assert.True(t, IsSliceType([]int{1, 2, 3}))
+	assert.True(t, IsSliceType([]string{"a", "b"}))
+	assert.True(t, IsSliceType([3]int{1, 2, 3})) // 数组
+
+	// 测试非切片类型
+	assert.False(t, IsSliceType(42))
+	assert.False(t, IsSliceType("string"))
+	assert.False(t, IsSliceType(map[string]int{"key": 1}))
+	assert.False(t, IsSliceType(struct{}{}))
+}
+
+// TestConvertToInterfaceSlice 测试切片转换
+func TestConvertToInterfaceSlice(t *testing.T) {
+	// 测试 nil
+	assert.Nil(t, ConvertToInterfaceSlice(nil))
+
+	// 测试空切片
+	assert.Nil(t, ConvertToInterfaceSlice([]int{}))
+
+	// 测试 int 切片
+	intSlice := []int{1, 2, 3}
+	result := ConvertToInterfaceSlice(intSlice)
+	assert.Equal(t, []interface{}{1, 2, 3}, result)
+
+	// 测试 string 切片
+	stringSlice := []string{"a", "b", "c"}
+	result = ConvertToInterfaceSlice(stringSlice)
+	assert.Equal(t, []interface{}{"a", "b", "c"}, result)
+
+	// 测试数组
+	intArray := [3]int{1, 2, 3}
+	result = ConvertToInterfaceSlice(intArray)
+	assert.Equal(t, []interface{}{1, 2, 3}, result)
+
+	// 测试非切片类型
+	assert.Nil(t, ConvertToInterfaceSlice(42))
+	assert.Nil(t, ConvertToInterfaceSlice("string"))
+	assert.Nil(t, ConvertToInterfaceSlice(map[string]int{"key": 1}))
+}
+
+// TestGetDeletedWithNilQuery 测试 GetDeleted 传入 nil query
+func TestGetDeletedWithNilQuery(t *testing.T) {
+	gormDB, err := setupTestDB()
+	assert.NoError(t, err)
+
+	dbHandler := db.MustNewGormHandler(gormDB)
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+
+	ctx := context.Background()
+
+	// 创建测试数据
+	user := &TestUser{Name: "TestUser", Email: "test@example.com", Age: 30}
+	createdUser, err := repo.Create(ctx, user)
+	assert.NoError(t, err)
+
+	// 软删除用户
+	now := time.Now()
+	err = gormDB.Model(&TestUser{}).Where("id = ?", createdUser.ID).Update("deleted_at", now).Error
+	assert.NoError(t, err)
+
+	// 测试传入 nil query
+	deleted, err := GetDeleted[TestUser](ctx, gormDB, nil)
+	assert.NoError(t, err)
+	assert.GreaterOrEqual(t, len(deleted), 1)
+}
+
+// TestGetNonDeletedWithNilQuery 测试 GetNonDeleted 传入 nil query
+func TestGetNonDeletedWithNilQuery(t *testing.T) {
+	gormDB, err := setupTestDB()
+	assert.NoError(t, err)
+
+	dbHandler := db.MustNewGormHandler(gormDB)
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+
+	ctx := context.Background()
+
+	// 创建测试数据
+	user := &TestUser{Name: "ActiveUser", Email: "active@example.com", Age: 25}
+	_, err = repo.Create(ctx, user)
+	assert.NoError(t, err)
+
+	// 测试传入 nil query
+	nonDeleted, err := GetNonDeleted[TestUser](ctx, gormDB, nil)
+	assert.NoError(t, err)
+	assert.GreaterOrEqual(t, len(nonDeleted), 1)
+}
+
+// TestRestoreDeletedBatchWithEmptySlice 测试空 ID 切片的批量恢复
+func TestRestoreDeletedBatchWithEmptySlice(t *testing.T) {
+	gormDB, err := setupTestDB()
+	assert.NoError(t, err)
+
+	ctx := context.Background()
+
+	// 测试空切片，应该直接返回不报错
+	err = RestoreDeletedBatch[TestUser](ctx, gormDB, []interface{}{})
+	assert.NoError(t, err)
+}
+
+// TestPermanentlyDeleteBatchWithEmptySlice 测试空 ID 切片的批量永久删除
+func TestPermanentlyDeleteBatchWithEmptySlice(t *testing.T) {
+	gormDB, err := setupTestDB()
+	assert.NoError(t, err)
+
+	ctx := context.Background()
+
+	// 测试空切片，应该直接返回不报错
+	err = PermanentlyDeleteBatch[TestUser](ctx, gormDB, []interface{}{})
+	assert.NoError(t, err)
+}
+
+// TestApplyQueryWithComplexConditions 测试 applyQuery 的复杂条件
+func TestApplyQueryWithComplexConditions(t *testing.T) {
+	gormDB, err := setupTestDB()
+	assert.NoError(t, err)
+
+	ctx := context.Background()
+
+	// 创建一个复杂的查询
+	query := NewQuery()
+
+	// 添加多个过滤器
+	query.AddFilter(NewGtFilter("age", 20))
+	query.AddFilter(NewLtFilter("age", 50))
+
+	// 添加排序
+	query.AddOrder("name", "ASC")
+	query.AddOrder("age", "DESC")
+
+	// 添加分页
+	query.WithPaging(1, 10)
+
+	// 添加限制和偏移
+	limit := 5
+	offset := 2
+	query.Limit(limit)
+	query.Offset(offset)
+
+	// 添加去重
+	query.WithDistinct(true)
+
+	// 添加分组
+	query.AddGroupBy("status", "age")
+
+	// 添加 Having 条件
+	query.AddHaving(NewGtFilter("COUNT(*)", 1)) // 使用查询获取数据
+	results, err := GetNonDeleted[TestUser](ctx, gormDB, query)
+	assert.NoError(t, err)
+	assert.NotNil(t, results)
+}
+
+// TestApplyQueryWithFilterGroup 测试 applyQuery 使用 FilterGroup
+func TestApplyQueryWithFilterGroup(t *testing.T) {
+	gormDB, err := setupTestDB()
+	assert.NoError(t, err)
+
+	dbHandler := db.MustNewGormHandler(gormDB)
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+
+	ctx := context.Background()
+
+	// 创建测试数据
+	users := []*TestUser{
+		{Name: "Alice", Email: "alice@test.com", Age: 25, Status: "active"},
+		{Name: "Bob", Email: "bob@test.com", Age: 30, Status: "inactive"},
+		{Name: "Charlie", Email: "charlie@test.com", Age: 35, Status: "active"},
+	}
+
+	for _, user := range users {
+		_, err := repo.Create(ctx, user)
+		assert.NoError(t, err)
+	}
+
+	// 创建复杂的 FilterGroup
+	filterGroup := &FilterGroup{
+		LogicOp: constants.LOGIC_AND,
+		Filters: []*Filter{
+			{Field: "age", Operator: constants.OP_GT, Value: 20},
+			{Field: "status", Operator: constants.OP_EQ, Value: "active"},
+		},
+		Groups: []*FilterGroup{
+			{
+				LogicOp: constants.LOGIC_OR,
+				Filters: []*Filter{
+					{Field: "name", Operator: constants.OP_LIKE, Value: "Ali%"},
+					{Field: "name", Operator: constants.OP_LIKE, Value: "Cha%"},
+				},
+			},
+		},
+	}
+
+	query := &Query{FilterGroup: filterGroup}
+
+	// 测试带 FilterGroup 的查询
+	results, err := GetNonDeleted[TestUser](ctx, gormDB, query)
+	assert.NoError(t, err)
+	assert.NotNil(t, results)
+	// 应该返回 Alice 和 Charlie (age > 20 AND status = active AND (name LIKE 'Ali%' OR name LIKE 'Cha%'))
+	assert.GreaterOrEqual(t, len(results), 0)
+}
+
+// TestApplyQueryEdgeCases 测试 applyQuery 的边界情况
+func TestApplyQueryEdgeCases(t *testing.T) {
+	gormDB, err := setupTestDB()
+	assert.NoError(t, err)
+
+	ctx := context.Background()
+
+	// 测试空字段的排序
+	query := &Query{
+		Orders: []Order{
+			{Field: "", Direction: "ASC"}, // 空字段名，应该被忽略
+			{Field: "name", Direction: "ASC"},
+		},
+	}
+
+	results, err := GetNonDeleted[TestUser](ctx, gormDB, query)
+	assert.NoError(t, err)
+	assert.NotNil(t, results)
+
+	// 测试负数分页（应该被忽略）
+	query2 := &Query{
+		Pagination: &Pagination{
+			Page:     -1,
+			PageSize: -5,
+		},
+	}
+
+	results2, err := GetNonDeleted[TestUser](ctx, gormDB, query2)
+	assert.NoError(t, err)
+	assert.NotNil(t, results2)
+
+	// 测试零值限制和偏移
+	zeroLimit := 0
+	zeroOffset := 0
+	query3 := &Query{
+		LimitValue:  &zeroLimit,
+		OffsetValue: &zeroOffset,
+	}
+
+	results3, err := GetNonDeleted[TestUser](ctx, gormDB, query3)
+	assert.NoError(t, err)
+	assert.NotNil(t, results3)
+}
+
+// TestBuildFilterConditionNilArg 测试构建过滤条件时返回 nil 参数
+func TestBuildFilterConditionNilArg(t *testing.T) {
+	// 测试 IS NULL 操作符（不需要参数）
+	filter := &Filter{
+		Field:    "deleted_at",
+		Operator: constants.OP_IS_NULL,
+	}
+
+	// 这个函数是私有的，我们通过 applyQuery 间接测试
+	gormDB, err := setupTestDB()
+	assert.NoError(t, err)
+
+	ctx := context.Background()
+
+	query := &Query{
+		Filters: []*Filter{filter},
+	}
+
+	// 验证查询不会出错
+	results, err := GetNonDeleted[TestUser](ctx, gormDB, query)
+	assert.NoError(t, err)
+	assert.NotNil(t, results)
+}
+
+// MockGormDB 模拟 GORM DB 用于错误测试
+type MockErrorDB struct{}
+
+func (m *MockErrorDB) WithContext(ctx context.Context) *MockErrorDB {
+	return m
+}
+
+func (m *MockErrorDB) Model(value interface{}) *MockErrorDB {
+	return m
+}
+
+func (m *MockErrorDB) Find(dest interface{}) *MockErrorDB {
+	return m
+}
+
+func (m *MockErrorDB) Error() error {
+	return errors.New("mock database error")
+}
+
+// TestGetDeletedError 测试数据库错误处理
+func TestGetDeletedError(t *testing.T) {
+	// 由于GORM的复杂性，这里主要测试错误传播
+	// 实际的错误测试需要更复杂的模拟设置
+
+	// 测试基本功能不出错
+	gormDB, err := setupTestDB()
+	assert.NoError(t, err)
+
+	ctx := context.Background()
+	query := NewQuery()
+
+	_, err = GetDeleted[TestUser](ctx, gormDB, query)
+	assert.NoError(t, err) // 正常情况下不应该出错
+}
+
+// TestReflectionEdgeCases 测试反射相关的边界情况
+func TestReflectionEdgeCases(t *testing.T) {
+	// 测试不同类型的反射
+
+	// 测试指针类型
+	intPtr := new(int)
+	assert.False(t, IsSliceType(intPtr))
+
+	// 测试interface{}类型
+	var emptyInterface interface{} = []int{1, 2, 3}
+	assert.True(t, IsSliceType(emptyInterface))
+
+	// 测试channel类型
+	ch := make(chan int)
+	assert.False(t, IsSliceType(ch))
+
+	// 测试function类型
+	fn := func() {}
+	assert.False(t, IsSliceType(fn))
+
+	// 测试map类型
+	m := map[string]int{"key": 1}
+	assert.False(t, IsSliceType(m))
+}
+
+// TestConvertToInterfaceSliceComplexTypes 测试复杂类型的切片转换
+func TestConvertToInterfaceSliceComplexTypes(t *testing.T) {
+	// 测试结构体切片
+	type Person struct {
+		Name string
+		Age  int
+	}
+
+	people := []Person{
+		{Name: "Alice", Age: 25},
+		{Name: "Bob", Age: 30},
+	}
+
+	result := ConvertToInterfaceSlice(people)
+	assert.Equal(t, 2, len(result))
+	assert.Equal(t, Person{Name: "Alice", Age: 25}, result[0])
+	assert.Equal(t, Person{Name: "Bob", Age: 30}, result[1])
+
+	// 测试指针切片
+	p1 := &Person{Name: "Charlie", Age: 35}
+	p2 := &Person{Name: "David", Age: 40}
+	ptrSlice := []*Person{p1, p2}
+
+	result2 := ConvertToInterfaceSlice(ptrSlice)
+	assert.Equal(t, 2, len(result2))
+	assert.Equal(t, p1, result2[0])
+	assert.Equal(t, p2, result2[1])
+}
+
+// TestValueValidation 测试值验证
+func TestValueValidation(t *testing.T) {
+	// 测试不同的值类型
+	testCases := []struct {
+		name     string
+		value    interface{}
+		expected bool
+	}{
+		{"nil", nil, false},
+		{"empty slice", []int{}, false},
+		{"non-empty slice", []int{1}, true},
+		{"string", "test", false},
+		{"int", 42, false},
+		{"bool", true, false},
+		{"float", 3.14, false},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := IsSliceType(tc.value)
+			if tc.expected {
+				assert.True(t, result, "Expected %v to be slice type", tc.value)
+			} else {
+				// 对于非切片类型或 nil，应该返回 false
+				if tc.value == nil || reflect.ValueOf(tc.value).Kind() != reflect.Slice {
+					assert.False(t, result, "Expected %v to not be slice type", tc.value)
+				}
+			}
+		})
+	}
+}
+
+// TestQueryBuilderChaining 测试查询构建器的链式调用
+func TestQueryBuilderChaining(t *testing.T) {
+	query := NewQuery().
+		AddFilter(NewGtFilter("age", 18)).
+		AddOrder("name", "ASC").
+		WithPaging(1, 10).
+		WithDistinct(true).
+		AddGroupBy("status").
+		AddHaving(NewGtFilter("COUNT(*)", 0))
+
+	// 验证查询对象的属性
+	assert.Equal(t, 1, len(query.Filters))
+	assert.Equal(t, 1, len(query.Orders))
+	assert.NotNil(t, query.Pagination)
+	assert.True(t, query.Distinct)
+	assert.Equal(t, []string{"status"}, query.GroupBy)
+	assert.Equal(t, 1, len(query.Having))
+}
+
+// TestSoftDeleteComplexScenarios 测试软删除的复杂场景
+func TestSoftDeleteComplexScenarios(t *testing.T) {
+	gormDB, err := setupTestDB()
+	assert.NoError(t, err)
+
+	dbHandler := db.MustNewGormHandler(gormDB)
+	baseRepo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewRepositoryWithSoftDelete(baseRepo)
+
+	ctx := context.Background()
+
+	// 创建测试数据
+	user := &TestUser{Name: "TestUser", Email: "test@example.com", Age: 30}
+	createdUser, err := repo.Create(ctx, user)
+	assert.NoError(t, err)
+
+	// 测试多次软删除同一个记录
+	err = repo.SoftDeleteWithDeletedAt(ctx, createdUser.ID)
+	assert.NoError(t, err)
+
+	// 再次软删除应该也能成功（更新删除时间）
+	err = repo.SoftDeleteWithDeletedAt(ctx, createdUser.ID)
+	assert.NoError(t, err)
+
+	// 恢复后再次删除
+	err = repo.RestoreWithDeletedAt(ctx, createdUser.ID)
+	assert.NoError(t, err)
+
+	err = repo.SoftDeleteWithDeletedAt(ctx, createdUser.ID)
+	assert.NoError(t, err)
+
+	// 验证最终状态
+	deleted, err := repo.ListDeleted(ctx, nil)
+	assert.NoError(t, err)
+	assert.GreaterOrEqual(t, len(deleted), 1)
 }

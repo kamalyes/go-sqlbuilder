@@ -2,7 +2,7 @@
  * @Author: kamalyes 501893067@qq.com
  * @Date: 2025-11-26 00:00:00
  * @LastEditors: kamalyes 501893067@qq.com
- * @LastEditTime: 2025-11-26 00:00:00
+ * @LastEditTime: 2025-11-26 11:49:16
  * @FilePath: \go-sqlbuilder\repository\query_filter_test.go
  * @Description: Query 泛型过滤方法测试 - 确保100%测试覆盖率
  *
@@ -11,10 +11,11 @@
 package repository
 
 import (
-	"github.com/kamalyes/go-sqlbuilder/constants"
-	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
+
+	"github.com/kamalyes/go-sqlbuilder/constants"
+	"github.com/stretchr/testify/assert"
 )
 
 // 测试用枚举类型
@@ -486,4 +487,245 @@ func TestValidValueScenarios(t *testing.T) {
 	// AddTimeRangeFilter 添加2个过滤条件 (start >= 和 end <=)
 	// 总计: 13 + 1 + 2 + 1 = 17个过滤条件
 	assert.Equal(t, 17, len(query.Filters))
+}
+
+// =============== AddSafeOrder 排序方法测试 ===============
+
+// TestAddSafeOrder_DefaultValues 测试使用默认值
+func TestAddSafeOrder_DefaultValues(t *testing.T) {
+	query := NewQuery()
+	query.AddSafeOrder("", "", "created_at", "DESC")
+
+	assert.Equal(t, 1, len(query.Orders))
+	assert.Equal(t, "created_at", query.Orders[0].Field)
+	assert.Equal(t, "DESC", query.Orders[0].Direction)
+}
+
+// TestAddSafeOrder_CustomValues 测试自定义排序值
+func TestAddSafeOrder_CustomValues(t *testing.T) {
+	query := NewQuery()
+	query.AddSafeOrder("updated_at", "ASC", "created_at", "DESC")
+
+	assert.Equal(t, 1, len(query.Orders))
+	assert.Equal(t, "updated_at", query.Orders[0].Field)
+	assert.Equal(t, "ASC", query.Orders[0].Direction)
+}
+
+// TestAddSafeOrder_WhitelistValidField 测试白名单 - 有效字段
+func TestAddSafeOrder_WhitelistValidField(t *testing.T) {
+	allowedFields := []string{"id", "created_at", "updated_at", "name"}
+	query := NewQuery()
+	query.AddSafeOrder("name", "ASC", "created_at", "DESC", allowedFields)
+
+	assert.Equal(t, 1, len(query.Orders))
+	assert.Equal(t, "name", query.Orders[0].Field)
+	assert.Equal(t, "ASC", query.Orders[0].Direction)
+}
+
+// TestAddSafeOrder_WhitelistInvalidField 测试白名单 - 无效字段(使用默认值)
+func TestAddSafeOrder_WhitelistInvalidField(t *testing.T) {
+	allowedFields := []string{"id", "created_at", "updated_at"}
+	query := NewQuery()
+	query.AddSafeOrder("malicious_field", "ASC", "created_at", "DESC", allowedFields)
+
+	assert.Equal(t, 1, len(query.Orders))
+	assert.Equal(t, "created_at", query.Orders[0].Field) // 回退到默认字段
+	assert.Equal(t, "DESC", query.Orders[0].Direction)   // 使用默认方向
+}
+
+// TestAddSafeOrder_SQLInjectionAttempt 测试SQL注入攻击防护
+func TestAddSafeOrder_SQLInjectionAttempt(t *testing.T) {
+	query := NewQuery()
+	// 尝试注入恶意SQL
+	query.AddSafeOrder("id; DROP TABLE users--", "DESC", "created_at", "DESC")
+
+	assert.Equal(t, 1, len(query.Orders))
+	assert.Equal(t, "created_at", query.Orders[0].Field) // 回退到默认字段
+}
+
+// TestAddSafeOrder_InvalidDirection 测试无效排序方向(使用默认值)
+func TestAddSafeOrder_InvalidDirection(t *testing.T) {
+	query := NewQuery()
+	query.AddSafeOrder("id", "INVALID", "created_at", "DESC")
+
+	assert.Equal(t, 1, len(query.Orders))
+	assert.Equal(t, "id", query.Orders[0].Field)
+	assert.Equal(t, "DESC", query.Orders[0].Direction) // 无效方向,使用默认值
+}
+
+// TestAddSafeOrder_LowercaseDirection 测试小写排序方向(自动转大写)
+func TestAddSafeOrder_LowercaseDirection(t *testing.T) {
+	query := NewQuery()
+	query.AddSafeOrder("id", "asc", "created_at", "DESC")
+
+	assert.Equal(t, 1, len(query.Orders))
+	assert.Equal(t, "ASC", query.Orders[0].Direction) // 自动转为大写
+}
+
+// TestAddSafeOrder_MixedCaseDirection 测试混合大小写排序方向
+func TestAddSafeOrder_MixedCaseDirection(t *testing.T) {
+	query := NewQuery()
+	query.AddSafeOrder("id", "DeSc", "created_at", "ASC")
+
+	assert.Equal(t, 1, len(query.Orders))
+	assert.Equal(t, "DESC", query.Orders[0].Direction) // 标准化为大写
+}
+
+// TestAddSafeOrder_EmptyWhitelist 测试空白名单(使用字段名安全检查)
+func TestAddSafeOrder_EmptyWhitelist(t *testing.T) {
+	query := NewQuery()
+	query.AddSafeOrder("valid_field_123", "ASC", "created_at", "DESC", []string{})
+
+	assert.Equal(t, 1, len(query.Orders))
+	assert.Equal(t, "valid_field_123", query.Orders[0].Field) // 安全字段名,允许通过
+}
+
+// TestAddSafeOrder_DotNotation 测试点号表示法(表名.字段名)
+func TestAddSafeOrder_DotNotation(t *testing.T) {
+	query := NewQuery()
+	query.AddSafeOrder("users.created_at", "ASC", "id", "DESC")
+
+	assert.Equal(t, 1, len(query.Orders))
+	assert.Equal(t, "users.created_at", query.Orders[0].Field) // 允许表名.字段名格式
+}
+
+// TestAddSafeOrder_ChainCalls 测试链式调用
+func TestAddSafeOrder_ChainCalls(t *testing.T) {
+	query := NewQuery()
+	query.AddSafeOrder("name", "ASC", "id", "DESC").
+		AddSafeOrder("created_at", "DESC", "updated_at", "ASC")
+
+	assert.Equal(t, 2, len(query.Orders))
+	assert.Equal(t, "name", query.Orders[0].Field)
+	assert.Equal(t, "ASC", query.Orders[0].Direction)
+	assert.Equal(t, "created_at", query.Orders[1].Field)
+	assert.Equal(t, "DESC", query.Orders[1].Direction)
+}
+
+// TestAddSafeOrder_SpecialCharactersBlocked 测试特殊字符被阻止
+func TestAddSafeOrder_SpecialCharactersBlocked(t *testing.T) {
+	testCases := []struct {
+		name      string
+		sortBy    string
+		expectUse string // "default" 表示应使用默认字段
+	}{
+		{"空格", "created at", "default"},
+		{"单引号", "id'OR'1'='1", "default"},
+		{"双引号", "id\"OR\"1\"=\"1", "default"},
+		{"反引号", "id`", "default"},
+		{"括号", "id()", "default"},
+		{"星号", "id*", "default"},
+		{"逗号", "id,name", "default"},
+		{"分号", "id;DROP TABLE", "default"},
+		{"减号", "id-name", "default"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			query := NewQuery()
+			query.AddSafeOrder(tc.sortBy, "ASC", "created_at", "DESC")
+
+			assert.Equal(t, 1, len(query.Orders))
+			if tc.expectUse == "default" {
+				assert.Equal(t, "created_at", query.Orders[0].Field)
+			}
+		})
+	}
+}
+
+// Test_isSafeFieldName 测试字段名安全检查函数
+func Test_isSafeFieldName(t *testing.T) {
+	testCases := []struct {
+		name     string
+		field    string
+		expected bool
+	}{
+		{"空字符串", "", false},
+		{"简单字段名", "id", true},
+		{"下划线字段名", "user_id", true},
+		{"数字结尾", "field123", true},
+		{"大写字母", "UserId", true},
+		{"点号表示法", "users.id", true},
+		{"包含空格", "user id", false},
+		{"包含单引号", "user'id", false},
+		{"包含分号", "id;DROP", false},
+		{"包含星号", "id*", false},
+		{"包含减号", "user-id", false},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := isSafeFieldName(tc.field)
+			assert.Equal(t, tc.expected, result)
+		})
+	}
+}
+
+func TestAddTimeRangeValidFilter(t *testing.T) {
+	t.Log("测试 AddTimeRangeFilter 的零值处理...")
+
+	// 测试1: nil 值
+	t.Run("测试 nil 值", func(t *testing.T) {
+		query := NewQuery()
+		query.AddTimeRangeFilter("created_at", nil, nil)
+		assert.Equal(t, 0, len(query.Filters), "nil值不应该添加任何过滤条件")
+	})
+
+	// 测试2: 零值时间
+	t.Run("测试零值时间", func(t *testing.T) {
+		query := NewQuery()
+		zeroTime := time.Time{}
+		query.AddTimeRangeFilter("created_at", zeroTime, zeroTime)
+		assert.Equal(t, 0, len(query.Filters), "零值时间不应该添加任何过滤条件")
+	})
+
+	// 测试3: 零值时间指针
+	t.Run("测试零值时间指针", func(t *testing.T) {
+		query := NewQuery()
+		zeroTimePtr := &time.Time{}
+		query.AddTimeRangeFilter("created_at", zeroTimePtr, zeroTimePtr)
+		assert.Equal(t, 0, len(query.Filters), "零值时间指针不应该添加任何过滤条件")
+	})
+
+	// 测试4: 有效时间
+	t.Run("测试有效时间", func(t *testing.T) {
+		query := NewQuery()
+		now := time.Now()
+		query.AddTimeRangeFilter("created_at", &now, &now)
+		assert.Equal(t, 2, len(query.Filters), "有效时间应该添加2个过滤条件(>= 和 <=)")
+	})
+
+	// 测试5: 混合情况 - 只有开始时间
+	t.Run("测试只有开始时间", func(t *testing.T) {
+		query := NewQuery()
+		now := time.Now()
+		query.AddTimeRangeFilter("created_at", &now, nil)
+		assert.Equal(t, 1, len(query.Filters), "只有开始时间应该添加1个过滤条件(>=)")
+	})
+
+	// 测试6: 混合情况 - 只有结束时间
+	t.Run("测试只有结束时间", func(t *testing.T) {
+		query := NewQuery()
+		now := time.Now()
+		query.AddTimeRangeFilter("created_at", nil, &now)
+		assert.Equal(t, 1, len(query.Filters), "只有结束时间应该添加1个过滤条件(<=)")
+	})
+
+	// 测试7: 验证过滤条件的操作符
+	t.Run("测试过滤条件的操作符", func(t *testing.T) {
+		query := NewQuery()
+		now := time.Now()
+		query.AddTimeRangeFilter("created_at", &now, &now)
+		if len(query.Filters) == 2 {
+			// 第一个应该是 >=，第二个应该是 <=
+			assert.Equal(t, constants.OP_GTE, query.Filters[0].Operator, "第一个过滤条件应该是 >=")
+			assert.Equal(t, constants.OP_LTE, query.Filters[1].Operator, "第二个过滤条件应该是 <=")
+			assert.Equal(t, "created_at", query.Filters[0].Field, "过滤条件字段应该是 created_at")
+			assert.Equal(t, "created_at", query.Filters[1].Field, "过滤条件字段应该是 created_at")
+		} else {
+			t.Errorf("❌ FAIL: 过滤条件数量不正确，无法验证操作符")
+		}
+	})
+
+	t.Log("测试完成！")
 }

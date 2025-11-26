@@ -1,12 +1,12 @@
 # FilterGroup 完整指南
 
-FilterGroup 是构建复�?WHERE 条件的强大工具，支持 AND/OR 逻辑组合和无限层级嵌套�?
+FilterGroup 是构建复WHERE 条件的强大工具，支持 AND/OR 逻辑组合和无限层级嵌套
 
 ## 基础概念
 
 ### AND 逻辑
 
-所有条件必须同时满足（交集）�?
+所有条件必须同时满足（交集）
 
 ```go
 import (
@@ -22,7 +22,7 @@ group := repository.NewFilterGroup(constants.AND_AND).
 
 ### OR 逻辑
 
-任一条件满足即可（并集）�?
+任一条件满足即可（并集）
 
 ```go
 // WHERE status = 'active' OR status = 'verified'
@@ -35,19 +35,19 @@ group := repository.NewFilterGroup(constants.AND_OR).
 
 ### NewFilterGroup
 
-创建过滤器组�?
+创建过滤器组
 
 ```go
-// AND �?
+// AND 
 andGroup := repository.NewFilterGroup(constants.AND_AND)
 
-// OR �?
+// OR 
 orGroup := repository.NewFilterGroup(constants.AND_OR)
 ```
 
 ### AddFilter
 
-添加单个过滤条件�?
+添加单个过滤条件
 
 ```go
 group.AddFilter(repository.NewEqFilter("status", "active"))
@@ -55,20 +55,20 @@ group.AddFilter(repository.NewEqFilter("status", "active"))
 
 ### AddFilters
 
-批量添加多个过滤条件�?
+批量添加多个过滤条件
 
 ```go
 filters := []*repository.Filter{
     repository.NewEqFilter("status", "active"),
     repository.NewGtFilter("age", 18),
-    repository.NewLikeFilter("name", "�?),
+    repository.NewLikeFilter("name", "),
 }
 group.AddFilters(filters...)
 ```
 
 ### AddGroup
 
-添加嵌套的子组�?
+添加嵌套的子组
 
 ```go
 subGroup := repository.NewFilterGroup(constants.AND_OR).
@@ -82,7 +82,7 @@ mainGroup := repository.NewFilterGroup(constants.AND_AND).
 
 ### Apply
 
-�?FilterGroup 应用�?GORM 查询�?
+FilterGroup 应用GORM 查询
 
 ```go
 db := handler.GetDB()
@@ -91,9 +91,9 @@ query := group.Apply(db)
 
 ## 实战示例
 
-### 示例 1：电商商品筛�?
+### 示例 1：电商商品筛
 
-**需�?*：查找价格在 100-1000 之间的电子产品或图书，且评分大于 4.0 或销量大�?1000�?
+**需*：查找价格在 100-1000 之间的电子产品或图书，且评分大于 4.0 或销量大1000
 
 ```go
 // (category IN ('electronics', 'books') AND price BETWEEN 100 AND 1000)
@@ -115,9 +115,9 @@ query := repository.NewQuery().SetFilterGroup(mainGroup)
 products, err := repo.List(ctx, query)
 ```
 
-### 示例 2：用户权限筛�?
+### 示例 2：用户权限筛
 
-**需�?*：查找活跃的管理员或版主，且年龄大于 18 岁或已验证邮箱�?
+**需*：查找活跃的管理员或版主，且年龄大于 18 岁或已验证邮箱
 
 ```go
 // ((role = 'admin' OR role = 'moderator') AND status = 'active')
@@ -143,9 +143,9 @@ query := repository.NewQuery().SetFilterGroup(finalGroup)
 users, err := repo.List(ctx, query)
 ```
 
-### 示例 3：订单状态查�?
+### 示例 3：订单状态查
 
-**需�?*：查找待支付超过 30 分钟的订单，或已支付但未发货超过 24 小时的订单�?
+**需*：查找待支付超过 30 分钟的订单，或已支付但未发货超过 24 小时的订单
 
 ```go
 // (status = 'pending' AND created_at < NOW() - 30分钟)
@@ -171,9 +171,9 @@ query := repository.NewQuery().SetFilterGroup(mainGroup)
 orders, err := repo.List(ctx, query)
 ```
 
-### 示例 4：内容审核查�?
+### 示例 4：内容审核查
 
-**需�?*：查找需要人工审核的内容（包含敏感词或被举报次数大于 3，且未被审核）�?
+**需*：查找需要人工审核的内容（包含敏感词或被举报次数大于 3，且未被审核）
 
 ```go
 // (has_sensitive_words = true OR report_count > 3)
@@ -195,7 +195,7 @@ contents, err := repo.List(ctx, query)
 
 ### 示例 5：多条件搜索
 
-**需�?*：搜索名字或邮箱包含关键词，且状态为活跃或试用中的用户�?
+**需*：搜索名字或邮箱包含关键词，且状态为活跃或试用中的用户
 
 ```go
 // (name LIKE '%keyword%' OR email LIKE '%keyword%')
@@ -219,9 +219,9 @@ query := repository.NewQuery().SetFilterGroup(mainGroup)
 users, err := repo.List(ctx, query)
 ```
 
-### 示例 6：时间范围组�?
+### 示例 6：时间范围组
 
-**需�?*：查找本周创建的订单，或上月更新过的高优先级订单�?
+**需*：查找本周创建的订单，或上月更新过的高优先级订单
 
 ```go
 // (created_at >= THIS_WEEK_START AND created_at < THIS_WEEK_END)
@@ -242,9 +242,9 @@ query := repository.NewQuery().SetFilterGroup(mainGroup)
 orders, err := repo.List(ctx, query)
 ```
 
-### 示例 7：多级嵌�?
+### 示例 7：多级嵌
 
-**需�?*：复杂的会员筛选（VIP 或高消费用户，且活跃或最近登录）�?
+**需*：复杂的会员筛选（VIP 或高消费用户，且活跃或最近登录）
 
 ```go
 // ((vip_level > 0 OR total_spent > 10000) AND status = 'active')
@@ -270,16 +270,16 @@ query := repository.NewQuery().SetFilterGroup(finalGroup)
 members, err := repo.List(ctx, query)
 ```
 
-## 最佳实�?
+## 最佳实
 
-### 1. 命名清晰的变�?
+### 1. 命名清晰的变
 
 ```go
-// �?不好
+// 不好
 g1 := repository.NewFilterGroup(constants.AND_OR)
 g2 := repository.NewFilterGroup(constants.AND_AND)
 
-// �?�?
+// 
 roleGroup := repository.NewFilterGroup(constants.AND_OR)
 statusGroup := repository.NewFilterGroup(constants.AND_AND)
 ```
@@ -287,7 +287,7 @@ statusGroup := repository.NewFilterGroup(constants.AND_AND)
 ### 2. 逐步构建复杂条件
 
 ```go
-// 先构建子�?
+// 先构建子
 categoryGroup := repository.NewFilterGroup(constants.AND_OR).
     AddFilter(repository.NewEqFilter("category", "A")).
     AddFilter(repository.NewEqFilter("category", "B"))
@@ -296,7 +296,7 @@ priceGroup := repository.NewFilterGroup(constants.AND_AND).
     AddFilter(repository.NewGteFilter("price", 100)).
     AddFilter(repository.NewLteFilter("price", 1000))
 
-// 再组�?
+// 再组
 finalGroup := repository.NewFilterGroup(constants.AND_AND).
     AddGroup(categoryGroup).
     AddGroup(priceGroup)
@@ -305,9 +305,9 @@ finalGroup := repository.NewFilterGroup(constants.AND_AND).
 ### 3. 添加注释说明逻辑
 
 ```go
-// 查找需要提醒的用户�?
-// - 试用期即将到期（7天内�?
-// - 或者付费会员即将到期（30天内�?
+// 查找需要提醒的用户
+// - 试用期即将到期（7天内
+// - 或者付费会员即将到期（30天内
 trialExpiringGroup := repository.NewFilterGroup(constants.AND_AND).
     AddFilter(repository.NewEqFilter("user_type", "trial")).
     AddFilter(repository.NewBetweenFilter("expires_at", 
@@ -350,16 +350,16 @@ mainGroup := repository.NewFilterGroup(constants.AND_AND).
 ## 性能建议
 
 1. **索引优化**：确保过滤字段有索引
-2. **避免过深嵌套**：通常 3 层以内最�?
-3. **优先过滤数据量大的条�?*：将选择性高的条件放在前�?
+2. **避免过深嵌套**：通常 3 层以内最
+3. **优先过滤数据量大的条*：将选择性高的条件放在前
 4. **合理使用 OR**：OR 可能导致索引失效，考虑使用 UNION
 
-## 调试技�?
+## 调试技
 
-### 打印生成�?SQL
+### 打印生成SQL
 
 ```go
-// 开发环境启�?Debug
+// 开发环境启Debug
 db.Debug().Model(&User{}).Where(...)
 ```
 
@@ -370,9 +370,9 @@ db.Debug().Model(&User{}).Where(...)
 fmt.Printf("%+v\n", mainGroup)
 ```
 
-## 下一�?
+## 下一
 
 - 📖 [Repository 基础](./REPOSITORY-BASICS.MD) - 基础 CRUD 操作
-- 🔍 [高级查询](./ADVANCED-QUERIES.MD) - Query �?Filter 详解
+- 🔍 [高级查询](./ADVANCED-QUERIES.MD) - Query Filter 详解
 - 🚀 [EnhancedRepository](./ENHANCED-REPOSITORY.MD) - 便利方法详解
 

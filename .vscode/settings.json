@@ -175,6 +175,7 @@
       "hashers",
       "httpx",
       "iface",
+      "ILIKE",
       "jsoniter",
       "kamalyes",
       "linkname",
