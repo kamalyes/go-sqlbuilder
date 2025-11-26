@@ -10,7 +10,11 @@
  */
 package repository
 
-import "github.com/kamalyes/go-sqlbuilder/constants"
+import (
+	"time"
+
+	"github.com/kamalyes/go-sqlbuilder/constants"
+)
 
 type QueryCondition struct {
 	Filters    []Filter
@@ -243,18 +247,39 @@ func (q *Query) AddLikeFilterIfNotEmpty(field, keyword string) *Query {
 	return q
 }
 
+// isTimeValid 检查时间值是否有效(非nil且非零值)
+func isTimeValid(timeVal interface{}) bool {
+	if timeVal == nil {
+		return false
+	}
+
+	// 处理 *time.Time 类型
+	if ptr, ok := timeVal.(*time.Time); ok {
+		return ptr != nil && !ptr.IsZero()
+	}
+
+	// 处理 time.Time 类型
+	if t, ok := timeVal.(time.Time); ok {
+		return !t.IsZero()
+	}
+
+	// 其他类型认为有效
+	return true
+}
+
 // AddTimeRangeFilter 添加时间范围过滤条件
+// 自动过滤掉nil和零值时间，避免生成无效的SQL条件
 func (q *Query) AddTimeRangeFilter(field string, startTime, endTime interface{}) *Query {
-	if startTime != nil {
+	if isTimeValid(startTime) {
 		q.AddFilter(NewGteFilter(field, startTime))
 	}
-	if endTime != nil {
+	if isTimeValid(endTime) {
 		q.AddFilter(NewLteFilter(field, endTime))
 	}
 	return q
 }
 
-// AddInFilterIfNotEmpty 添加 IN 过滤条件（仅当切片不为空时）
+// AddInFilterIfNotEmpty 添加 IN 过滤条件(仅当切片不为空时)
 func (q *Query) AddInFilterIfNotEmpty(field string, values interface{}) *Query {
 	if values == nil {
 		return q
@@ -264,4 +289,75 @@ func (q *Query) AddInFilterIfNotEmpty(field string, values interface{}) *Query {
 		q.AddFilter(NewInFilterSlice(field, slice))
 	}
 	return q
+}
+
+// AddSafeOrder 安全地添加排序条件
+// 参数:
+//   - sortBy: 排序字段(可选,为空时使用defaultField)
+//   - sortOrder: 排序方向(可选,仅支持"ASC"/"DESC",为空时使用defaultDirection)
+//   - defaultField: 默认排序字段
+//   - defaultDirection: 默认排序方向
+//   - allowedFields: 允许的字段白名单(可选,为空则不限制)
+//
+// 示例:
+//
+//	query.AddSafeOrder(filter.SortBy, filter.SortOrder, "created_at", constants.Desc, []string{"created_at", "updated_at", "id"})
+func (q *Query) AddSafeOrder(sortBy, sortOrder, defaultField, defaultDirection string, allowedFields ...[]string) *Query {
+	// 1. 处理排序字段
+	field := defaultField
+	fieldValid := false // 标记字段是否有效
+
+	if sortBy != "" {
+		// 如果提供了白名单,检查字段是否在白名单中
+		if len(allowedFields) > 0 && len(allowedFields[0]) > 0 {
+			for _, allowedField := range allowedFields[0] {
+				if sortBy == allowedField {
+					field = sortBy
+					fieldValid = true
+					break
+				}
+			}
+		} else {
+			// 没有白名单,但要验证字段名是否安全(仅允许字母、数字、下划线)
+			if isSafeFieldName(sortBy) {
+				field = sortBy
+				fieldValid = true
+			}
+		}
+	}
+
+	// 2. 处理排序方向(标准化为大写)
+	direction := defaultDirection
+	// 只有当字段有效时,才处理自定义的排序方向
+	if fieldValid && sortOrder != "" {
+		upperOrder := ""
+		for _, ch := range sortOrder {
+			if ch >= 'a' && ch <= 'z' {
+				upperOrder += string(ch - 32)
+			} else if ch >= 'A' && ch <= 'Z' {
+				upperOrder += string(ch)
+			}
+		}
+		if upperOrder == "ASC" || upperOrder == "DESC" {
+			direction = upperOrder
+		}
+	}
+
+	// 3. 添加排序
+	q.AddOrder(field, direction)
+	return q
+}
+
+// isSafeFieldName 检查字段名是否安全(仅包含字母、数字、下划线、点号)
+func isSafeFieldName(field string) bool {
+	if field == "" {
+		return false
+	}
+	for _, ch := range field {
+		if !((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') ||
+			(ch >= '0' && ch <= '9') || ch == '_' || ch == '.') {
+			return false
+		}
+	}
+	return true
 }
