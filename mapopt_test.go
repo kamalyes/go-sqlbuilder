@@ -312,6 +312,183 @@ func TestStringSlice_Operations(t *testing.T) {
 	assert.Equal(t, "orange", clone[0])
 }
 
+func TestStringSlice_FromDelimitedString(t *testing.T) {
+	s := &StringSlice{}
+
+	// Test 场景1: 分号分割的字符串
+	result := s.FromDelimitedString("ws://addr1;ws://addr2;ws://addr3", ";")
+	assert.Equal(t, 3, len(result))
+	assert.Equal(t, "ws://addr1", result[0])
+	assert.Equal(t, "ws://addr2", result[1])
+	assert.Equal(t, "ws://addr3", result[2])
+
+	// Test 场景2: 换行符分割的字符串
+	result = s.FromDelimitedString("ws://addr1\nws://addr2\nws://addr3", "\n")
+	assert.Equal(t, 3, len(result))
+	assert.Equal(t, "ws://addr1", result[0])
+	assert.Equal(t, "ws://addr2", result[1])
+	assert.Equal(t, "ws://addr3", result[2])
+
+	// Test 场景3: 多个分隔符混合 (分号和换行符)
+	result = s.FromDelimitedString("ws://addr1;ws://addr2\nws://addr3", ";", "\n")
+	assert.Equal(t, 3, len(result))
+	assert.Contains(t, result, "ws://addr1")
+	assert.Contains(t, result, "ws://addr2")
+	assert.Contains(t, result, "ws://addr3")
+
+	// Test 场景4: 带空格的字符串 - 应该自动去除空格
+	result = s.FromDelimitedString(" ws://addr1 ; ws://addr2 ; ws://addr3 ", ";")
+	assert.Equal(t, 3, len(result))
+	assert.Equal(t, "ws://addr1", result[0])
+	assert.Equal(t, "ws://addr2", result[1])
+	assert.Equal(t, "ws://addr3", result[2])
+
+	// Test 场景5: 空字符串应该被过滤
+	result = s.FromDelimitedString("ws://addr1;;ws://addr2;;;ws://addr3", ";")
+	assert.Equal(t, 3, len(result))
+	assert.Equal(t, "ws://addr1", result[0])
+	assert.Equal(t, "ws://addr2", result[1])
+	assert.Equal(t, "ws://addr3", result[2])
+
+	// Test 场景6: 重复值应该被去重
+	result = s.FromDelimitedString("ws://addr1;ws://addr2;ws://addr1;ws://addr3", ";")
+	assert.Equal(t, 3, len(result))
+	assert.Contains(t, result, "ws://addr1")
+	assert.Contains(t, result, "ws://addr2")
+	assert.Contains(t, result, "ws://addr3")
+
+	// Test 场景7: 单个值不带分隔符
+	result = s.FromDelimitedString("ws://single-addr", ";")
+	assert.Equal(t, 1, len(result))
+	assert.Equal(t, "ws://single-addr", result[0])
+
+	// Test 场景8: 空输入字符串
+	result = s.FromDelimitedString("", ";")
+	assert.Equal(t, 0, len(result))
+
+	// Test 场景9: 只包含分隔符的字符串
+	result = s.FromDelimitedString(";;;", ";")
+	assert.Equal(t, 0, len(result))
+
+	// Test 场景10: 换行符前后有空格
+	result = s.FromDelimitedString("ws://addr1  \n  ws://addr2\n  ws://addr3  ", "\n")
+	assert.Equal(t, 3, len(result))
+	assert.Equal(t, "ws://addr1", result[0])
+	assert.Equal(t, "ws://addr2", result[1])
+	assert.Equal(t, "ws://addr3", result[2])
+
+	// Test 场景11: 复杂混合场景 - 分号、换行符、空格、重复、空值
+	result = s.FromDelimitedString("  ws://addr1  ;  \n  ws://addr2  ; ; ws://addr1  \n  ws://addr3  ", ";", "\n")
+	assert.Equal(t, 3, len(result))
+	assert.Contains(t, result, "ws://addr1")
+	assert.Contains(t, result, "ws://addr2")
+	assert.Contains(t, result, "ws://addr3")
+}
+
+func TestParseStringSlice(t *testing.T) {
+	// Test 场景1: 普通字符串数组
+	result := ParseStringSlice([]string{"ws://addr1", "ws://addr2", "ws://addr3"})
+	assert.Equal(t, 3, len(result))
+	assert.Equal(t, "ws://addr1", result[0])
+	assert.Equal(t, "ws://addr2", result[1])
+	assert.Equal(t, "ws://addr3", result[2])
+
+	// Test 场景2: 单个元素包含分号分割的字符串
+	result = ParseStringSlice([]string{"ws://addr1;ws://addr2;ws://addr3"})
+	assert.Equal(t, 3, len(result))
+	assert.Equal(t, "ws://addr1", result[0])
+	assert.Equal(t, "ws://addr2", result[1])
+	assert.Equal(t, "ws://addr3", result[2])
+
+	// Test 场景3: 单个元素包含换行符分割的字符串
+	result = ParseStringSlice([]string{"ws://addr1\nws://addr2\nws://addr3"})
+	assert.Equal(t, 3, len(result))
+	assert.Equal(t, "ws://addr1", result[0])
+	assert.Equal(t, "ws://addr2", result[1])
+	assert.Equal(t, "ws://addr3", result[2])
+
+	// Test 场景4: 多个元素,每个元素都包含分隔符
+	result = ParseStringSlice([]string{"ws://addr1;ws://addr2", "ws://addr3\nws://addr4"})
+	assert.Equal(t, 4, len(result))
+	assert.Contains(t, result, "ws://addr1")
+	assert.Contains(t, result, "ws://addr2")
+	assert.Contains(t, result, "ws://addr3")
+	assert.Contains(t, result, "ws://addr4")
+
+	// Test 场景5: 混合普通字符串和分割字符串
+	result = ParseStringSlice([]string{"ws://addr1", "ws://addr2;ws://addr3", "ws://addr4"})
+	assert.Equal(t, 4, len(result))
+	assert.Contains(t, result, "ws://addr1")
+	assert.Contains(t, result, "ws://addr2")
+	assert.Contains(t, result, "ws://addr3")
+	assert.Contains(t, result, "ws://addr4")
+
+	// Test 场景6: 包含空字符串的数组
+	result = ParseStringSlice([]string{"ws://addr1", "", "ws://addr2"})
+	assert.Equal(t, 2, len(result))
+	assert.Equal(t, "ws://addr1", result[0])
+	assert.Equal(t, "ws://addr2", result[1])
+
+	// Test 场景7: 空数组
+	result = ParseStringSlice([]string{})
+	assert.Equal(t, 0, len(result))
+
+	// Test 场景8: 包含空格的字符串应该被trim
+	result = ParseStringSlice([]string{"  ws://addr1  ", "ws://addr2;  ws://addr3  "})
+	assert.Equal(t, 3, len(result))
+	assert.Equal(t, "ws://addr1", result[0])
+	assert.Equal(t, "ws://addr2", result[1])
+	assert.Equal(t, "ws://addr3", result[2])
+
+	// Test 场景9: 重复值应该被去重
+	result = ParseStringSlice([]string{"ws://addr1", "ws://addr2", "ws://addr1"})
+	assert.Equal(t, 2, len(result))
+	assert.Contains(t, result, "ws://addr1")
+	assert.Contains(t, result, "ws://addr2")
+
+	// Test 场景10: 分号和换行符混合的单个字符串
+	result = ParseStringSlice([]string{"ws://addr1;ws://addr2\nws://addr3"})
+	assert.Equal(t, 3, len(result))
+	assert.Contains(t, result, "ws://addr1")
+	assert.Contains(t, result, "ws://addr2")
+	assert.Contains(t, result, "ws://addr3")
+
+	// Test 场景11: 复杂场景 - 多个元素、混合分隔符、空格、重复
+	result = ParseStringSlice([]string{
+		"  ws://addr1  ;  ws://addr2  ",
+		"ws://addr3\nws://addr1",
+		"  ws://addr4  ",
+		"",
+		"ws://addr2;ws://addr5",
+	})
+	assert.Equal(t, 5, len(result))
+	assert.Contains(t, result, "ws://addr1")
+	assert.Contains(t, result, "ws://addr2")
+	assert.Contains(t, result, "ws://addr3")
+	assert.Contains(t, result, "ws://addr4")
+	assert.Contains(t, result, "ws://addr5")
+
+	// Test 场景12: nil数组
+	result = ParseStringSlice(nil)
+	assert.Equal(t, 0, len(result))
+
+	// Test 场景13: 单个元素且没有分隔符
+	result = ParseStringSlice([]string{"ws://single-addr"})
+	assert.Equal(t, 1, len(result))
+	assert.Equal(t, "ws://single-addr", result[0])
+
+	// Test 场景14: 只包含空字符串的数组
+	result = ParseStringSlice([]string{"", "", ""})
+	assert.Equal(t, 0, len(result))
+
+	// Test 场景15: 实际业务场景模拟 - WebSocket地址配置
+	result = ParseStringSlice([]string{"wss://ws1.example.com:8082;wss://ws2.example.com:8082\nwss://ws3.example.com:8082"})
+	assert.Equal(t, 3, len(result))
+	assert.Contains(t, result, "wss://ws1.example.com:8082")
+	assert.Contains(t, result, "wss://ws2.example.com:8082")
+	assert.Contains(t, result, "wss://ws3.example.com:8082")
+}
+
 func TestJSONType(t *testing.T) {
 	type Person struct {
 		Name string `json:"name"`

@@ -14,6 +14,7 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 // MapAny 任意类型的 Map，支持数据库 JSON 序列化
@@ -271,6 +272,85 @@ func (s StringSlice) Contains(item string) bool {
 		}
 	}
 	return false
+}
+
+// FromDelimitedString 从分隔符字符串创建 StringSlice
+// 支持多种分隔符: 分号(;)、换行符(\n)、逗号(,)
+// 自动去除空白字符和空字符串
+func (s *StringSlice) FromDelimitedString(input string, delimiters ...string) StringSlice {
+	if input == "" {
+		*s = StringSlice{}
+		return *s
+	}
+
+	// 默认分隔符: 换行符和分号
+	if len(delimiters) == 0 {
+		delimiters = []string{"\n", ";"}
+	}
+
+	// 使用多个分隔符递归分割
+	items := []string{input}
+	for _, delimiter := range delimiters {
+		temp := make([]string, 0)
+		for _, item := range items {
+			parts := strings.Split(item, delimiter)
+			temp = append(temp, parts...)
+		}
+		items = temp
+	}
+
+	// 去重和清理
+	seen := make(map[string]bool)
+	final := make([]string, 0)
+	for _, item := range items {
+		item = strings.TrimSpace(item)
+		if item != "" && !seen[item] {
+			seen[item] = true
+			final = append(final, item)
+		}
+	}
+
+	*s = StringSlice(final)
+	return *s
+}
+
+// ParseStringSlice 从混合格式解析字符串切片
+// 支持数组或分隔字符串 (分号;换行符\n)
+func ParseStringSlice(input []string) StringSlice {
+	if len(input) == 0 {
+		return StringSlice{}
+	}
+
+	var allItems []string
+	for _, item := range input {
+		item = strings.TrimSpace(item)
+		if item == "" {
+			continue
+		}
+
+		// 检查是否包含分隔符
+		if strings.Contains(item, ";") || strings.Contains(item, "\n") {
+			var result StringSlice
+			parsed := result.FromDelimitedString(item)
+			allItems = append(allItems, parsed...)
+		} else {
+			// 单个值
+			allItems = append(allItems, item)
+		}
+	}
+
+	// 去重和清理
+	seen := make(map[string]bool)
+	final := make([]string, 0)
+	for _, item := range allItems {
+		item = strings.TrimSpace(item)
+		if item != "" && !seen[item] {
+			seen[item] = true
+			final = append(final, item)
+		}
+	}
+
+	return StringSlice(final)
 }
 
 // IndexOf 查找元素索引，未找到返回 -1
