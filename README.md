@@ -11,7 +11,8 @@
 - 🚀 **仓储模式**：泛型 BaseRepository 和 EnhancedRepository，类型安全的 CRUD 操作
 - 🔍 **高级查询**：FilterGroup 支持复杂的 AND/OR 条件组合和无限嵌套
 - 🎯 **类型安全**：完全的泛型支持，编译时类型检查
-- 📊 **性能优化**：批量操作、游标分页、原子字段更新
+- ⚡ **自动字段选择**：基于 struct tags 自动生成查询字段，避免 SELECT *，提升性能
+- 📊 **性能优化**：批量操作、游标分页、原子字段更新、字段缓存
 - 🔐 **错误处理**：集成 go-toolbox/errorx 的结构化错误管理
 - 📝 **审计追踪**：内置审计字段（created_by, updated_by）
 - 🛠️ **便利方法**：常用操作的快捷方法
@@ -91,17 +92,32 @@ func main() {
 提供所有基础数据库操作：
 
 ```go
-repo := repository.NewBaseRepository[User](handler, logger, "users")
+// 创建 Repository（可选：启用自动字段选择）
+repo := repository.NewBaseRepository[User](
+    handler, 
+    logger, 
+    "users",
+    repository.WithAutoFields[User](),  // 🔥 自动字段选择，避免 SELECT *
+)
 
 // 创建操作
 user, err := repo.Create(ctx, &User{Name: "Alice"})
 err = repo.CreateBatch(ctx, users...)
 created, isNew, err := repo.CreateIfNotExists(ctx, user, "email")
 
-// 查询操作
+// 查询操作（自动字段模式下只查询需要的字段）
 user, err := repo.Get(ctx, 1)
 users, err := repo.GetAll(ctx)
 users, paging, err := repo.ListWithPagination(ctx, query, paging)
+
+// 排除敏感字段或大字段
+query := repository.NewQuery().
+    Omit("password").              // 排除密码字段
+    OmitLargeFields().             // 排除 content, description 等大字段
+    AddEqual("status", "active")
+
+users, err := repo.List(ctx, query)
+// SQL: SELECT id,name,email,created_at,updated_at FROM users WHERE status = 'active'
 
 // 更新操作
 user, err := repo.Update(ctx, user)
@@ -239,6 +255,7 @@ repository.NewCustomFilter("YEAR(created_at) = ?", 2024)
 - 📗 [Repository 基础](docs/REPOSITORY-BASICS.MD) - 完整 CRUD 操作详解
 - 📙 [高级查询](docs/ADVANCED-QUERIES.MD) - Query、Filter 和复杂查询
 - 🔥 [便捷查询示例](docs/QUERY-EXAMPLES.MD) - 链式查询构建实战指南
+- ⚡ [自动字段选择](docs/AUTO-FIELD-SELECTION.MD) - 避免 SELECT *，优化查询性能
 - 📕 [FilterGroup 完整指南](docs/FILTERGROUP.MD) - 复杂条件组合和嵌套
 - 📓 [EnhancedRepository](docs/ENHANCED-REPOSITORY.MD) - 便利方法详解
 - 📔 [模型定义](docs/MODELS.MD) - BaseModel、AuditModel 使用
@@ -278,6 +295,7 @@ repo := repository.NewBaseRepository[User](
     handler,
     logger,
     "users",
+    repository.WithAutoFields[User](),                // 🔥 启用自动字段选择
     repository.WithBatchSize[User](200),              // 批处理大小
     repository.WithTimeout[User](60),                 // 超时时间
     repository.WithDefaultPreloads[User]("Profile"),  // 默认预加载

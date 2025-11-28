@@ -13,12 +13,11 @@ package repository
 import (
 	"context"
 	"fmt"
+	"github.com/kamalyes/go-sqlbuilder/constants"
+	"gorm.io/gorm"
 	"reflect"
 	"strings"
 	"time"
-
-	"github.com/kamalyes/go-sqlbuilder/constants"
-	"gorm.io/gorm"
 )
 
 // === 反射辅助函数 ===
@@ -295,4 +294,138 @@ func (r *RepositoryWithSoftDelete[T]) ListDeletedByIsDeleted(ctx context.Context
 	}
 	query.AddFilter(NewEqFilter("is_deleted", 1))
 	return r.List(ctx, query)
+}
+
+// === 字段处理辅助函数 ===
+
+// GetStructFields 获取结构体的所有字段名（基于 gorm tag 或 json tag）
+// 返回数据库字段名列表
+func GetStructFields(model interface{}) []string {
+	var fields []string
+	t := reflect.TypeOf(model)
+
+	// 处理指针类型
+	if t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+
+	// 确保是结构体类型
+	if t.Kind() != reflect.Struct {
+		return fields
+	}
+
+	// 遍历所有字段
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+
+		// 跳过未导出的字段
+		if !field.IsExported() {
+			continue
+		}
+
+		// 优先使用 gorm 的 column tag
+		if columnTag := field.Tag.Get("gorm"); columnTag != "-" {
+			// 解析 gorm tag，提取 column 名称
+			if columnName := extractColumnName(columnTag); columnName != "" {
+				fields = append(fields, columnName)
+				continue
+			}
+		}
+
+		// 使用 json tag
+		if jsonTag := field.Tag.Get("json"); jsonTag != "" && jsonTag != "-" {
+			// 去除 omitempty 等选项
+			jsonName := strings.Split(jsonTag, ",")[0]
+			if jsonName != "" {
+				fields = append(fields, jsonName)
+				continue
+			}
+		}
+
+		// 使用字段名的蛇形命名
+		fields = append(fields, toSnakeCase(field.Name))
+	}
+
+	return fields
+}
+
+// extractColumnName 从 gorm tag 中提取 column 名称
+func extractColumnName(gormTag string) string {
+	// gorm tag 格式: "column:user_name;type:varchar(100)"
+	parts := strings.Split(gormTag, ";")
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if strings.HasPrefix(part, "column:") {
+			return strings.TrimPrefix(part, "column:")
+		}
+	}
+	return ""
+}
+
+// toSnakeCase 将驼峰命名转换为蛇形命名
+func toSnakeCase(s string) string {
+	var result strings.Builder
+	for i, r := range s {
+		if i > 0 && r >= 'A' && r <= 'Z' {
+			result.WriteRune('_')
+		}
+		if r >= 'A' && r <= 'Z' {
+			result.WriteRune(r + 32) // 转换为小写
+		} else {
+			result.WriteRune(r)
+		}
+	}
+	return result.String()
+}
+
+// FilterFields 根据 select 和 omit 规则过滤字段列表
+func FilterFields(allFields, selectFields, omitFields []string) []string {
+	// 如果指定了 select，只返回指定的字段
+	if len(selectFields) > 0 {
+		return selectFields
+	}
+
+	// 如果没有 omit，返回所有字段
+	if len(omitFields) == 0 {
+		return allFields
+	}
+
+	// 创建 omit 字段的 map 用于快速查找
+	omitMap := make(map[string]bool, len(omitFields))
+	for _, field := range omitFields {
+		omitMap[field] = true
+	}
+
+	// 过滤掉 omit 的字段
+	var result []string
+	for _, field := range allFields {
+		if !omitMap[field] {
+			result = append(result, field)
+		}
+	}
+
+	return result
+}
+
+// BuildSelectClause 构建 SELECT 子句
+func BuildSelectClause(tableName string, fields []string) string {
+	if len(fields) == 0 {
+		return "*"
+	}
+
+	// 如果有表名，添加表名前缀
+	if tableName != "" {
+		var qualified []string
+		for _, field := range fields {
+			// 如果字段已经包含点号（可能已经有表名），不再添加前缀
+			if strings.Contains(field, ".") {
+				qualified = append(qualified, field)
+			} else {
+				qualified = append(qualified, tableName+"."+field)
+			}
+		}
+		return strings.Join(qualified, ", ")
+	}
+
+	return strings.Join(fields, ", ")
 }

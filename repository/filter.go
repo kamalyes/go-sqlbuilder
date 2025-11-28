@@ -84,15 +84,17 @@ type Order struct {
 
 // Query 查询条件
 type Query struct {
-	Filters     []*Filter    // 简单过滤条件
-	FilterGroup *FilterGroup // 复合过滤条件组
-	Orders      []Order      // 排序条件
-	Pagination  *Pagination  // 分页信息
-	LimitValue  *int         // 限制数量
-	OffsetValue *int         // 偏移量
-	Distinct    bool         // 是否去重
-	GroupBy     []string     // 分组字段
-	Having      []*Filter    // HAVING 条件
+	Filters      []*Filter    // 简单过滤条件
+	FilterGroup  *FilterGroup // 复合过滤条件组
+	Orders       []Order      // 排序条件
+	Pagination   *Pagination  // 分页信息
+	LimitValue   *int         // 限制数量
+	OffsetValue  *int         // 偏移量
+	Distinct     bool         // 是否去重
+	GroupBy      []string     // 分组字段
+	Having       []*Filter    // HAVING 条件
+	SelectFields []string     // 要查询的字段列表（为空则查询所有字段）
+	OmitFields   []string     // 要排除的字段列表
 }
 
 // NewEqFilter 创建等于过滤条件

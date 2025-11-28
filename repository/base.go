@@ -13,10 +13,6 @@ package repository
 import (
 	"context"
 	"fmt"
-	"reflect"
-	"strings"
-	"time"
-
 	"github.com/kamalyes/go-logger"
 	gologger "github.com/kamalyes/go-logger"
 	"github.com/kamalyes/go-sqlbuilder/constants"
@@ -24,6 +20,9 @@ import (
 	"github.com/kamalyes/go-sqlbuilder/errors"
 	"github.com/kamalyes/go-toolbox/pkg/errorx"
 	"gorm.io/gorm"
+	"reflect"
+	"strings"
+	"time"
 )
 
 // ContextFieldExtractor context字段提取器函数类型
@@ -41,6 +40,8 @@ type BaseRepository[T any] struct {
 	defaultOrder     string                // 默认排序
 	logger           gologger.ILogger      // 日志记录器
 	contextExtractor ContextFieldExtractor // context字段提取器
+	modelFields      []string              // 模型字段缓存（用于自动字段选择）
+	autoFields       bool                  // 是否启用自动字段模式
 }
 
 // 编译时检查 - 确保 BaseRepository 实现了 Repository 接口
@@ -95,14 +96,25 @@ func WithLogger[T any](log gologger.ILogger) RepositoryOption[T] {
 	}
 }
 
+// WithAutoFields 启用自动字段模式（根据model自动提取字段）
+func WithAutoFields[T any]() RepositoryOption[T] {
+	return func(r *BaseRepository[T]) {
+		r.autoFields = true
+		// 初始化时提取并缓存字段
+		var model T
+		r.modelFields = GetStructFields(model)
+	}
+}
+
 // NewBaseRepository 创建基础仓储
 func NewBaseRepository[T any](dbHandler db.Handler, logger gologger.ILogger, table string, options ...RepositoryOption[T]) *BaseRepository[T] {
 	r := &BaseRepository[T]{
-		db:        dbHandler,
-		table:     table,
-		batchSize: constants.DefaultBatchSize,
-		timeout:   constants.DefaultQueryTimeout,
-		logger:    logger,
+		db:         dbHandler,
+		table:      table,
+		batchSize:  constants.DefaultBatchSize,
+		timeout:    constants.DefaultQueryTimeout,
+		logger:     logger,
+		autoFields: false,
 	}
 
 	// 应用配置选项
@@ -365,6 +377,9 @@ func (r *BaseRepository[T]) List(ctx context.Context, query *Query) ([]*T, error
 
 	db := r.db.GetDB().WithContext(ctx).Table(r.table)
 
+	// 应用字段选择
+	db = r.applyFieldSelection(db, query)
+
 	// 应用默认预加载
 	for _, preload := range r.preloads {
 		db = db.Preload(preload)
@@ -419,6 +434,9 @@ func (r *BaseRepository[T]) ListWithPreloads(ctx context.Context, query *Query, 
 	var entities []*T
 
 	db := r.db.GetDB().WithContext(ctx).Table(r.table)
+
+	// 应用字段选择
+	db = r.applyFieldSelection(db, query)
 
 	// 应用指定的预加载
 	for _, preload := range preloads {
@@ -908,6 +926,37 @@ func (r *BaseRepository[T]) Table() string {
 	return r.table
 }
 
+// EnableAutoFields 启用自动字段模式
+func (r *BaseRepository[T]) EnableAutoFields() {
+	if !r.autoFields {
+		r.autoFields = true
+		// 提取并缓存字段（如果尚未缓存）
+		if len(r.modelFields) == 0 {
+			var model T
+			r.modelFields = GetStructFields(model)
+		}
+	}
+}
+
+// DisableAutoFields 禁用自动字段模式
+func (r *BaseRepository[T]) DisableAutoFields() {
+	r.autoFields = false
+}
+
+// IsAutoFieldsEnabled 检查是否启用自动字段模式
+func (r *BaseRepository[T]) IsAutoFieldsEnabled() bool {
+	return r.autoFields
+}
+
+// GetModelFields 获取缓存的模型字段
+func (r *BaseRepository[T]) GetModelFields() []string {
+	if len(r.modelFields) == 0 {
+		var model T
+		r.modelFields = GetStructFields(model)
+	}
+	return r.modelFields
+}
+
 // transactionWrapper 事务包装器
 type transactionWrapper[T any] struct {
 	db    db.Handler
@@ -1185,5 +1234,38 @@ func (r *BaseRepository[T]) applyOrdering(db *gorm.DB, query *Query) *gorm.DB {
 		db = db.Order(r.defaultOrder)
 	}
 
+	return db
+}
+
+// applyFieldSelection 应用字段选择（Select/Omit）
+func (r *BaseRepository[T]) applyFieldSelection(db *gorm.DB, query *Query) *gorm.DB {
+	// 如果同时指定了 Select 和 Omit，优先使用 Select
+	if len(query.SelectFields) > 0 {
+		db = db.Select(query.SelectFields)
+		return db
+	}
+
+	// 如果指定了 Omit
+	if len(query.OmitFields) > 0 {
+		// 如果启用了自动字段模式，从模型字段中排除
+		if r.autoFields && len(r.modelFields) > 0 {
+			selectedFields := FilterFields(r.modelFields, nil, query.OmitFields)
+			if len(selectedFields) > 0 {
+				db = db.Select(selectedFields)
+			}
+			return db
+		}
+		// 否则使用GORM的Omit
+		db = db.Omit(query.OmitFields...)
+		return db
+	}
+
+	// 如果启用了自动字段模式且没有指定任何字段选择，使用缓存的模型字段
+	if r.autoFields && len(r.modelFields) > 0 {
+		db = db.Select(r.modelFields)
+		return db
+	}
+
+	// 没有指定字段选择，返回原查询（SELECT *）
 	return db
 }

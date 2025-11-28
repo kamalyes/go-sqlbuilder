@@ -539,3 +539,38 @@ func (q *Query) Take(limit int) *Query {
 func (q *Query) Skip(offset int) *Query {
 	return q.Offset(offset)
 }
+
+// Select 指定要查询的字段
+// 示例: query.Select("id", "name", "email")
+func (q *Query) Select(fields ...string) *Query {
+	if len(fields) > 0 {
+		q.SelectFields = fields
+	}
+	return q
+}
+
+// Omit 排除不需要查询的字段
+// 示例: query.Omit("password", "secret")
+func (q *Query) Omit(fields ...string) *Query {
+	if len(fields) > 0 {
+		q.OmitFields = fields
+	}
+	return q
+}
+
+// SelectOnly 只查询指定的单个字段（便捷方法）
+func (q *Query) SelectOnly(field string) *Query {
+	return q.Select(field)
+}
+
+// OmitSensitive 排除敏感字段的便捷方法
+// 默认排除: password, secret, token, api_key
+func (q *Query) OmitSensitive() *Query {
+	return q.Omit("password", "secret", "token", "api_key", "access_token", "refresh_token")
+}
+
+// OmitLargeFields 排除大字段的便捷方法
+// 默认排除: content, description, detail, data, payload, body
+func (q *Query) OmitLargeFields() *Query {
+	return q.Omit("content", "description", "detail", "data", "payload", "body", "remark")
+}
