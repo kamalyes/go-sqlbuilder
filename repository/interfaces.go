@@ -12,6 +12,8 @@ package repository
 
 import (
 	"context"
+
+	"gorm.io/gorm"
 )
 
 // Transaction 事务接口
@@ -61,6 +63,7 @@ type Repository[T any] interface {
 
 	// 事务
 	Transaction(ctx context.Context, fn func(tx Transaction[T]) error) error
+	TransactionWithRawDB(ctx context.Context, fn func(tx *gorm.DB) error) error
 
 	// 工具方法
 	Count(ctx context.Context, filters ...*Filter) (int64, error)

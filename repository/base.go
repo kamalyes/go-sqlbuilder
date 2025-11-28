@@ -2,7 +2,7 @@
  * @Author: kamalyes 501893067@qq.com
  * @Date: 2025-11-11 21:13:15
  * @LastEditors: kamalyes 501893067@qq.com
- * @LastEditTime: 2025-11-26 11:18:57
+ * @LastEditTime: 2025-11-28 13:15:15
  * @FilePath: \go-sqlbuilder\repository\base.go
  * @Description:
  *
@@ -13,6 +13,10 @@ package repository
 import (
 	"context"
 	"fmt"
+	"reflect"
+	"strings"
+	"time"
+
 	"github.com/kamalyes/go-logger"
 	gologger "github.com/kamalyes/go-logger"
 	"github.com/kamalyes/go-sqlbuilder/constants"
@@ -20,9 +24,6 @@ import (
 	"github.com/kamalyes/go-sqlbuilder/errors"
 	"github.com/kamalyes/go-toolbox/pkg/errorx"
 	"gorm.io/gorm"
-	"reflect"
-	"strings"
-	"time"
 )
 
 // ContextFieldExtractor context字段提取器函数类型
@@ -626,6 +627,13 @@ func (r *BaseRepository[T]) Transaction(ctx context.Context, fn func(tx Transact
 		}
 		txWrapper := &transactionWrapper[T]{db: txHandler, table: r.table}
 		return fn(txWrapper)
+	})
+}
+
+// TransactionWithRawDB 通用事务支持（可以操作任意模型）
+func (r *BaseRepository[T]) TransactionWithRawDB(ctx context.Context, fn func(tx *gorm.DB) error) error {
+	return r.db.GetDB().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		return fn(tx.WithContext(ctx))
 	})
 }
 
