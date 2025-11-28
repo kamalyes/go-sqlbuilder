@@ -4,7 +4,7 @@ go 1.24.0
 
 require (
 	github.com/kamalyes/go-logger v0.4.0
-	github.com/kamalyes/go-toolbox v0.11.79
+	github.com/kamalyes/go-toolbox v0.11.80
 	github.com/stretchr/testify v1.11.1
 	google.golang.org/protobuf v1.36.10
 	gorm.io/driver/sqlite v1.6.0
