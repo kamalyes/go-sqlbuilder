@@ -368,9 +368,9 @@ func TestQueryBuilder(t *testing.T) {
 }
 ```
 
-## 📚 更多资源
+## 📚 相关文档
 
-- 🔍 [高级查询文档](./ADVANCED-QUERIES.MD) - 完整的查询功能
-- 🎯 [FilterGroup 使用](./FILTERGROUP.MD) - 复杂条件组合
-- 🚀 [EnhancedRepository](./ENHANCED-REPOSITORY.MD) - 增强功能
-- 📖 [API 参考](./API-REFERENCE.MD) - 完整的 API 文档
+- 🔍 [高级查询文档](./ADVANCED-QUERIES.md) - 完整的查询功能
+- 🎯 [FilterGroup 使用](./FILTERGROUP.md) - 复杂条件组合
+- 🚀 [EnhancedRepository](./ENHANCED-REPOSITORY.md) - 增强功能
+- 📖 [API 参考](./API-REFERENCE.md) - 完整的 API 文档

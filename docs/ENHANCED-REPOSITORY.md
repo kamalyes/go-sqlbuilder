@@ -407,8 +407,8 @@ enhanced.IncrementField(ctx, userID, "points", 10)
 2. **使用原子操作避免并发冲突**：IncrementField、DecrementField 是线程安全的
 3. **组合使用 BaseRepository 和 EnhancedRepository**：复杂查询用 BaseRepository，便利操作用 EnhancedRepository
 
-## 下一步
+## 📚 相关文档
 
-- 📖 [Repository 基础](./REPOSITORY-BASICS.MD) - BaseRepository 完整功能
-- 🔍 [高级查询](./ADVANCED-QUERIES.MD) - 复杂查询构建
-- 🎯 [FilterGroup](./FILTERGROUP.MD) - 复杂条件组合
+- 📖 [Repository 基础](./REPOSITORY-BASICS.md) - BaseRepository 完整功能
+- 🔍 [高级查询](./ADVANCED-QUERIES.md) - 复杂查询构建
+- 🎯 [FilterGroup](./FILTERGROUP.md) - 复杂条件组合

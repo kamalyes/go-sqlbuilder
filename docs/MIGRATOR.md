@@ -474,9 +474,9 @@ err := migrator.AutoMigrate()
 
 > 💡 **提示**: 表注释在 SQLite 和 SQL Server 中会被静默跳过，不会报错。
 
-## 相关文档
+## 📚 相关文档
 
-- [快速开始](./QUICKSTART.MD)
-- [仓储基础](./REPOSITORY-BASICS.MD)
-- [模型定义](./MODELS.MD)
-- [错误处理](./ERROR-HANDLING.MD)
+- 📘 [快速开始](./QUICKSTART.md) - 5 分钟上手指南
+- 📖 [仓储基础](./REPOSITORY-BASICS.md) - 学习基础 CRUD 操作
+- 🏗️ [模型定义](./MODELS.md) - 定义数据模型
+- 📒 [错误处理](./ERROR-HANDLING.md) - 错误管理和日志记录

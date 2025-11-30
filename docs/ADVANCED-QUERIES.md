@@ -548,8 +548,8 @@ query := repository.NewQuery().
 db.Debug().Model(&User{})...
 ```
 
-## 下一步
+## 📚 相关文档
 
-- 🎯 [FilterGroup 详细文档](./FILTERGROUP.MD) - FilterGroup 完整用法
-- 🚀 [EnhancedRepository](./ENHANCED-REPOSITORY.MD) - 更多便利方法
-- 📖 [Repository 基础](./REPOSITORY-BASICS.MD) - 基础 CRUD 操作
+- 🎯 [FilterGroup 详细文档](./FILTERGROUP.md) - FilterGroup 完整用法
+- 🚀 [EnhancedRepository](./ENHANCED-REPOSITORY.md) - 更多便利方法
+- 📖 [Repository 基础](./REPOSITORY-BASICS.md) - 基础 CRUD 操作

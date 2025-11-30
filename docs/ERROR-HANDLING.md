@@ -409,8 +409,8 @@ if err != nil {
 }
 ```
 
-## 下一步
+## 📚 相关文档
 
-- 📖 [Repository 基础](./REPOSITORY-BASICS.MD) - 学习基础操作
+- 📖 [Repository 基础](./REPOSITORY-BASICS.md) - 学习基础操作
 - 🔍 [Logger 文档](https://github.com/kamalyes/go-logger) - 日志库详细文档
 - 🎯 [errorx 文档](https://github.com/kamalyes/go-toolbox) - 错误处理库文档

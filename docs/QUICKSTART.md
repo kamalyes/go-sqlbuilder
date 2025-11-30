@@ -160,12 +160,11 @@ query.Page(1, 20)                      // 分页
 query.Take(10)                          // LIMIT 10
 query.Skip(20)                          // OFFSET 20
 ```
-```
 
-## 下一步
+## 📚 相关文档
 
-- 📖 [基础操作指南](./REPOSITORY-BASICS.MD) - 学习所有CRUD 方法
-- 🔍 [高级查询](./ADVANCED-QUERIES.MD) - 复杂查询和过滤
-- 🎯 [FilterGroup 使用](./FILTERGROUP.MD) - 构建复杂 WHERE 条件
-- 🏗️ [模型定义](./MODELS.MD) - 使用内置模型
+- 📖 [基础操作指南](./REPOSITORY-BASICS.md) - 学习所有CRUD 方法
+- 🔍 [高级查询](./ADVANCED-QUERIES.md) - 复杂查询和过滤
+- 🎯 [FilterGroup 使用](./FILTERGROUP.md) - 构建复杂 WHERE 条件
+- 🏗️ [模型定义](./MODELS.md) - 使用内置模型
 

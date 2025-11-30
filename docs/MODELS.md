@@ -617,8 +617,8 @@ db.Migrator().DropColumn(&User{}, "nickname")
 db.Migrator().CreateIndex(&User{}, "Email")
 ```
 
-## 下一步
+## 📚 相关文档
 
-- 📖 [Repository 基础](./REPOSITORY-BASICS.MD) - 学习 CRUD 操作
-- 🔍 [高级查询](./ADVANCED-QUERIES.MD) - 复杂查询构建
-- 🎯 [FilterGroup](./FILTERGROUP.MD) - 复杂条件组合
+- 📖 [Repository 基础](./REPOSITORY-BASICS.md) - 学习 CRUD 操作
+- 🔍 [高级查询](./ADVANCED-QUERIES.md) - 复杂查询构建
+- 🎯 [FilterGroup](./FILTERGROUP.md) - 复杂条件组合

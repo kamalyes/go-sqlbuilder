@@ -370,9 +370,9 @@ db.Debug().Model(&User{}).Where(...)
 fmt.Printf("%+v\n", mainGroup)
 ```
 
-## 下一
+## 📚 相关文档
 
-- 📖 [Repository 基础](./REPOSITORY-BASICS.MD) - 基础 CRUD 操作
-- 🔍 [高级查询](./ADVANCED-QUERIES.MD) - Query Filter 详解
-- 🚀 [EnhancedRepository](./ENHANCED-REPOSITORY.MD) - 便利方法详解
+- 📖 [Repository 基础](./REPOSITORY-BASICS.md) - 基础 CRUD 操作
+- 🔍 [高级查询](./ADVANCED-QUERIES.md) - Query Filter 详解
+- 🚀 [EnhancedRepository](./ENHANCED-REPOSITORY.md) - 便利方法详解
 

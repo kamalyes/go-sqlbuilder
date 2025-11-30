@@ -332,8 +332,8 @@ repo := repository.NewBaseRepository[User](
 )
 ```
 
-## 下一
+## 📚 相关文档
 
-- 🔍 [高级查询](./ADVANCED-QUERIES.MD) - Query Filter 的高级用
-- 🎯 [FilterGroup](./FILTERGROUP.MD) - 复杂 WHERE 条件构建
-- 🚀 [EnhancedRepository](./ENHANCED-REPOSITORY.MD) - 便利方法详解
+- 🔍 [高级查询](./ADVANCED-QUERIES.md) - Query Filter 的高级用
+- 🎯 [FilterGroup](./FILTERGROUP.md) - 复杂 WHERE 条件构建
+- 🚀 [EnhancedRepository](./ENHANCED-REPOSITORY.md) - 便利方法详解
