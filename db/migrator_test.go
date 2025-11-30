@@ -1563,3 +1563,262 @@ func TestAutoMigrateIndexErrorSkipped(t *testing.T) {
 	err = migrator.AutoMigrate()
 	assert.NoError(t, err)
 }
+
+// --- DropTablesWithModels 测试 ---
+
+// TestDropTablesWithModels 测试根据模型删除表
+func TestDropTablesWithModels(t *testing.T) {
+	gormDB, err := setupMigratorTestDB()
+	assert.NoError(t, err)
+
+	// 先创建表
+	err = gormDB.AutoMigrate(&TestMigrateUser{}, &TestMigrateOrder{})
+	assert.NoError(t, err)
+
+	migrator := NewMigrator(gormDB, nil)
+
+	// 验证表存在
+	assert.True(t, migrator.HasTable("test_migrate_users"))
+	assert.True(t, migrator.HasTable("test_migrate_orders"))
+
+	// 根据模型删除表
+	err = migrator.DropTablesWithModels(&TestMigrateUser{}, &TestMigrateOrder{})
+	assert.NoError(t, err, "根据模型删除表不应出错")
+
+	// 验证表已删除
+	assert.False(t, migrator.HasTable("test_migrate_users"), "用户表应已删除")
+	assert.False(t, migrator.HasTable("test_migrate_orders"), "订单表应已删除")
+}
+
+// TestDropTablesWithModelsSingle 测试删除单个模型的表
+func TestDropTablesWithModelsSingle(t *testing.T) {
+	gormDB, err := setupMigratorTestDB()
+	assert.NoError(t, err)
+
+	// 先创建表
+	err = gormDB.AutoMigrate(&TestMigrateUser{}, &TestMigrateOrder{})
+	assert.NoError(t, err)
+
+	migrator := NewMigrator(gormDB, nil)
+
+	// 只删除用户表
+	err = migrator.DropTablesWithModels(&TestMigrateUser{})
+	assert.NoError(t, err)
+
+	// 用户表已删除，订单表仍存在
+	assert.False(t, migrator.HasTable("test_migrate_users"))
+	assert.True(t, migrator.HasTable("test_migrate_orders"))
+}
+
+// TestDropTablesWithModelsEmpty 测试空模型列表
+func TestDropTablesWithModelsEmpty(t *testing.T) {
+	gormDB, err := setupMigratorTestDB()
+	assert.NoError(t, err)
+
+	migrator := NewMigrator(gormDB, nil)
+
+	// 空模型列表不应出错
+	err = migrator.DropTablesWithModels()
+	assert.NoError(t, err)
+}
+
+// TestDropTablesWithModelsInvalidModel 测试无效模型
+func TestDropTablesWithModelsInvalidModel(t *testing.T) {
+	gormDB, err := setupMigratorTestDB()
+	assert.NoError(t, err)
+
+	migrator := NewMigrator(gormDB, nil)
+
+	// 无效模型（字符串）应被跳过，不应 panic
+	err = migrator.DropTablesWithModels("invalid_model", &TestMigrateUser{})
+	// 由于 "invalid_model" 解析失败会被跳过，而 TestMigrateUser 表不存在
+	// DROP TABLE IF EXISTS 不会报错
+	assert.NoError(t, err)
+}
+
+// TestDropTablesWithModelsMixed 测试混合场景（有效和无效模型）
+func TestDropTablesWithModelsMixed(t *testing.T) {
+	gormDB, err := setupMigratorTestDB()
+	assert.NoError(t, err)
+
+	// 先创建表
+	err = gormDB.AutoMigrate(&TestMigrateUser{})
+	assert.NoError(t, err)
+
+	migrator := NewMigrator(gormDB, nil)
+
+	// 验证表存在
+	assert.True(t, migrator.HasTable("test_migrate_users"))
+
+	// 混合有效和无效模型
+	err = migrator.DropTablesWithModels("invalid", &TestMigrateUser{}, 12345)
+	assert.NoError(t, err)
+
+	// 有效模型对应的表应被删除
+	assert.False(t, migrator.HasTable("test_migrate_users"))
+}
+
+// TestDropTablesWithModelsNonExistent 测试删除不存在的模型对应的表
+func TestDropTablesWithModelsNonExistent(t *testing.T) {
+	gormDB, err := setupMigratorTestDB()
+	assert.NoError(t, err)
+
+	migrator := NewMigrator(gormDB, nil)
+
+	// 表不存在，但不应报错（IF EXISTS）
+	err = migrator.DropTablesWithModels(&TestMigrateUser{})
+	assert.NoError(t, err)
+}
+
+// --- CheckTablesExistWithModels 测试 ---
+
+// TestCheckTablesExistWithModels 测试根据模型检查表是否存在
+func TestCheckTablesExistWithModels(t *testing.T) {
+	gormDB, err := setupMigratorTestDB()
+	assert.NoError(t, err)
+
+	// 先创建一个表
+	err = gormDB.AutoMigrate(&TestMigrateUser{})
+	assert.NoError(t, err)
+
+	migrator := NewMigrator(gormDB, nil)
+
+	// 检查多个模型对应的表
+	result := migrator.CheckTablesExistWithModels(&TestMigrateUser{}, &TestMigrateOrder{})
+
+	assert.True(t, result["test_migrate_users"], "用户表应存在")
+	assert.False(t, result["test_migrate_orders"], "订单表不应存在")
+}
+
+// TestCheckTablesExistWithModelsEmpty 测试空模型列表
+func TestCheckTablesExistWithModelsEmpty(t *testing.T) {
+	gormDB, err := setupMigratorTestDB()
+	assert.NoError(t, err)
+
+	migrator := NewMigrator(gormDB, nil)
+
+	result := migrator.CheckTablesExistWithModels()
+	assert.Empty(t, result, "空模型列表应返回空 map")
+}
+
+// TestCheckTablesExistWithModelsInvalid 测试无效模型
+func TestCheckTablesExistWithModelsInvalid(t *testing.T) {
+	gormDB, err := setupMigratorTestDB()
+	assert.NoError(t, err)
+
+	// 先创建表
+	err = gormDB.AutoMigrate(&TestMigrateUser{})
+	assert.NoError(t, err)
+
+	migrator := NewMigrator(gormDB, nil)
+
+	// 无效模型会被跳过
+	result := migrator.CheckTablesExistWithModels("invalid", &TestMigrateUser{})
+	assert.True(t, result["test_migrate_users"], "有效模型对应的表应存在")
+	assert.Len(t, result, 1, "无效模型应被跳过")
+}
+
+// --- HasTableWithModel 测试 ---
+
+// TestHasTableWithModel 测试根据模型检查表是否存在
+func TestHasTableWithModel(t *testing.T) {
+	gormDB, err := setupMigratorTestDB()
+	assert.NoError(t, err)
+
+	migrator := NewMigrator(gormDB, nil)
+
+	// 表不存在
+	assert.False(t, migrator.HasTableWithModel(&TestMigrateUser{}))
+
+	// 创建表
+	err = gormDB.AutoMigrate(&TestMigrateUser{})
+	assert.NoError(t, err)
+
+	// 表存在
+	assert.True(t, migrator.HasTableWithModel(&TestMigrateUser{}))
+}
+
+// TestHasTableWithModelInvalid 测试无效模型
+func TestHasTableWithModelInvalid(t *testing.T) {
+	gormDB, err := setupMigratorTestDB()
+	assert.NoError(t, err)
+
+	migrator := NewMigrator(gormDB, nil)
+
+	// 无效模型返回 false
+	assert.False(t, migrator.HasTableWithModel("invalid_model"))
+	assert.False(t, migrator.HasTableWithModel(12345))
+}
+
+// --- GetTableName 测试 ---
+
+// TestGetTableName 测试获取模型对应的表名
+func TestGetTableName(t *testing.T) {
+	gormDB, err := setupMigratorTestDB()
+	assert.NoError(t, err)
+
+	migrator := NewMigrator(gormDB, nil)
+
+	// 有效模型
+	tableName := migrator.GetTableName(&TestMigrateUser{})
+	assert.Equal(t, "test_migrate_users", tableName)
+
+	tableName = migrator.GetTableName(&TestMigrateOrder{})
+	assert.Equal(t, "test_migrate_orders", tableName)
+}
+
+// TestGetTableNameInvalid 测试无效模型返回空字符串
+func TestGetTableNameInvalid(t *testing.T) {
+	gormDB, err := setupMigratorTestDB()
+	assert.NoError(t, err)
+
+	migrator := NewMigrator(gormDB, nil)
+
+	// 无效模型返回空字符串
+	tableName := migrator.GetTableName("invalid")
+	assert.Equal(t, "", tableName)
+
+	tableName = migrator.GetTableName(12345)
+	assert.Equal(t, "", tableName)
+}
+
+// --- parseModelTables 测试 ---
+
+// TestParseModelTables 测试解析模型获取表名
+func TestParseModelTables(t *testing.T) {
+	gormDB, err := setupMigratorTestDB()
+	assert.NoError(t, err)
+
+	migrator := NewMigrator(gormDB, nil)
+
+	// 解析多个模型
+	tables := migrator.parseModelTables(&TestMigrateUser{}, &TestMigrateOrder{})
+	assert.Len(t, tables, 2)
+	assert.Contains(t, tables, "test_migrate_users")
+	assert.Contains(t, tables, "test_migrate_orders")
+}
+
+// TestParseModelTablesWithInvalid 测试解析包含无效模型的列表
+func TestParseModelTablesWithInvalid(t *testing.T) {
+	gormDB, err := setupMigratorTestDB()
+	assert.NoError(t, err)
+
+	migrator := NewMigrator(gormDB, nil)
+
+	// 混合有效和无效模型
+	tables := migrator.parseModelTables("invalid", &TestMigrateUser{}, 12345, &TestMigrateOrder{})
+	assert.Len(t, tables, 2, "无效模型应被跳过")
+	assert.Contains(t, tables, "test_migrate_users")
+	assert.Contains(t, tables, "test_migrate_orders")
+}
+
+// TestParseModelTablesEmpty 测试解析空模型列表
+func TestParseModelTablesEmpty(t *testing.T) {
+	gormDB, err := setupMigratorTestDB()
+	assert.NoError(t, err)
+
+	migrator := NewMigrator(gormDB, nil)
+
+	tables := migrator.parseModelTables()
+	assert.Empty(t, tables, "空模型列表应返回空切片")
+}

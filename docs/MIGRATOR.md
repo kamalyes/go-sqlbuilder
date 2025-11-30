@@ -160,6 +160,22 @@ func NewIndexWithName(table, name, columns string, unique bool) IndexDefinition
 idx := db.NewIndexWithName("users", "my_custom_idx", "(email, name)", false)
 ```
 
+#### NewIndexDesc
+
+```go
+func NewIndexDesc(table string, columns ...string) IndexDefinition
+```
+
+创建降序索引定义，适用于需要按时间倒序查询的场景。
+
+```go
+// 降序索引：idx_messages_created_at (created_at DESC)
+idx := db.NewIndexDesc("messages", "created_at")
+
+// 多列降序索引：idx_orders_created_at_updated_at
+idx := db.NewIndexDesc("orders", "created_at", "updated_at")
+```
+
 ### 迁移方法
 
 #### AutoMigrate
@@ -204,6 +220,21 @@ func (m *Migrator) HasTable(table string) bool
 
 检查单个表是否存在。
 
+#### HasTableWithModel
+
+```go
+func (m *Migrator) HasTableWithModel(model interface{}) bool
+```
+
+根据模型检查表是否存在，自动解析模型获取表名。
+
+```go
+// 根据模型检查表是否存在
+if migrator.HasTableWithModel(&User{}) {
+    fmt.Println("users 表存在")
+}
+```
+
 #### CheckTablesExist
 
 ```go
@@ -212,6 +243,22 @@ func (m *Migrator) CheckTablesExist(tables ...string) map[string]bool
 
 批量检查多个表是否存在，返回表名到存在状态的映射。
 
+#### CheckTablesExistWithModels
+
+```go
+func (m *Migrator) CheckTablesExistWithModels(models ...interface{}) map[string]bool
+```
+
+根据模型批量检查表是否存在。
+
+```go
+// 根据模型批量检查
+result := migrator.CheckTablesExistWithModels(&User{}, &Order{}, &Product{})
+for table, exists := range result {
+    fmt.Printf("%s: %v\n", table, exists)
+}
+```
+
 #### DropTables
 
 ```go
@@ -219,6 +266,32 @@ func (m *Migrator) DropTables(tables ...string) error
 ```
 
 删除指定的表（⚠️ 危险操作，请谨慎使用）。
+
+#### DropTablesWithModels
+
+```go
+func (m *Migrator) DropTablesWithModels(models ...interface{}) error
+```
+
+根据模型自动获取表名并删除表（⚠️ 危险操作，请谨慎使用）。
+
+```go
+// 根据模型删除表
+err := migrator.DropTablesWithModels(&User{}, &Order{})
+```
+
+#### GetTableName
+
+```go
+func (m *Migrator) GetTableName(model interface{}) string
+```
+
+获取模型对应的表名，支持 `TableName()` 方法。
+
+```go
+// 获取模型的表名
+tableName := migrator.GetTableName(&User{})  // => "users"
+```
 
 ### 便捷函数
 
@@ -353,6 +426,8 @@ if err := migrator.AutoMigrate(); err != nil {
 ```go
 migrator := db.NewMigrator(gormDB, nil)
 
+// === 方式1: 直接指定表名 ===
+
 // 检查单个表
 if migrator.HasTable("users") {
     fmt.Println("users 表存在")
@@ -366,6 +441,25 @@ for table, exists := range result {
 
 // 删除表（谨慎使用！）
 err := migrator.DropTables("temp_table", "old_backup")
+
+// === 方式2: 根据模型（推荐 🔥）===
+
+// 检查单个模型对应的表
+if migrator.HasTableWithModel(&User{}) {
+    fmt.Println("User 模型对应的表存在")
+}
+
+// 批量检查模型对应的表
+result = migrator.CheckTablesExistWithModels(&User{}, &Order{}, &Product{})
+for table, exists := range result {
+    fmt.Printf("%s: %v\n", table, exists)
+}
+
+// 获取模型对应的表名
+tableName := migrator.GetTableName(&User{})  // => "users"
+
+// 根据模型删除表（谨慎使用！）
+err = migrator.DropTablesWithModels(&TempModel{}, &BackupModel{})
 ```
 
 ### 示例 6: 分步迁移
@@ -404,7 +498,7 @@ if err := migrator.AddComments(); err != nil {
 
 ### 1. 使用便捷函数创建索引（推荐）
 
-使用 `NewIndex` 和 `NewUniqueIndex` 可以自动生成规范的索引名，避免手动命名错误：
+使用 `NewIndex`、`NewUniqueIndex` 和 `NewIndexDesc` 可以自动生成规范的索引名，避免手动命名错误：
 
 ```go
 // ✅ 推荐：使用便捷函数
@@ -412,6 +506,7 @@ indexes := []db.IndexDefinition{
     db.NewIndex("users", "email"),                  // idx_users_email
     db.NewIndex("orders", "user_id", "status"),     // idx_orders_user_id_status
     db.NewUniqueIndex("orders", "order_no"),        // idx_orders_order_no_unique
+    db.NewIndexDesc("messages", "created_at"),      // idx_messages_created_at (DESC)
 }
 
 // ❌ 不推荐：手动命名容易出错
@@ -425,11 +520,12 @@ indexes := []db.IndexDefinition{
 
 系统自动采用统一的索引命名规范：
 
-| 类型 | 格式 | 示例 |
-|------|------|------|
-| 普通索引 | `idx_{表名}_{列名}` | `idx_users_email` |
-| 唯一索引 | `idx_{表名}_{列名}_unique` | `idx_users_email_unique` |
-| 复合索引 | `idx_{表名}_{列1}_{列2}` | `idx_orders_user_id_status` |
+| 类型 | 格式 | 示例 | 便捷函数 |
+|------|------|------|---------|
+| 普通索引 | `idx_{表名}_{列名}` | `idx_users_email` | `NewIndex` |
+| 唯一索引 | `idx_{表名}_{列名}_unique` | `idx_users_email_unique` | `NewUniqueIndex` |
+| 复合索引 | `idx_{表名}_{列1}_{列2}` | `idx_orders_user_id_status` | `NewIndex` |
+| 降序索引 | `idx_{表名}_{列名}` (DESC) | `idx_messages_created_at` | `NewIndexDesc` |
 
 ### 2. 生产环境建议
 
@@ -450,12 +546,15 @@ config := &db.MigratorConfig{
 ```go
 migrator := db.NewMigrator(gormDB, config)
 
-// 检查关键表是否已存在
+// 方式1: 使用表名检查
 criticalTables := []string{"users", "orders"}
 result := migrator.CheckTablesExist(criticalTables...)
 
-for _, table := range criticalTables {
-    if result[table] {
+// 方式2: 使用模型检查（推荐 🔥）
+result = migrator.CheckTablesExistWithModels(&User{}, &Order{})
+
+for table, exists := range result {
+    if exists {
         log.Printf("⚠️ 表 %s 已存在，将执行增量迁移", table)
     }
 }

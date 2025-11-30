@@ -328,6 +328,13 @@ func (m *Migrator) DropTables(tables ...string) error {
 	return nil
 }
 
+// DropTablesWithModels 根据模型删除表（危险操作）
+// 自动从模型中获取表名，支持 TableName() 方法
+func (m *Migrator) DropTablesWithModels(models ...interface{}) error {
+	tables := m.parseModelTables(models...)
+	return m.DropTables(tables...)
+}
+
 // CheckTablesExist 检查表是否存在
 func (m *Migrator) CheckTablesExist(tables ...string) map[string]bool {
 	result := make(map[string]bool)
@@ -337,9 +344,47 @@ func (m *Migrator) CheckTablesExist(tables ...string) map[string]bool {
 	return result
 }
 
+// CheckTablesExistWithModels 根据模型检查表是否存在
+func (m *Migrator) CheckTablesExistWithModels(models ...interface{}) map[string]bool {
+	tables := m.parseModelTables(models...)
+	return m.CheckTablesExist(tables...)
+}
+
 // HasTable 检查单个表是否存在
 func (m *Migrator) HasTable(table string) bool {
 	return m.db.Migrator().HasTable(table)
+}
+
+// HasTableWithModel 根据模型检查表是否存在
+func (m *Migrator) HasTableWithModel(model interface{}) bool {
+	tables := m.parseModelTables(model)
+	if len(tables) == 0 {
+		return false
+	}
+	return m.HasTable(tables[0])
+}
+
+// parseModelTables 解析模型获取表名列表
+func (m *Migrator) parseModelTables(models ...interface{}) []string {
+	tables := make([]string, 0, len(models))
+	for _, model := range models {
+		stmt := &gorm.Statement{DB: m.db}
+		if err := stmt.Parse(model); err != nil {
+			m.logger.Warn("解析模型 %T 失败: %v", model, err)
+			continue
+		}
+		tables = append(tables, stmt.Table)
+	}
+	return tables
+}
+
+// GetTableName 获取模型对应的表名
+func (m *Migrator) GetTableName(model interface{}) string {
+	tables := m.parseModelTables(model)
+	if len(tables) == 0 {
+		return ""
+	}
+	return tables[0]
 }
 
 // --- 便捷函数 ---
