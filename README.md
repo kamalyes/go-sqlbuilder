@@ -261,6 +261,7 @@ repository.NewCustomFilter("YEAR(created_at) = ?", 2024)
 - 📔 [模型定义](docs/MODELS.MD) - BaseModel、AuditModel 使用
 - 📒 [错误处理](docs/ERROR-HANDLING.MD) - 错误管理和日志记录
 - 🔄 [Context 使用指南](docs/CONTEXT-USAGE.MD) - 上下文、超时控制、日志追踪
+- 🗄️ [数据库迁移器](docs/MIGRATOR.MD) - 自动迁移、索引创建、表注释
 
 ## 🏗️ 内置模型
 
@@ -349,3 +350,63 @@ Kamal Yang ([@kamalyes](https://github.com/kamalyes))
 
 - GORM 团队提供的优秀 ORM
 - Go 社区的灵感和支持
+
+## 📋 Git Commit Emoji 规范
+
+本项目使用 emoji 来标识 commit 类型，使提交历史更直观：
+
+| Emoji | 代码 | 类型 | 说明 |
+|:-----:|------|------|------|
+| ✨ | `:sparkles:` | feat | 新功能 |
+| 🐛 | `:bug:` | fix | 修复 bug |
+| 📝 | `:memo:` | docs | 文档更新 |
+| 💄 | `:lipstick:` | style | 代码格式/样式 |
+| ♻️ | `:recycle:` | refactor | 代码重构 |
+| ⚡ | `:zap:` | perf | 性能优化 |
+| ✅ | `:white_check_mark:` | test | 测试相关 |
+| 🔧 | `:wrench:` | chore | 配置/构建 |
+| 🚀 | `:rocket:` | deploy | 部署发布 |
+| 🔒 | `:lock:` | security | 安全修复 |
+| ⬆️ | `:arrow_up:` | deps | 升级依赖 |
+| ⬇️ | `:arrow_down:` | deps | 降级依赖 |
+| 🔥 | `:fire:` | remove | 删除代码/文件 |
+| 🚧 | `:construction:` | wip | 进行中的工作 |
+| 💚 | `:green_heart:` | ci | CI/CD 相关 |
+| 🎨 | `:art:` | improve | 改进结构/格式 |
+| 🔀 | `:twisted_rightwards_arrows:` | merge | 合并分支 |
+| ⏪ | `:rewind:` | revert | 回滚更改 |
+| 📦 | `:package:` | build | 打包/编译 |
+| 👷 | `:construction_worker:` | ci | CI 构建系统 |
+| 🌐 | `:globe_with_meridians:` | i18n | 国际化 |
+| 💬 | `:speech_balloon:` | text | 更新文本/文案 |
+| 🗃️ | `:card_file_box:` | db | 数据库相关 |
+| 🔊 | `:loud_sound:` | log | 添加日志 |
+| 🔇 | `:mute:` | log | 移除日志 |
+| 🏷️ | `:label:` | types | 类型定义 |
+| 🩹 | `:adhesive_bandage:` | quickfix | 简单修复 |
+| 🧪 | `:test_tube:` | experiment | 实验性功能 |
+
+### Commit 示例
+
+```bash
+# 新功能
+git commit -m "✨ feat(db): 新增 Migrator 数据库迁移器"
+
+# 修复 bug
+git commit -m "🐛 fix(repository): 修复分页查询越界问题"
+
+# 文档更新
+git commit -m "📝 docs: 更新 README 添加使用示例"
+
+# 性能优化
+git commit -m "⚡ perf(query): 优化批量查询性能"
+
+# 重构代码
+git commit -m "♻️ refactor(filter): 重构过滤器实现"
+
+# 测试相关
+git commit -m "✅ test(migrator): 添加迁移器单元测试"
+
+# 配置变更
+git commit -m "🔧 chore: 更新 .gitattributes 配置"
+```
