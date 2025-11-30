@@ -261,14 +261,25 @@ func (m *Migrator) createIndex(idx IndexDefinition) error {
 	// 自动生成索引名（如果未指定）
 	indexName := idx.GenerateIndexName()
 
+	// 先检查索引是否存在（兼容 MySQL/PostgreSQL/SQLite）
+	if m.hasIndex(idx.Table, indexName) {
+		m.logger.Debug("索引 %s 已存在，跳过创建", indexName)
+		return nil
+	}
+
 	var sql string
 	if idx.Unique {
-		sql = fmt.Sprintf("CREATE UNIQUE INDEX IF NOT EXISTS %s ON %s %s", indexName, idx.Table, idx.Columns)
+		sql = fmt.Sprintf("CREATE UNIQUE INDEX %s ON %s %s", indexName, idx.Table, idx.Columns)
 	} else {
-		sql = fmt.Sprintf("CREATE INDEX IF NOT EXISTS %s ON %s %s", indexName, idx.Table, idx.Columns)
+		sql = fmt.Sprintf("CREATE INDEX %s ON %s %s", indexName, idx.Table, idx.Columns)
 	}
 
 	return m.db.Exec(sql).Error
+}
+
+// hasIndex 检查索引是否存在
+func (m *Migrator) hasIndex(table, indexName string) bool {
+	return m.db.Migrator().HasIndex(table, indexName)
 }
 
 // AddComments 添加所有表注释

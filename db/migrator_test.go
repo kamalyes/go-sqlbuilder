@@ -1822,3 +1822,82 @@ func TestParseModelTablesEmpty(t *testing.T) {
 	tables := migrator.parseModelTables()
 	assert.Empty(t, tables, "空模型列表应返回空切片")
 }
+
+// --- hasIndex 测试 ---
+
+// TestHasIndex 测试检查索引是否存在
+func TestHasIndex(t *testing.T) {
+	gormDB, err := setupMigratorTestDB()
+	assert.NoError(t, err)
+
+	// 先创建表
+	err = gormDB.AutoMigrate(&TestMigrateUser{})
+	assert.NoError(t, err)
+
+	migrator := NewMigrator(gormDB, nil)
+
+	// 索引不存在
+	assert.False(t, migrator.hasIndex("test_migrate_users", "idx_test_status"))
+
+	// 创建索引
+	err = gormDB.Exec("CREATE INDEX idx_test_status ON test_migrate_users (status)").Error
+	assert.NoError(t, err)
+
+	// 索引存在
+	assert.True(t, migrator.hasIndex("test_migrate_users", "idx_test_status"))
+}
+
+// TestCreateIndexSkipExisting 测试跳过已存在的索引
+func TestCreateIndexSkipExisting(t *testing.T) {
+	gormDB, err := setupMigratorTestDB()
+	assert.NoError(t, err)
+
+	// 先创建表
+	err = gormDB.AutoMigrate(&TestMigrateUser{})
+	assert.NoError(t, err)
+
+	// 先手动创建索引
+	err = gormDB.Exec("CREATE INDEX idx_test_migrate_users_status ON test_migrate_users (status)").Error
+	assert.NoError(t, err)
+
+	config := &MigratorConfig{
+		Indexes: []IndexDefinition{
+			NewIndex("test_migrate_users", "status"), // 索引已存在
+		},
+		SkipIndexOnError: false,
+	}
+
+	migrator := NewMigrator(gormDB, config)
+
+	// 应该跳过已存在的索引，不报错
+	err = migrator.CreateIndexes()
+	assert.NoError(t, err, "已存在的索引应被跳过，不应报错")
+}
+
+// TestCreateIndexIdempotent 测试索引创建幂等性
+func TestCreateIndexIdempotent(t *testing.T) {
+	gormDB, err := setupMigratorTestDB()
+	assert.NoError(t, err)
+
+	// 先创建表
+	err = gormDB.AutoMigrate(&TestMigrateUser{})
+	assert.NoError(t, err)
+
+	config := &MigratorConfig{
+		Indexes: []IndexDefinition{
+			NewIndex("test_migrate_users", "status"),
+			NewIndex("test_migrate_users", "name"),
+		},
+		SkipIndexOnError: false,
+	}
+
+	migrator := NewMigrator(gormDB, config)
+
+	// 第一次创建
+	err = migrator.CreateIndexes()
+	assert.NoError(t, err)
+
+	// 第二次创建（幂等性测试）- 应该跳过已存在的索引
+	err = migrator.CreateIndexes()
+	assert.NoError(t, err, "重复创建索引应跳过，不报错")
+}
