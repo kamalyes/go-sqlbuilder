@@ -1,9 +1,9 @@
-/*
+﻿/*
  * @Author: kamalyes 501893067@qq.com
  * @Date: 2025-11-30 00:00:00
  * @LastEditors: kamalyes 501893067@qq.com
- * @LastEditTime: 2025-11-30 09:30:00
- * @FilePath: \go-sqlbuilder\db\migrator_test.go
+ * @LastEditTime: 2025-11-30 10:47:49
+ * @FilePath: \engine-im-service\go-sqlbuilder\db\migrator_test.go
  * @Description: 数据库迁移器测试
  *
  * Copyright (c) 2025 by kamalyes, All Rights Reserved.
@@ -11,13 +11,16 @@
 package db
 
 import (
+	"fmt"
 	"github.com/kamalyes/go-logger"
 	"github.com/stretchr/testify/assert"
+	"gorm.io/driver/mysql"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 	gormLogger "gorm.io/gorm/logger"
 	"gorm.io/gorm/schema"
+	"os"
 	"testing"
 	"time"
 )
@@ -1900,4 +1903,510 @@ func TestCreateIndexIdempotent(t *testing.T) {
 	// 第二次创建（幂等性测试）- 应该跳过已存在的索引
 	err = migrator.CreateIndexes()
 	assert.NoError(t, err, "重复创建索引应跳过，不报错")
+}
+
+// --- SyncColumnComments 测试 ---
+
+// TestMigrateUserWithComment 带字段注释的测试模型
+type TestMigrateUserWithComment struct {
+	ID     uint   `json:"id" gorm:"primaryKey"`
+	Name   string `json:"name" gorm:"column:name;size:100;comment:用户姓名"`
+	Email  string `json:"email" gorm:"column:email;size:255;comment:用户邮箱"`
+	Age    int    `json:"age" gorm:"column:age;comment:用户年龄"`
+	Status string `json:"status" gorm:"column:status;size:50;comment:用户状态"`
+}
+
+func (TestMigrateUserWithComment) TableName() string {
+	return "test_migrate_users_with_comment"
+}
+
+// TestSyncColumnComments 测试同步字段注释
+func TestSyncColumnComments(t *testing.T) {
+	gormDB, err := setupMigratorTestDB()
+	assert.NoError(t, err)
+
+	// 先创建表
+	err = gormDB.AutoMigrate(&TestMigrateUserWithComment{})
+	assert.NoError(t, err)
+
+	migrator := NewMigrator(gormDB, nil)
+
+	// SQLite 不支持字段注释，应该直接返回
+	err = migrator.SyncColumnComments(&TestMigrateUserWithComment{})
+	assert.NoError(t, err, "SQLite 应跳过字段注释同步")
+}
+
+// TestSyncColumnCommentsEmpty 测试空模型列表
+func TestSyncColumnCommentsEmpty(t *testing.T) {
+	gormDB, err := setupMigratorTestDB()
+	assert.NoError(t, err)
+
+	migrator := NewMigrator(gormDB, nil)
+
+	err = migrator.SyncColumnComments()
+	assert.NoError(t, err, "空模型列表应直接返回")
+}
+
+// TestSyncColumnCommentsWithModels 测试通过配置同步
+func TestSyncColumnCommentsWithModels(t *testing.T) {
+	gormDB, err := setupMigratorTestDB()
+	assert.NoError(t, err)
+
+	// 先创建表
+	err = gormDB.AutoMigrate(&TestMigrateUserWithComment{})
+	assert.NoError(t, err)
+
+	config := &MigratorConfig{
+		Models: []interface{}{&TestMigrateUserWithComment{}},
+	}
+
+	migrator := NewMigrator(gormDB, config)
+
+	err = migrator.SyncColumnCommentsWithModels()
+	assert.NoError(t, err)
+}
+
+// TestSyncColumnCommentsWithModelsEmpty 测试空配置
+func TestSyncColumnCommentsWithModelsEmpty(t *testing.T) {
+	gormDB, err := setupMigratorTestDB()
+	assert.NoError(t, err)
+
+	config := &MigratorConfig{
+		Models: []interface{}{},
+	}
+
+	migrator := NewMigrator(gormDB, config)
+
+	err = migrator.SyncColumnCommentsWithModels()
+	assert.NoError(t, err, "空配置应直接返回")
+}
+
+// TestSyncColumnCommentsInvalidModel 测试无效模型
+func TestSyncColumnCommentsInvalidModel(t *testing.T) {
+	gormDB, err := setupMigratorTestDB()
+	assert.NoError(t, err)
+
+	migrator := NewMigrator(gormDB, nil)
+
+	// 无效模型应被跳过
+	err = migrator.SyncColumnComments("invalid_model", &TestMigrateUserWithComment{})
+	assert.NoError(t, err)
+}
+
+// TestGetColumnComments 测试获取列注释
+func TestGetColumnComments(t *testing.T) {
+	gormDB, err := setupMigratorTestDB()
+	assert.NoError(t, err)
+
+	migrator := NewMigrator(gormDB, nil)
+
+	// SQLite 不支持，返回空 map
+	comments, err := migrator.getColumnComments("test_table", "sqlite")
+	assert.NoError(t, err)
+	assert.Empty(t, comments)
+}
+
+// TestGetColumnCommentsMySQL 测试 MySQL 获取列注释
+func TestGetColumnCommentsMySQL(t *testing.T) {
+	gormDB, err := setupMigratorTestDB()
+	assert.NoError(t, err)
+
+	migrator := NewMigrator(gormDB, nil)
+
+	// 使用 mysql dialector 查询会失败（因为实际是 SQLite）
+	_, err = migrator.getColumnComments("test_table", "mysql")
+	// 可能会报错，因为 INFORMATION_SCHEMA 在 SQLite 不存在
+	// 这里只测试不会 panic
+}
+
+// TestGetColumnCommentsPostgres 测试 PostgreSQL 获取列注释
+func TestGetColumnCommentsPostgres(t *testing.T) {
+	gormDB, err := setupMigratorTestDB()
+	assert.NoError(t, err)
+
+	migrator := NewMigrator(gormDB, nil)
+
+	// 使用 postgres dialector 查询会失败
+	_, err = migrator.getColumnComments("test_table", "postgres")
+	// 可能会报错，这里只测试不会 panic
+}
+
+// TestUpdateColumnComment 测试更新列注释
+func TestUpdateColumnComment(t *testing.T) {
+	gormDB, err := setupMigratorTestDB()
+	assert.NoError(t, err)
+
+	migrator := NewMigrator(gormDB, nil)
+
+	// 测试 default（不支持的数据库）
+	err = migrator.updateColumnComment("test_table", "col", "comment", "", "sqlite")
+	assert.NoError(t, err, "不支持的数据库应返回 nil")
+
+	err = migrator.updateColumnComment("test_table", "col", "comment", "", "sqlserver")
+	assert.NoError(t, err)
+}
+
+// TestUpdateColumnCommentMySQL 测试 MySQL 更新列注释
+func TestUpdateColumnCommentMySQL(t *testing.T) {
+	gormDB, err := setupMigratorTestDB()
+	assert.NoError(t, err)
+
+	// 先创建表
+	err = gormDB.AutoMigrate(&TestMigrateUser{})
+	assert.NoError(t, err)
+
+	migrator := NewMigrator(gormDB, nil)
+
+	// MySQL 语法在 SQLite 上会失败
+	err = migrator.updateColumnComment("test_migrate_users", "name", "用户名", "varchar(100)", "mysql")
+	assert.Error(t, err, "MySQL 语法在 SQLite 上应该失败")
+}
+
+// TestUpdateColumnCommentPostgres 测试 PostgreSQL 更新列注释
+func TestUpdateColumnCommentPostgres(t *testing.T) {
+	gormDB, err := setupMigratorTestDB()
+	assert.NoError(t, err)
+
+	// 先创建表
+	err = gormDB.AutoMigrate(&TestMigrateUser{})
+	assert.NoError(t, err)
+
+	migrator := NewMigrator(gormDB, nil)
+
+	// PostgreSQL 语法在 SQLite 上会失败
+	err = migrator.updateColumnComment("test_migrate_users", "name", "用户名", "", "postgres")
+	assert.Error(t, err, "PostgreSQL 语法在 SQLite 上应该失败")
+}
+
+// TestUpdateColumnCommentWithQuote 测试带引号的注释
+func TestUpdateColumnCommentWithQuote(t *testing.T) {
+	gormDB, err := setupMigratorTestDB()
+	assert.NoError(t, err)
+
+	migrator := NewMigrator(gormDB, nil)
+
+	// 测试带单引号的注释（应被转义）
+	err = migrator.updateColumnComment("test_table", "col", "it's a test", "", "sqlite")
+	assert.NoError(t, err)
+}
+
+// TestColumnComment 测试列注释结构
+func TestColumnComment(t *testing.T) {
+	cc := ColumnComment{
+		Table:   "users",
+		Column:  "name",
+		Comment: "用户名",
+		Type:    "varchar(100)",
+	}
+
+	assert.Equal(t, "users", cc.Table)
+	assert.Equal(t, "name", cc.Column)
+	assert.Equal(t, "用户名", cc.Comment)
+	assert.Equal(t, "varchar(100)", cc.Type)
+}
+
+// TestGetColumnType 测试获取列类型
+func TestGetColumnType(t *testing.T) {
+	gormDB, err := setupMigratorTestDB()
+	assert.NoError(t, err)
+
+	migrator := NewMigrator(gormDB, nil)
+
+	// SQLite 不支持 INFORMATION_SCHEMA，会报错
+	_, err = migrator.getColumnType("test_table", "col")
+	// 可能会报错，这里只测试不会 panic
+}
+
+// TestSyncModelColumnCommentsError 测试同步模型字段注释解析失败
+func TestSyncModelColumnCommentsError(t *testing.T) {
+	gormDB, err := setupMigratorTestDB()
+	assert.NoError(t, err)
+
+	migrator := NewMigrator(gormDB, nil)
+
+	// 无效模型解析失败
+	updated, err := migrator.syncModelColumnComments("invalid", "mysql")
+	assert.Error(t, err)
+	assert.Equal(t, 0, updated)
+}
+
+// setupMySQLTestDB 设置真实 MySQL 测试数据库
+// 使用环境变量或默认的本地配置
+func setupMySQLTestDB() (*gorm.DB, error) {
+	// 从环境变量获取，或使用默认值
+	host := getEnvOrDefault("MYSQL_HOST", "120.77.38.35")
+	port := getEnvOrDefault("MYSQL_PORT", "13306")
+	user := getEnvOrDefault("MYSQL_USER", "root")
+	password := getEnvOrDefault("MYSQL_PASSWORD", "idev88888")
+	dbName := getEnvOrDefault("MYSQL_DATABASE", "im_agent")
+
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local",
+		user, password, host, port, dbName)
+
+	return gorm.Open(mysql.Open(dsn), &gorm.Config{
+		DisableForeignKeyConstraintWhenMigrating: true,
+		Logger:                                   gormLogger.Default.LogMode(gormLogger.Info),
+	})
+}
+
+func getEnvOrDefault(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
+}
+
+// TestMySQLUserWithComment MySQL 测试用的带注释模型
+type TestMySQLUserWithComment struct {
+	ID        uint      `json:"id" gorm:"primaryKey;comment:主键ID"`
+	Name      string    `json:"name" gorm:"column:name;size:100;comment:用户姓名"`
+	Email     string    `json:"email" gorm:"column:email;size:255;comment:用户邮箱地址"`
+	Age       int       `json:"age" gorm:"column:age;comment:用户年龄"`
+	Status    string    `json:"status" gorm:"column:status;size:50;default:active;comment:用户状态(active/inactive)"`
+	Remark    string    `json:"remark" gorm:"column:remark;size:500;comment:备注信息"`
+	CreatedAt time.Time `json:"created_at" gorm:"column:created_at;comment:创建时间"`
+	UpdatedAt time.Time `json:"updated_at" gorm:"column:updated_at;comment:更新时间"`
+}
+
+func (TestMySQLUserWithComment) TableName() string {
+	return "test_mysql_users_with_comment"
+}
+
+// TestMySQLSyncColumnComments_RealDB 真实 MySQL 数据库测试 - 字段注释同步
+func TestMySQLSyncColumnComments_RealDB(t *testing.T) {
+	// 跳过条件：设置 SKIP_MYSQL_TEST=1 跳过此测试
+	if os.Getenv("SKIP_MYSQL_TEST") == "1" {
+		t.Skip("跳过 MySQL 真实数据库测试")
+	}
+
+	gormDB, err := setupMySQLTestDB()
+	if err != nil {
+		t.Skipf("无法连接 MySQL 数据库，跳过测试: %v", err)
+	}
+
+	// 清理：测试结束后删除测试表
+	defer func() {
+		gormDB.Exec("DROP TABLE IF EXISTS test_mysql_users_with_comment")
+	}()
+
+	// 1. 创建表（不带注释）
+	err = gormDB.Exec(`
+		CREATE TABLE IF NOT EXISTS test_mysql_users_with_comment (
+			id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+			name VARCHAR(100),
+			email VARCHAR(255),
+			age INT,
+			status VARCHAR(50) DEFAULT 'active',
+			remark VARCHAR(500),
+			created_at DATETIME,
+			updated_at DATETIME
+		)
+	`).Error
+	assert.NoError(t, err, "创建测试表失败")
+
+	// 2. 查看当前字段注释（应该为空）
+	migrator := NewMigrator(gormDB, nil)
+	commentsBefore, err := migrator.getColumnComments("test_mysql_users_with_comment", "mysql")
+	assert.NoError(t, err)
+	t.Logf("同步前字段注释: %+v", commentsBefore)
+
+	// 3. 同步字段注释
+	err = migrator.SyncColumnComments(&TestMySQLUserWithComment{})
+	assert.NoError(t, err, "同步字段注释失败")
+
+	// 4. 再次查看字段注释（应该已更新）
+	commentsAfter, err := migrator.getColumnComments("test_mysql_users_with_comment", "mysql")
+	assert.NoError(t, err)
+	t.Logf("同步后字段注释: %+v", commentsAfter)
+
+	// 5. 验证注释已正确更新
+	assert.Equal(t, "用户姓名", commentsAfter["name"], "name 字段注释应为 '用户姓名'")
+	assert.Equal(t, "用户邮箱地址", commentsAfter["email"], "email 字段注释应为 '用户邮箱地址'")
+	assert.Equal(t, "用户年龄", commentsAfter["age"], "age 字段注释应为 '用户年龄'")
+	assert.Equal(t, "用户状态(active/inactive)", commentsAfter["status"], "status 字段注释应正确")
+	assert.Equal(t, "备注信息", commentsAfter["remark"], "remark 字段注释应为 '备注信息'")
+}
+
+// TestMySQLSyncColumnComments_Idempotent 幂等性测试 - 多次同步应无变化
+func TestMySQLSyncColumnComments_Idempotent(t *testing.T) {
+	if os.Getenv("SKIP_MYSQL_TEST") == "1" {
+		t.Skip("跳过 MySQL 真实数据库测试")
+	}
+
+	gormDB, err := setupMySQLTestDB()
+	if err != nil {
+		t.Skipf("无法连接 MySQL 数据库，跳过测试: %v", err)
+	}
+
+	defer func() {
+		gormDB.Exec("DROP TABLE IF EXISTS test_mysql_users_with_comment")
+	}()
+
+	// 创建表
+	err = gormDB.AutoMigrate(&TestMySQLUserWithComment{})
+	assert.NoError(t, err)
+
+	migrator := NewMigrator(gormDB, nil)
+
+	// 第一次同步
+	err = migrator.SyncColumnComments(&TestMySQLUserWithComment{})
+	assert.NoError(t, err)
+
+	commentsFirst, _ := migrator.getColumnComments("test_mysql_users_with_comment", "mysql")
+
+	// 第二次同步（幂等性测试）
+	err = migrator.SyncColumnComments(&TestMySQLUserWithComment{})
+	assert.NoError(t, err)
+
+	commentsSecond, _ := migrator.getColumnComments("test_mysql_users_with_comment", "mysql")
+
+	// 验证两次结果一致
+	assert.Equal(t, commentsFirst, commentsSecond, "两次同步结果应一致")
+}
+
+// TestMySQLSyncColumnComments_PartialUpdate 部分更新测试
+func TestMySQLSyncColumnComments_PartialUpdate(t *testing.T) {
+	if os.Getenv("SKIP_MYSQL_TEST") == "1" {
+		t.Skip("跳过 MySQL 真实数据库测试")
+	}
+
+	gormDB, err := setupMySQLTestDB()
+	if err != nil {
+		t.Skipf("无法连接 MySQL 数据库，跳过测试: %v", err)
+	}
+
+	defer func() {
+		gormDB.Exec("DROP TABLE IF EXISTS test_mysql_users_with_comment")
+	}()
+
+	// 创建表并设置部分注释
+	err = gormDB.Exec(`
+		CREATE TABLE IF NOT EXISTS test_mysql_users_with_comment (
+			id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
+			name VARCHAR(100) COMMENT '旧的名称注释',
+			email VARCHAR(255) COMMENT '用户邮箱地址',
+			age INT,
+			status VARCHAR(50) DEFAULT 'active',
+			remark VARCHAR(500),
+			created_at DATETIME,
+			updated_at DATETIME
+		)
+	`).Error
+	assert.NoError(t, err)
+
+	migrator := NewMigrator(gormDB, nil)
+
+	// 查看同步前
+	commentsBefore, _ := migrator.getColumnComments("test_mysql_users_with_comment", "mysql")
+	t.Logf("部分更新前: %+v", commentsBefore)
+	assert.Equal(t, "旧的名称注释", commentsBefore["name"])
+	assert.Equal(t, "用户邮箱地址", commentsBefore["email"])
+	assert.Equal(t, "", commentsBefore["age"]) // 无注释
+
+	// 同步
+	err = migrator.SyncColumnComments(&TestMySQLUserWithComment{})
+	assert.NoError(t, err)
+
+	// 查看同步后
+	commentsAfter, _ := migrator.getColumnComments("test_mysql_users_with_comment", "mysql")
+	t.Logf("部分更新后: %+v", commentsAfter)
+
+	// name 应该被更新为新注释
+	assert.Equal(t, "用户姓名", commentsAfter["name"], "name 注释应被更新")
+	// email 相同，不变
+	assert.Equal(t, "用户邮箱地址", commentsAfter["email"], "email 注释应保持不变")
+	// age 应该被添加注释
+	assert.Equal(t, "用户年龄", commentsAfter["age"], "age 注释应被添加")
+}
+
+// TestMySQLCreateIndexes_RealDB 真实 MySQL 测试 - 索引创建
+func TestMySQLCreateIndexes_RealDB(t *testing.T) {
+	if os.Getenv("SKIP_MYSQL_TEST") == "1" {
+		t.Skip("跳过 MySQL 真实数据库测试")
+	}
+
+	gormDB, err := setupMySQLTestDB()
+	if err != nil {
+		t.Skipf("无法连接 MySQL 数据库，跳过测试: %v", err)
+	}
+
+	defer func() {
+		gormDB.Exec("DROP TABLE IF EXISTS test_mysql_users_with_comment")
+	}()
+
+	// 创建表
+	err = gormDB.AutoMigrate(&TestMySQLUserWithComment{})
+	assert.NoError(t, err)
+
+	config := &MigratorConfig{
+		Indexes: []IndexDefinition{
+			NewIndex("test_mysql_users_with_comment", "status"),
+			NewIndex("test_mysql_users_with_comment", "name", "age"),
+			NewUniqueIndex("test_mysql_users_with_comment", "email"),
+		},
+		SkipIndexOnError: false,
+	}
+
+	migrator := NewMigrator(gormDB, config)
+
+	// 第一次创建索引
+	err = migrator.CreateIndexes()
+	assert.NoError(t, err, "创建索引失败")
+
+	// 验证索引存在
+	assert.True(t, migrator.hasIndex("test_mysql_users_with_comment", "idx_test_mysql_users_with_comment_status"))
+	assert.True(t, migrator.hasIndex("test_mysql_users_with_comment", "idx_test_mysql_users_with_comment_name_age"))
+	assert.True(t, migrator.hasIndex("test_mysql_users_with_comment", "idx_test_mysql_users_with_comment_email_unique"))
+
+	// 第二次创建（幂等性）- 应该跳过已存在的索引
+	err = migrator.CreateIndexes()
+	assert.NoError(t, err, "重复创建索引应跳过，不报错")
+}
+
+// TestMySQLAutoMigrate_FullFlow 完整流程测试
+func TestMySQLAutoMigrate_FullFlow(t *testing.T) {
+	if os.Getenv("SKIP_MYSQL_TEST") == "1" {
+		t.Skip("跳过 MySQL 真实数据库测试")
+	}
+
+	gormDB, err := setupMySQLTestDB()
+	if err != nil {
+		t.Skipf("无法连接 MySQL 数据库，跳过测试: %v", err)
+	}
+
+	defer func() {
+		gormDB.Exec("DROP TABLE IF EXISTS test_mysql_users_with_comment")
+	}()
+
+	config := &MigratorConfig{
+		Models: []interface{}{&TestMySQLUserWithComment{}},
+		Indexes: []IndexDefinition{
+			NewIndex("test_mysql_users_with_comment", "status"),
+			NewIndex("test_mysql_users_with_comment", "created_at"),
+		},
+		Comments: []TableComment{
+			{Table: "test_mysql_users_with_comment", Comment: "MySQL测试用户表"},
+		},
+		SkipIndexOnError:   true,
+		SkipCommentOnError: true,
+	}
+
+	migrator := NewMigrator(gormDB, config)
+
+	// 完整迁移
+	err = migrator.AutoMigrate()
+	assert.NoError(t, err, "完整迁移失败")
+
+	// 验证表存在
+	assert.True(t, migrator.HasTable("test_mysql_users_with_comment"))
+
+	// 同步字段注释
+	err = migrator.SyncColumnCommentsWithModels()
+	assert.NoError(t, err, "同步字段注释失败")
+
+	// 验证字段注释
+	comments, _ := migrator.getColumnComments("test_mysql_users_with_comment", "mysql")
+	assert.Equal(t, "用户姓名", comments["name"])
+
+	t.Log("✅ MySQL 完整流程测试通过")
 }

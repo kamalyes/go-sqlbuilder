@@ -398,6 +398,179 @@ func (m *Migrator) GetTableName(model interface{}) string {
 	return tables[0]
 }
 
+// ColumnComment 列注释定义
+type ColumnComment struct {
+	Table   string // 表名
+	Column  string // 列名
+	Comment string // 注释内容
+	Type    string // 列类型（MySQL 需要）
+}
+
+// SyncColumnComments 同步模型字段注释到数据库
+// 检查所有字段的注释是否与 Model 中定义的一致，不一致则更新
+func (m *Migrator) SyncColumnComments(models ...interface{}) error {
+	dialector := m.db.Dialector.Name()
+	if dialector != "mysql" && dialector != "postgres" {
+		m.logger.Debug("当前数据库 %s 不支持字段注释同步", dialector)
+		return nil
+	}
+
+	m.logger.Info("🔄 开始同步字段注释...")
+
+	var totalUpdated int
+	for _, model := range models {
+		updated, err := m.syncModelColumnComments(model, dialector)
+		if err != nil {
+			m.logger.Warn("同步模型 %T 字段注释失败: %v", model, err)
+			continue
+		}
+		totalUpdated += updated
+	}
+
+	m.logger.Info("✅ 字段注释同步完成，共更新 %d 个字段", totalUpdated)
+	return nil
+}
+
+// syncModelColumnComments 同步单个模型的字段注释
+func (m *Migrator) syncModelColumnComments(model interface{}, dialector string) (int, error) {
+	// 解析模型获取表名和字段信息
+	stmt := &gorm.Statement{DB: m.db}
+	if err := stmt.Parse(model); err != nil {
+		return 0, fmt.Errorf("解析模型失败: %w", err)
+	}
+
+	tableName := stmt.Table
+	schema := stmt.Schema
+
+	// 获取数据库中的现有注释
+	dbComments, err := m.getColumnComments(tableName, dialector)
+	if err != nil {
+		return 0, fmt.Errorf("获取数据库字段注释失败: %w", err)
+	}
+
+	var updated int
+	for _, field := range schema.Fields {
+		// 跳过没有 DBName 的字段
+		if field.DBName == "" {
+			continue
+		}
+
+		// 从 gorm tag 中获取 comment
+		modelComment := field.Comment
+		if modelComment == "" {
+			continue // 没有定义注释，跳过
+		}
+
+		// 检查是否需要更新
+		dbComment, exists := dbComments[field.DBName]
+		if exists && dbComment == modelComment {
+			continue // 注释相同，无需更新
+		}
+
+		// 获取列类型（MySQL ALTER COLUMN 需要）
+		columnType := ""
+		if dialector == "mysql" {
+			columnType, err = m.getColumnType(tableName, field.DBName)
+			if err != nil {
+				m.logger.Warn("获取列 %s.%s 类型失败: %v", tableName, field.DBName, err)
+				continue
+			}
+		}
+
+		// 更新注释
+		if err := m.updateColumnComment(tableName, field.DBName, modelComment, columnType, dialector); err != nil {
+			m.logger.Warn("更新列 %s.%s 注释失败: %v", tableName, field.DBName, err)
+			continue
+		}
+
+		m.logger.Debug("✅ 更新字段注释: %s.%s = '%s'", tableName, field.DBName, modelComment)
+		updated++
+	}
+
+	return updated, nil
+}
+
+// getColumnComments 获取表中所有列的注释
+func (m *Migrator) getColumnComments(tableName, dialector string) (map[string]string, error) {
+	comments := make(map[string]string)
+
+	var rows []struct {
+		ColumnName    string `gorm:"column:column_name"`
+		ColumnComment string `gorm:"column:column_comment"`
+	}
+
+	var err error
+	switch dialector {
+	case "mysql":
+		err = m.db.Raw(`
+			SELECT COLUMN_NAME as column_name, COLUMN_COMMENT as column_comment 
+			FROM INFORMATION_SCHEMA.COLUMNS 
+			WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?
+		`, tableName).Scan(&rows).Error
+	case "postgres":
+		err = m.db.Raw(`
+			SELECT a.attname as column_name, 
+				   COALESCE(d.description, '') as column_comment
+			FROM pg_attribute a
+			LEFT JOIN pg_description d ON d.objoid = a.attrelid AND d.objsubid = a.attnum
+			WHERE a.attrelid = ?::regclass AND a.attnum > 0 AND NOT a.attisdropped
+		`, tableName).Scan(&rows).Error
+	default:
+		return comments, nil
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	for _, row := range rows {
+		comments[row.ColumnName] = row.ColumnComment
+	}
+
+	return comments, nil
+}
+
+// getColumnType 获取列的类型定义（MySQL 需要完整类型来修改注释）
+func (m *Migrator) getColumnType(tableName, columnName string) (string, error) {
+	var columnType string
+	err := m.db.Raw(`
+		SELECT COLUMN_TYPE 
+		FROM INFORMATION_SCHEMA.COLUMNS 
+		WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?
+	`, tableName, columnName).Scan(&columnType).Error
+	return columnType, err
+}
+
+// updateColumnComment 更新单个列的注释
+func (m *Migrator) updateColumnComment(tableName, columnName, comment, columnType, dialector string) error {
+	// 转义单引号
+	comment = strings.ReplaceAll(comment, "'", "''")
+
+	var sql string
+	switch dialector {
+	case "mysql":
+		// MySQL 需要完整的列定义
+		sql = fmt.Sprintf("ALTER TABLE `%s` MODIFY COLUMN `%s` %s COMMENT '%s'",
+			tableName, columnName, columnType, comment)
+	case "postgres":
+		sql = fmt.Sprintf("COMMENT ON COLUMN %s.%s IS '%s'",
+			tableName, columnName, comment)
+	default:
+		return nil
+	}
+
+	return m.db.Exec(sql).Error
+}
+
+// SyncColumnCommentsWithModels 同步配置中所有模型的字段注释
+func (m *Migrator) SyncColumnCommentsWithModels() error {
+	if len(m.config.Models) == 0 {
+		m.logger.Warn("⚠️ 没有配置需要同步的模型")
+		return nil
+	}
+	return m.SyncColumnComments(m.config.Models...)
+}
+
 // --- 便捷函数 ---
 
 // QuickMigrate 快速迁移（仅模型，无索引和注释）

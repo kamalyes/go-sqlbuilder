@@ -8,6 +8,7 @@
 - [核心概念](#核心概念)
 - [配置说明](#配置说明)
 - [API 参考](#api-参考)
+- [字段注释同步](#字段注释同步)
 - [使用示例](#使用示例)
 - [最佳实践](#最佳实践)
 
@@ -202,6 +203,11 @@ func (m *Migrator) CreateIndexes() error
 
 创建配置中定义的所有索引。
 
+**特性：**
+- **幂等性**：会先检查索引是否存在，避免重复创建导致的错误
+- **MySQL 兼容**：使用 `SHOW INDEX` 查询而非 `IF NOT EXISTS`（MySQL 不支持）
+- **多次执行安全**：可以在应用启动时反复调用
+
 #### AddComments
 
 ```go
@@ -293,6 +299,39 @@ func (m *Migrator) GetTableName(model interface{}) string
 tableName := migrator.GetTableName(&User{})  // => "users"
 ```
 
+### 字段注释同步方法 🔥
+
+#### SyncColumnComments
+
+```go
+func (m *Migrator) SyncColumnComments(models ...interface{}) error
+```
+
+同步模型字段注释到数据库。自动对比 Model 中 `gorm:"comment:xxx"` 标签与数据库现有注释，不一致时更新，相同时跳过。
+
+```go
+// 同步单个或多个模型的字段注释
+err := migrator.SyncColumnComments(&User{}, &Order{})
+```
+
+#### SyncColumnCommentsWithModels
+
+```go
+func (m *Migrator) SyncColumnCommentsWithModels() error
+```
+
+同步配置中所有模型的字段注释。
+
+```go
+config := &db.MigratorConfig{
+    Models: []interface{}{&User{}, &Order{}},
+}
+migrator := db.NewMigrator(gormDB, config)
+
+// 同步配置中所有模型的字段注释
+err := migrator.SyncColumnCommentsWithModels()
+```
+
 ### 便捷函数
 
 #### QuickMigrate
@@ -310,6 +349,108 @@ func QuickAutoMigrate(db *gorm.DB, config *MigratorConfig) error
 ```
 
 使用配置执行完整迁移。
+
+## 字段注释同步
+
+### 功能介绍
+
+`SyncColumnComments` 方法可以自动将 Model 中定义的字段注释（`gorm:"comment:xxx"`）同步到数据库。它会：
+
+1. **对比检查**：读取数据库中现有的字段注释
+2. **智能更新**：只更新不一致的字段，跳过已正确的注释
+3. **幂等性**：多次执行不会重复更新
+
+### 支持的数据库
+
+| 数据库 | 支持状态 | 说明 |
+|--------|---------|------|
+| MySQL | ✅ 完全支持 | 使用 `ALTER TABLE ... MODIFY COLUMN ... COMMENT` |
+| PostgreSQL | ✅ 完全支持 | 使用 `COMMENT ON COLUMN ... IS` |
+| SQLite | ⏭️ 自动跳过 | SQLite 不支持字段注释 |
+| SQL Server | ⏭️ 自动跳过 | 暂不支持 |
+
+### 使用方式
+
+#### 方式 1: 定义带注释的 Model
+
+```go
+type User struct {
+    ID        uint      `gorm:"primaryKey;comment:主键ID"`
+    Name      string    `gorm:"column:name;size:100;comment:用户姓名"`
+    Email     string    `gorm:"column:email;size:255;comment:用户邮箱地址"`
+    Age       int       `gorm:"column:age;comment:用户年龄"`
+    Status    string    `gorm:"column:status;size:50;comment:用户状态(active/inactive)"`
+    CreatedAt time.Time `gorm:"column:created_at;comment:创建时间"`
+    UpdatedAt time.Time `gorm:"column:updated_at;comment:更新时间"`
+}
+```
+
+#### 方式 2: 同步注释到数据库
+
+```go
+migrator := db.NewMigrator(gormDB, nil)
+
+// 同步指定模型的字段注释
+err := migrator.SyncColumnComments(&User{}, &Order{})
+if err != nil {
+    log.Printf("同步字段注释失败: %v", err)
+}
+```
+
+#### 方式 3: 完整迁移流程中同步
+
+```go
+config := &db.MigratorConfig{
+    Models: []interface{}{&User{}, &Order{}},
+    Indexes: []db.IndexDefinition{
+        db.NewIndex("users", "email"),
+    },
+    Comments: []db.TableComment{
+        {Table: "users", Comment: "用户信息表"},
+    },
+}
+
+migrator := db.NewMigrator(gormDB, config)
+
+// 1. 执行完整迁移（表结构 + 索引 + 表注释）
+err := migrator.AutoMigrate()
+
+// 2. 同步字段注释
+err = migrator.SyncColumnCommentsWithModels()
+```
+
+### 工作原理
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    SyncColumnComments                        │
+├─────────────────────────────────────────────────────────────┤
+│  1. 解析 Model 获取表名和字段信息                             │
+│     └─ 读取 gorm:"comment:xxx" 标签                          │
+│                                                              │
+│  2. 查询数据库现有字段注释                                    │
+│     └─ MySQL: INFORMATION_SCHEMA.COLUMNS                     │
+│     └─ PostgreSQL: pg_description                            │
+│                                                              │
+│  3. 对比检查                                                 │
+│     ├─ Model 注释为空 → 跳过                                 │
+│     ├─ 数据库注释 == Model 注释 → 跳过                       │
+│     └─ 数据库注释 != Model 注释 → 更新                       │
+│                                                              │
+│  4. 执行更新                                                 │
+│     └─ ALTER TABLE ... MODIFY COLUMN ... COMMENT '新注释'    │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 输出示例
+
+```
+2025/11/30 10:50:40 ℹ️ [INFO] 🔄 开始同步字段注释...
+2025/11/30 10:50:41 ✅ 更新字段注释: users.name = '用户姓名'
+2025/11/30 10:50:41 ✅ 更新字段注释: users.email = '用户邮箱地址'
+2025/11/30 10:50:41 ✅ 更新字段注释: users.age = '用户年龄'
+2025/11/30 10:50:41 ℹ️ [INFO] ✅ 字段注释同步完成，共更新 3 个字段
+```
 
 ## 使用示例
 
@@ -569,9 +710,11 @@ err := migrator.AutoMigrate()
 |------|-------|------------|--------|------------|
 | 表迁移 | ✅ | ✅ | ✅ | ✅ |
 | 索引创建 | ✅ | ✅ | ✅ | ✅ |
+| 索引幂等创建 | ✅ | ✅ | ✅ | ✅ |
 | 表注释 | ✅ | ✅ | ❌ | ❌ |
+| 字段注释同步 | ✅ | ✅ | ❌ | ❌ |
 
-> 💡 **提示**: 表注释在 SQLite 和 SQL Server 中会被静默跳过，不会报错。
+> 💡 **提示**: 表注释和字段注释在 SQLite 和 SQL Server 中会被静默跳过，不会报错。
 
 ## 📚 相关文档
 
