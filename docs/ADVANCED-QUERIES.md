@@ -283,6 +283,7 @@ reports, err := repo.List(ctx, query)
 - IN/NOT IN 方法会自动忽略空切片
 - 所有方法都返回同一个 Query 对象，支持链式调用
 
+```go
 // NOT LIKE
 filter := repository.NewNotLikeFilter("email", "@temp.com")
 
