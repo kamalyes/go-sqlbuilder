@@ -7,8 +7,9 @@ require (
 	github.com/kamalyes/go-toolbox v0.11.80
 	github.com/stretchr/testify v1.11.1
 	google.golang.org/protobuf v1.36.10
+	gorm.io/driver/mysql v1.6.0
 	gorm.io/driver/sqlite v1.6.0
-	gorm.io/gorm v1.30.0
+	gorm.io/gorm v1.31.1
 )
 
 require (
@@ -25,5 +26,4 @@ require (
 	google.golang.org/grpc v1.77.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	gorm.io/driver/mysql v1.6.0 // indirect
 )
