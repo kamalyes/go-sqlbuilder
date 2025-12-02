@@ -12,11 +12,25 @@ package repository
 
 import "github.com/kamalyes/go-sqlbuilder/constants"
 
+// SubQuery 子查询结构
+type SubQuery struct {
+	SQL  string        // 子查询 SQL
+	Args []interface{} // 子查询参数
+}
+
+// NewSubQuery 创建子查询
+func NewSubQuery(sql string, args ...interface{}) *SubQuery {
+	return &SubQuery{
+		SQL:  sql,
+		Args: args,
+	}
+}
+
 // Filter 过滤条件
 type Filter struct {
 	Field    string             // 字段名
 	Operator constants.Operator // 操作符
-	Value    interface{}        // 值
+	Value    interface{}        // 值（可以是普通值或 *SubQuery）
 }
 
 // FilterGroup 过滤条件组，支持逻辑操作

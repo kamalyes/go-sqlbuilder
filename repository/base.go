@@ -894,6 +894,12 @@ func applyFilter(dbQuery *gorm.DB, filter *Filter) *gorm.DB {
 		return dbQuery
 	}
 
+	// 检查是否为子查询
+	if subQuery, ok := filter.Value.(*SubQuery); ok {
+		// 处理子查询情况
+		return dbQuery.Where(fmt.Sprintf("%s %s (%s)", filter.Field, string(filter.Operator), subQuery.SQL), subQuery.Args...)
+	}
+
 	switch filter.Operator {
 	case constants.OP_EQ, constants.OP_NEQ, constants.OP_GT, constants.OP_GTE,
 		constants.OP_LT, constants.OP_LTE, constants.OP_IN, constants.OP_NOT_IN,
