@@ -2,7 +2,7 @@
  * @Author: kamalyes 501893067@qq.com
  * @Date: 2025-11-26 00:00:00
  * @LastEditors: kamalyes 501893067@qq.com
- * @LastEditTime: 2025-11-26 11:49:16
+ * @LastEditTime: 2025-12-03 16:36:21
  * @FilePath: \go-sqlbuilder\repository\query_filter_test.go
  * @Description: Query 泛型过滤方法测试 - 确保100%测试覆盖率
  *
@@ -728,4 +728,108 @@ func TestAddTimeRangeValidFilter(t *testing.T) {
 	})
 
 	t.Log("测试完成！")
+}
+
+func TestSetPagination(t *testing.T) {
+	query := NewQuery()
+
+	// 测试正常分页
+	result := query.SetPagination(2, 20)
+
+	assert.NotNil(t, result.Pagination)
+	assert.Equal(t, int32(2), result.Pagination.Page)
+	assert.Equal(t, int32(20), result.Pagination.PageSize)
+
+	// 测试链式调用
+	assert.Equal(t, query, result, "SetPagination should return the same Query instance for chaining")
+}
+
+func TestSetPagination_DefaultValues(t *testing.T) {
+	query := NewQuery()
+
+	// 测试零值或负值的处理
+	query.SetPagination(0, 0)
+
+	assert.NotNil(t, query.Pagination)
+	assert.Equal(t, int32(1), query.Pagination.Page, "Page should default to 1 when <= 0")
+	assert.Equal(t, int32(10), query.Pagination.PageSize, "PageSize should default to 10 when <= 0")
+
+	// 测试负值
+	query2 := NewQuery()
+	query2.SetPagination(-5, -10)
+
+	assert.Equal(t, int32(1), query2.Pagination.Page, "Page should default to 1 when negative")
+	assert.Equal(t, int32(10), query2.Pagination.PageSize, "PageSize should default to 10 when negative")
+}
+
+func TestAddRawOrder(t *testing.T) {
+	query := NewQuery()
+
+	// 测试添加原始排序表达式
+	result := query.AddRawOrder("created_at DESC, updated_at ASC")
+
+	assert.Len(t, result.Orders, 1)
+	assert.Equal(t, "created_at DESC, updated_at ASC", result.Orders[0].Field)
+	assert.Equal(t, "", result.Orders[0].Direction, "Direction should be empty for raw order")
+
+	// 测试链式调用
+	assert.Equal(t, query, result, "AddRawOrder should return the same Query instance for chaining")
+}
+
+func TestAddRawOrder_EmptyExpression(t *testing.T) {
+	query := NewQuery()
+
+	// 测试空表达式不会添加排序
+	result := query.AddRawOrder("")
+
+	assert.Len(t, result.Orders, 0, "Empty order expression should not add any order")
+}
+
+func TestAddRawOrder_MultipleOrders(t *testing.T) {
+	query := NewQuery()
+
+	// 测试多个原始排序
+	query.AddRawOrder("priority DESC").
+		AddRawOrder("CASE WHEN status = 'urgent' THEN 1 ELSE 2 END").
+		AddOrder("id", "ASC")
+
+	assert.Len(t, query.Orders, 3, "Should have 3 order conditions")
+
+	// 验证第一个原始排序
+	assert.Equal(t, "priority DESC", query.Orders[0].Field)
+	assert.Equal(t, "", query.Orders[0].Direction)
+
+	// 验证第二个原始排序（复杂表达式）
+	assert.Equal(t, "CASE WHEN status = 'urgent' THEN 1 ELSE 2 END", query.Orders[1].Field)
+	assert.Equal(t, "", query.Orders[1].Direction)
+
+	// 验证普通排序仍然正常工作
+	assert.Equal(t, "id", query.Orders[2].Field)
+	assert.Equal(t, "ASC", query.Orders[2].Direction)
+}
+
+func TestSetPagination_Integration_WithOtherMethods(t *testing.T) {
+	query := NewQuery()
+
+	// 测试与其他方法的集成
+	result := query.
+		AddFilter(NewEqFilter("status", "active")).
+		SetPagination(3, 25).
+		AddRawOrder("created_at DESC").
+		AddOrder("name", "ASC")
+
+	// 验证过滤器
+	assert.Len(t, result.Filters, 1)
+	assert.Equal(t, "status", result.Filters[0].Field)
+
+	// 验证分页
+	assert.NotNil(t, result.Pagination)
+	assert.Equal(t, int32(3), result.Pagination.Page)
+	assert.Equal(t, int32(25), result.Pagination.PageSize)
+
+	// 验证排序
+	assert.Len(t, result.Orders, 2)
+	assert.Equal(t, "created_at DESC", result.Orders[0].Field)
+	assert.Equal(t, "name", result.Orders[1].Field)
+	assert.Equal(t, "ASC", result.Orders[1].Direction)
 }

@@ -11,8 +11,9 @@
 package repository
 
 import (
-	"github.com/kamalyes/go-sqlbuilder/constants"
 	"time"
+
+	"github.com/kamalyes/go-sqlbuilder/constants"
 )
 
 type QueryCondition struct {
@@ -96,6 +97,11 @@ func (q *Query) WithPaging(page, pageSize int) *Query {
 		PageSize: int32(pageSize),
 	}
 	return q
+}
+
+// SetPagination 设置分页条件 - WithPaging 的别名，提供更直观的API
+func (q *Query) SetPagination(page, pageSize int) *Query {
+	return q.WithPaging(page, pageSize)
 }
 
 // Limit 设置查询限制数量
@@ -454,6 +460,18 @@ func (q *Query) AddOrderAsc(field string) *Query {
 // AddOrderDesc 添加降序排序
 func (q *Query) AddOrderDesc(field string) *Query {
 	return q.AddOrder(field, constants.Desc)
+}
+
+// AddRawOrder 添加原始SQL排序表达式（用于复杂排序，如多字段排序、函数排序等）
+// 注意：此方法直接将排序表达式添加到SQL中，使用时需确保SQL注入安全
+func (q *Query) AddRawOrder(orderExpr string) *Query {
+	if orderExpr != "" {
+		q.Orders = append(q.Orders, Order{
+			Field:     orderExpr,
+			Direction: "", // 对于原始SQL，方向包含在表达式中
+		})
+	}
+	return q
 }
 
 // AddTimeAfter 添加时间晚于条件
