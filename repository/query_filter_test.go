@@ -833,3 +833,185 @@ func TestSetPagination_Integration_WithOtherMethods(t *testing.T) {
 	assert.Equal(t, "name", result.Orders[1].Field)
 	assert.Equal(t, "ASC", result.Orders[1].Direction)
 }
+
+// TestBuildWhereClause 测试 BuildWhereClause 方法
+func TestBuildWhereClause(t *testing.T) {
+	t.Run("空查询", func(t *testing.T) {
+		var query *Query
+		whereClause, args := query.BuildWhereClause()
+		assert.Empty(t, whereClause)
+		assert.Empty(t, args)
+	})
+
+	t.Run("只有简单过滤条件", func(t *testing.T) {
+		query := NewQuery().
+			AddFilter(NewEqFilter("agent_id", "user123")).
+			AddFilter(NewEqFilter("work_status", 2))
+
+		whereClause, args := query.BuildWhereClause()
+		expected := "agent_id = ? AND work_status = ?"
+		assert.Equal(t, expected, whereClause)
+		assert.Equal(t, []interface{}{"user123", 2}, args)
+	})
+
+	t.Run("包含BETWEEN操作", func(t *testing.T) {
+		query := NewQuery().
+			AddFilter(NewEqFilter("agent_id", "user123")).
+			AddFilter(&Filter{
+				Field:    "created_at",
+				Operator: constants.OP_BETWEEN,
+				Value:    []interface{}{"2023-01-01", "2023-12-31"},
+			})
+
+		whereClause, args := query.BuildWhereClause()
+		expected := "agent_id = ? AND created_at BETWEEN ? AND ?"
+		assert.Equal(t, expected, whereClause)
+		assert.Equal(t, []interface{}{"user123", "2023-01-01", "2023-12-31"}, args)
+	})
+
+	t.Run("包含LIKE操作", func(t *testing.T) {
+		query := NewQuery().
+			AddFilter(&Filter{
+				Field:    "name",
+				Operator: constants.OP_STARTS_WITH,
+				Value:    "test",
+			}).
+			AddFilter(&Filter{
+				Field:    "email",
+				Operator: constants.OP_CONTAINS,
+				Value:    "example",
+			})
+
+		whereClause, args := query.BuildWhereClause()
+		expected := "name LIKE ? AND email LIKE ?"
+		assert.Equal(t, expected, whereClause)
+		assert.Equal(t, []interface{}{"test%", "%example%"}, args)
+	})
+
+	t.Run("包含NULL操作", func(t *testing.T) {
+		query := NewQuery().
+			AddFilter(&Filter{
+				Field:    "deleted_at",
+				Operator: constants.OP_IS_NULL,
+				Value:    nil,
+			}).
+			AddFilter(&Filter{
+				Field:    "updated_at",
+				Operator: constants.OP_IS_NOT_NULL,
+				Value:    nil,
+			})
+
+		whereClause, args := query.BuildWhereClause()
+		expected := "deleted_at IS NULL AND updated_at IS NOT NULL"
+		assert.Equal(t, expected, whereClause)
+		assert.Empty(t, args)
+	})
+}
+
+// TestBuildWhereClauseFilterGroup 测试过滤条件组
+func TestBuildWhereClauseFilterGroup(t *testing.T) {
+	t.Run("AND条件组", func(t *testing.T) {
+		group := NewFilterGroup(constants.LOGIC_AND).
+			AddFilter(NewEqFilter("status", "active")).
+			AddFilter(NewGtFilter("age", 18))
+
+		query := NewQuery().WithFilterGroup(group)
+		whereClause, args := query.BuildWhereClause()
+		expected := "(status = ? AND age > ?)"
+		assert.Equal(t, expected, whereClause)
+		assert.Equal(t, []interface{}{"active", 18}, args)
+	})
+
+	t.Run("OR条件组", func(t *testing.T) {
+		group := NewFilterGroup(constants.LOGIC_OR).
+			AddFilter(NewEqFilter("type", "admin")).
+			AddFilter(NewEqFilter("type", "manager"))
+
+		query := NewQuery().WithFilterGroup(group)
+		whereClause, args := query.BuildWhereClause()
+		expected := "(type = ? OR type = ?)"
+		assert.Equal(t, expected, whereClause)
+		assert.Equal(t, []interface{}{"admin", "manager"}, args)
+	})
+
+	t.Run("嵌套条件组", func(t *testing.T) {
+		subGroup1 := NewFilterGroup(constants.LOGIC_OR).
+			AddFilter(NewEqFilter("status", "active")).
+			AddFilter(NewEqFilter("status", "pending"))
+
+		subGroup2 := NewFilterGroup(constants.LOGIC_AND).
+			AddFilter(NewGtFilter("age", 21)).
+			AddFilter(NewLtFilter("age", 65))
+
+		mainGroup := NewFilterGroup(constants.LOGIC_AND).
+			AddGroup(subGroup1).
+			AddGroup(subGroup2)
+
+		query := NewQuery().WithFilterGroup(mainGroup)
+		whereClause, args := query.BuildWhereClause()
+		expected := "((status = ? OR status = ?) AND (age > ? AND age < ?))"
+		assert.Equal(t, expected, whereClause)
+		assert.Equal(t, []interface{}{"active", "pending", 21, 65}, args)
+	})
+}
+
+// TestBuildWhereClauseMixedConditions 测试混合条件
+func TestBuildWhereClauseMixedConditions(t *testing.T) {
+	t.Run("简单过滤条件和条件组", func(t *testing.T) {
+		group := NewFilterGroup(constants.LOGIC_OR).
+			AddFilter(NewEqFilter("role", "admin")).
+			AddFilter(NewEqFilter("role", "manager"))
+
+		query := NewQuery().
+			AddFilter(NewEqFilter("company_id", "123")).
+			AddFilter(NewEqFilter("active", true)).
+			WithFilterGroup(group)
+
+		whereClause, args := query.BuildWhereClause()
+		expected := "company_id = ? AND active = ? AND (role = ? OR role = ?)"
+		assert.Equal(t, expected, whereClause)
+		assert.Equal(t, []interface{}{"123", true, "admin", "manager"}, args)
+	})
+}
+
+// TestSpecialOperators 测试特殊操作符处理
+func TestSpecialOperators(t *testing.T) {
+	t.Run("STARTS_WITH", func(t *testing.T) {
+		query := NewQuery().AddFilter(&Filter{
+			Field:    "name",
+			Operator: constants.OP_STARTS_WITH,
+			Value:    "John",
+		})
+
+		whereClause, args := query.BuildWhereClause()
+		expected := "name LIKE ?"
+		assert.Equal(t, expected, whereClause)
+		assert.Equal(t, []interface{}{"John%"}, args)
+	})
+
+	t.Run("ENDS_WITH", func(t *testing.T) {
+		query := NewQuery().AddFilter(&Filter{
+			Field:    "email",
+			Operator: constants.OP_ENDS_WITH,
+			Value:    "@example.com",
+		})
+
+		whereClause, args := query.BuildWhereClause()
+		expected := "email LIKE ?"
+		assert.Equal(t, expected, whereClause)
+		assert.Equal(t, []interface{}{"%@example.com"}, args)
+	})
+
+	t.Run("CONTAINS", func(t *testing.T) {
+		query := NewQuery().AddFilter(&Filter{
+			Field:    "description",
+			Operator: constants.OP_CONTAINS,
+			Value:    "test",
+		})
+
+		whereClause, args := query.BuildWhereClause()
+		expected := "description LIKE ?"
+		assert.Equal(t, expected, whereClause)
+		assert.Equal(t, []interface{}{"%test%"}, args)
+	})
+}

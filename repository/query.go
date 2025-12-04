@@ -11,6 +11,8 @@
 package repository
 
 import (
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/kamalyes/go-sqlbuilder/constants"
@@ -258,14 +260,17 @@ func isTimeValid(timeVal interface{}) bool {
 		return false
 	}
 
+	// 定义 Unix 零点
+	unixZero := time.Unix(0, 0)
+
 	// 处理 *time.Time 类型
 	if ptr, ok := timeVal.(*time.Time); ok {
-		return ptr != nil && !ptr.IsZero()
+		return ptr != nil && !ptr.IsZero() && ptr.After(unixZero)
 	}
 
 	// 处理 time.Time 类型
 	if t, ok := timeVal.(time.Time); ok {
-		return !t.IsZero()
+		return !t.IsZero() && t.After(unixZero)
 	}
 
 	// 其他类型认为有效
@@ -591,4 +596,211 @@ func (q *Query) OmitSensitive() *Query {
 // 默认排除: content, description, detail, data, payload, body
 func (q *Query) OmitLargeFields() *Query {
 	return q.Omit("content", "description", "detail", "data", "payload", "body", "remark")
+}
+
+// BuildWhereClause 构建WHERE子句和参数
+// 返回值: whereClause (SQL条件字符串), args (参数数组)
+// 示例: "agent_id = ? AND work_status = ? AND start_time >= ?", []interface{}{"user123", 2, time.Now()}
+func (q *Query) BuildWhereClause() (string, []interface{}) {
+	if q == nil {
+		return "", nil
+	}
+
+	var allConditions []string
+	var allArgs []interface{}
+
+	// 处理简单过滤条件
+	q.processSimpleFilters(&allConditions, &allArgs)
+
+	// 处理复合过滤条件组
+	q.processFilterGroup(&allConditions, &allArgs)
+
+	// 如果没有任何条件
+	if len(allConditions) == 0 {
+		return "", nil
+	}
+
+	// 用 AND 连接所有顶级条件
+	whereClause := strings.Join(allConditions, " AND ")
+	return whereClause, allArgs
+}
+
+// processSimpleFilters 处理简单过滤条件
+func (q *Query) processSimpleFilters(conditions *[]string, args *[]interface{}) {
+	for _, filter := range q.Filters {
+		if filter != nil {
+			condition, arg := q.buildFilterCondition(filter)
+			if condition != "" {
+				*conditions = append(*conditions, condition)
+				q.appendFilterArgs(args, arg)
+			}
+		}
+	}
+}
+
+// processFilterGroup 处理复合过滤条件组
+func (q *Query) processFilterGroup(conditions *[]string, args *[]interface{}) {
+	if q.FilterGroup != nil && !q.FilterGroup.IsEmpty() {
+		groupCondition, groupArgs := q.buildGroupCondition(q.FilterGroup)
+		if groupCondition != "" {
+			*conditions = append(*conditions, "("+groupCondition+")")
+			*args = append(*args, groupArgs...)
+		}
+	}
+}
+
+// appendFilterArgs 添加过滤条件参数
+func (q *Query) appendFilterArgs(args *[]interface{}, arg interface{}) {
+	if arg != nil {
+		// 处理BETWEEN操作的多个参数
+		if values, ok := arg.([]interface{}); ok {
+			*args = append(*args, values...)
+		} else {
+			*args = append(*args, arg)
+		}
+	}
+}
+
+// buildFilterCondition 构建单个过滤条件的SQL和参数
+func (q *Query) buildFilterCondition(filter *Filter) (string, interface{}) {
+	if filter == nil {
+		return "", nil
+	}
+
+	// 处理特殊操作符
+	if result, arg := q.handleSpecialOperators(filter); result != "" {
+		return result, arg
+	}
+
+	// 通用处理：使用 map 查找模板
+	if template, ok := constants.OperatorTemplateMap[filter.Operator]; ok {
+		return fmt.Sprintf(template, filter.Field), filter.Value
+	}
+
+	return "", nil
+}
+
+// handleSpecialOperators 处理特殊操作符
+func (q *Query) handleSpecialOperators(filter *Filter) (string, interface{}) {
+	switch filter.Operator {
+	case constants.OP_IS_NULL, constants.OP_IS_NOT_NULL:
+		return q.handleNullOperators(filter)
+	case constants.OP_BETWEEN:
+		return q.handleBetweenOperator(filter)
+	case constants.OP_STARTS_WITH:
+		return q.handleStartsWithOperator(filter)
+	case constants.OP_ENDS_WITH:
+		return q.handleEndsWithOperator(filter)
+	case constants.OP_CONTAINS:
+		return q.handleContainsOperator(filter)
+	case constants.OP_FIND_IN_SET:
+		return q.handleFindInSetOperator(filter)
+	}
+	return "", nil
+}
+
+// handleNullOperators 处理 NULL 操作符
+func (q *Query) handleNullOperators(filter *Filter) (string, interface{}) {
+	if template, ok := constants.OperatorTemplateMap[filter.Operator]; ok {
+		return fmt.Sprintf(template, filter.Field), nil
+	}
+	return "", nil
+}
+
+// handleBetweenOperator 处理 BETWEEN 操作符
+func (q *Query) handleBetweenOperator(filter *Filter) (string, interface{}) {
+	if values, ok := filter.Value.([]interface{}); ok && len(values) == 2 {
+		return fmt.Sprintf(constants.SQL_BETWEEN, filter.Field), values
+	}
+	return "", nil
+}
+
+// handleStartsWithOperator 处理 STARTS_WITH 操作符
+func (q *Query) handleStartsWithOperator(filter *Filter) (string, interface{}) {
+	if valueStr, ok := filter.Value.(string); ok {
+		return fmt.Sprintf(constants.SQL_LIKE, filter.Field), valueStr + constants.SQL_WILDCARD_ANY
+	}
+	return "", nil
+}
+
+// handleEndsWithOperator 处理 ENDS_WITH 操作符
+func (q *Query) handleEndsWithOperator(filter *Filter) (string, interface{}) {
+	if valueStr, ok := filter.Value.(string); ok {
+		return fmt.Sprintf(constants.SQL_LIKE, filter.Field), constants.SQL_WILDCARD_ANY + valueStr
+	}
+	return "", nil
+}
+
+// handleContainsOperator 处理 CONTAINS 操作符
+func (q *Query) handleContainsOperator(filter *Filter) (string, interface{}) {
+	if valueStr, ok := filter.Value.(string); ok {
+		return fmt.Sprintf(constants.SQL_LIKE, filter.Field), constants.SQL_WILDCARD_ANY + valueStr + constants.SQL_WILDCARD_ANY
+	}
+	return "", nil
+}
+
+// handleFindInSetOperator 处理 FIND_IN_SET 操作符
+func (q *Query) handleFindInSetOperator(filter *Filter) (string, interface{}) {
+	if template, ok := constants.OperatorTemplateMap[filter.Operator]; ok {
+		return fmt.Sprintf(template, filter.Field) + " > 0", filter.Value
+	}
+	return "", nil
+}
+
+// buildGroupCondition 递归构建过滤组的条件
+func (q *Query) buildGroupCondition(group *FilterGroup) (string, []interface{}) {
+	if group == nil || group.IsEmpty() {
+		return "", nil
+	}
+
+	var conditions []string
+	var args []interface{}
+
+	// 处理过滤条件
+	q.processGroupFilters(group, &conditions, &args)
+
+	// 递归处理子组
+	q.processSubGroups(group, &conditions, &args)
+
+	if len(conditions) == 0 {
+		return "", nil
+	}
+
+	// 根据逻辑操作符连接条件
+	separator := q.getLogicSeparator(group.LogicOp)
+	return strings.Join(conditions, separator), args
+}
+
+// processGroupFilters 处理组内的过滤条件
+func (q *Query) processGroupFilters(group *FilterGroup, conditions *[]string, args *[]interface{}) {
+	for _, filter := range group.Filters {
+		if filter != nil {
+			condition, arg := q.buildFilterCondition(filter)
+			if condition != "" {
+				*conditions = append(*conditions, condition)
+				q.appendFilterArgs(args, arg)
+			}
+		}
+	}
+}
+
+// processSubGroups 递归处理子组
+func (q *Query) processSubGroups(group *FilterGroup, conditions *[]string, args *[]interface{}) {
+	for _, subGroup := range group.Groups {
+		if subGroup != nil && !subGroup.IsEmpty() {
+			subCondition, subArgs := q.buildGroupCondition(subGroup)
+			if subCondition != "" {
+				*conditions = append(*conditions, "("+subCondition+")")
+				*args = append(*args, subArgs...)
+			}
+		}
+	}
+}
+
+// getLogicSeparator 获取逻辑操作符对应的分隔符
+func (q *Query) getLogicSeparator(logicOp constants.Operator) string {
+	if logicOp == constants.LOGIC_OR {
+		return " OR "
+	}
+	return " AND "
 }

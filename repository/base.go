@@ -2,7 +2,7 @@
  * @Author: kamalyes 501893067@qq.com
  * @Date: 2025-11-11 21:13:15
  * @LastEditors: kamalyes 501893067@qq.com
- * @LastEditTime: 2025-11-28 13:15:15
+ * @LastEditTime: 2025-12-04 09:15:32
  * @FilePath: \go-sqlbuilder\repository\base.go
  * @Description:
  *
@@ -13,6 +13,10 @@ package repository
 import (
 	"context"
 	"fmt"
+	"reflect"
+	"strings"
+	"time"
+
 	"github.com/kamalyes/go-logger"
 	gologger "github.com/kamalyes/go-logger"
 	"github.com/kamalyes/go-sqlbuilder/constants"
@@ -20,9 +24,6 @@ import (
 	"github.com/kamalyes/go-sqlbuilder/errors"
 	"github.com/kamalyes/go-toolbox/pkg/errorx"
 	"gorm.io/gorm"
-	"reflect"
-	"strings"
-	"time"
 )
 
 // ContextFieldExtractor context字段提取器函数类型
@@ -502,6 +503,11 @@ func (r *BaseRepository[T]) ListWithPagination(ctx context.Context, query *Query
 	countDb := db
 	countDb.Model(new(T)).Count(&total)
 	page.Total = total
+
+	// 如果没有数据，直接返回空结果
+	if total == 0 {
+		return []*T{}, page, nil
+	}
 
 	// 应用排序
 	for _, order := range query.Orders {
