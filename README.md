@@ -21,6 +21,7 @@
 | 🗄️ **数据库迁移** | 自动迁移、索引创建、表注释 | [🗄️ 数据库迁移器](docs/MIGRATOR.md) |
 | 🔄 **上下文支持** | 超时控制、日志追踪、请求隔离 | [🔄 Context 使用指南](docs/CONTEXT-USAGE.md) |
 | 🎛️ **复杂条件** | FilterGroup 支持无限嵌套的条件组合 | [📕 FilterGroup 指南](docs/FILTERGROUP.md) |
+| 🚄 **并发统计** | 多表并发查询、时间分组统计、条件聚合 | [🚄 并发统计查询](docs/CONCURRENT-STATS.md) |
 
 ## 📦 安装
 

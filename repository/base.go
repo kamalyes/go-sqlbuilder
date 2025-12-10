@@ -13,10 +13,6 @@ package repository
 import (
 	"context"
 	"fmt"
-	"reflect"
-	"strings"
-	"time"
-
 	"github.com/kamalyes/go-logger"
 	gologger "github.com/kamalyes/go-logger"
 	"github.com/kamalyes/go-sqlbuilder/constants"
@@ -24,6 +20,9 @@ import (
 	"github.com/kamalyes/go-sqlbuilder/errors"
 	"github.com/kamalyes/go-toolbox/pkg/errorx"
 	"gorm.io/gorm"
+	"reflect"
+	"strings"
+	"time"
 )
 
 // ContextFieldExtractor context字段提取器函数类型
@@ -1280,4 +1279,34 @@ func (r *BaseRepository[T]) applyFieldSelection(db *gorm.DB, query *Query) *gorm
 
 	// 没有指定字段选择，返回原查询（SELECT *）
 	return db
+}
+
+// ========== 并发查询支持 ==========
+
+// ExecuteConcurrentQueries 执行并发查询任务
+// 这是一个便捷方法，直接在 repository 上执行并发查询
+func (r *BaseRepository[T]) ExecuteConcurrentQueries(
+	ctx context.Context,
+	tasks []ConcurrentQueryTask[int64],
+	opts ...ConcurrentQueryOption,
+) ([]ConcurrentQueryResult[int64], bool) {
+	executor := NewConcurrentQueryExecutor(r.db.GetDB()).WithLogger(r.logger)
+	for _, opt := range opts {
+		opt(executor)
+	}
+	return ExecuteConcurrentQuery(executor, ctx, tasks)
+}
+
+// ConcurrentQuery 简化的并发查询接口
+// 直接传入查询函数的 map，返回结果的 map
+func (r *BaseRepository[T]) ConcurrentQuery(
+	ctx context.Context,
+	queries map[string]func(ctx context.Context) (int64, error),
+	opts ...ConcurrentQueryOption,
+) (map[string]int64, bool) {
+	executor := NewConcurrentQueryExecutor(r.db.GetDB()).WithLogger(r.logger)
+	for _, opt := range opts {
+		opt(executor)
+	}
+	return ConcurrentSimpleQuery(executor, ctx, queries)
 }

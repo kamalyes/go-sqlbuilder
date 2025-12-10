@@ -12,7 +12,6 @@ package repository
 
 import (
 	"context"
-
 	"gorm.io/gorm"
 )
 
@@ -71,6 +70,10 @@ type Repository[T any] interface {
 	CountByField(ctx context.Context, field string) (map[interface{}]int64, error)
 	Pluck(ctx context.Context, field string, filters ...*Filter) ([]interface{}, error)
 	Distinct(ctx context.Context, field string, filters ...*Filter) ([]interface{}, error)
+
+	// 并发查询
+	ExecuteConcurrentQueries(ctx context.Context, tasks []ConcurrentQueryTask[int64], opts ...ConcurrentQueryOption) ([]ConcurrentQueryResult[int64], bool)
+	ConcurrentQuery(ctx context.Context, queries map[string]func(ctx context.Context) (int64, error), opts ...ConcurrentQueryOption) (map[string]int64, bool)
 }
 
 // SoftDeleteHelper 软删除辅助接口

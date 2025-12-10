@@ -1,9 +1,9 @@
-﻿/*
+/*
  * @Author: kamalyes 501893067@qq.com
  * @Date: 2025-11-30 00:00:00
  * @LastEditors: kamalyes 501893067@qq.com
  * @LastEditTime: 2025-11-30 10:47:49
- * @FilePath: \engine-im-service\go-sqlbuilder\db\migrator_test.go
+ * @FilePath: \go-sqlbuilder\db\migrator_test.go
  * @Description: 数据库迁移器测试
  *
  * Copyright (c) 2025 by kamalyes, All Rights Reserved.

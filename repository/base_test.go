@@ -38,18 +38,107 @@ type TestUser struct {
 	DeletedAt *time.Time `json:"deleted_at,omitempty" gorm:"column:deleted_at"`
 }
 
+// User 用于测试的用户模型（别名）
+type User = TestUser
+
+// TestPost 测试用的帖子实体
+type TestPost struct {
+	ID        uint       `json:"id" gorm:"primaryKey"`
+	Title     string     `json:"title" gorm:"column:title"`
+	Content   string     `json:"content" gorm:"column:content"`
+	UserID    uint       `json:"user_id" gorm:"column:user_id"`
+	CreatedAt time.Time  `json:"created_at" gorm:"column:created_at"`
+	UpdatedAt time.Time  `json:"updated_at" gorm:"column:updated_at"`
+	DeletedAt *time.Time `json:"deleted_at,omitempty" gorm:"column:deleted_at"`
+}
+
+// Post 用于测试的帖子模型（别名）
+type Post = TestPost
+
+// getInt64 从 map[string]interface{} 中安全获取 int64 值 (处理SQLite和MySQL差异)
+func getInt64(m map[string]interface{}, key string) int64 {
+	v := m[key]
+	if v == nil {
+		return 0
+	}
+
+	switch val := v.(type) {
+	case int64:
+		return val
+	case int:
+		return int64(val)
+	case float64:
+		return int64(val)
+	case *interface{}:
+		if val == nil {
+			return 0
+		}
+		return getInt64(map[string]interface{}{key: *val}, key)
+	default:
+		return 0
+	}
+}
+
+// getFloat64 从 map[string]interface{} 中安全获取 float64 值 (处理SQLite和MySQL差异)
+func getFloat64(m map[string]interface{}, key string) float64 {
+	v := m[key]
+	if v == nil {
+		return 0
+	}
+
+	switch val := v.(type) {
+	case float64:
+		return val
+	case int64:
+		return float64(val)
+	case int:
+		return float64(val)
+	case *interface{}:
+		if val == nil {
+			return 0
+		}
+		return getFloat64(map[string]interface{}{key: *val}, key)
+	default:
+		return 0
+	}
+}
+
 // setupTestDB 设置测试数据库（SQLite 内存数据库）
 func setupTestDB() (*gorm.DB, error) {
-	gormDB, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{
+	// 使用共享内存模式,确保所有连接访问同一个数据库
+	// file:memdb1?mode=memory&cache=shared 允许多个连接共享同一内存数据库
+	gormDB, err := gorm.Open(sqlite.Open("file:memdb1?mode=memory&cache=shared"), &gorm.Config{
 		DisableForeignKeyConstraintWhenMigrating: true,
 		Logger:                                   gormLogger.Default.LogMode(gormLogger.Info), // 开启日志，显示所有 SQL
+		PrepareStmt:                              false,                                       // 禁用预编译语句以提高并发性能
 	})
 	if err != nil {
 		return nil, err
 	}
 
+	// 设置连接池参数以支持并发
+	sqlDB, err := gormDB.DB()
+	if err != nil {
+		return nil, err
+	}
+	sqlDB.SetMaxOpenConns(100)  // 最大打开连接数 - 增加以支持更多并发
+	sqlDB.SetMaxIdleConns(10)   // 最大空闲连接数
+	sqlDB.SetConnMaxLifetime(0) // 连接最大生命周期 - 0表示永不过期
+	sqlDB.SetConnMaxIdleTime(0) // 连接最大空闲时间 - 0表示永不过期
+
+	// 执行SQLite特定设置以提高并发性能
+	gormDB.Exec("PRAGMA journal_mode=WAL")   // 使用WAL模式提高并发性能
+	gormDB.Exec("PRAGMA synchronous=NORMAL") // 降低同步级别提高性能
+	gormDB.Exec("PRAGMA cache_size=10000")   // 增加缓存大小
+	gormDB.Exec("PRAGMA temp_store=MEMORY")  // 临时表存储在内存中
+	gormDB.Exec("PRAGMA busy_timeout=5000")  // 设置5秒的忙等待超时
+
+	// 删除旧表以确保每个测试都是干净的环境
+	gormDB.Exec("DROP TABLE IF EXISTS test_users")
+	gormDB.Exec("DROP TABLE IF EXISTS test_posts")
+
 	// 自动迁移表结构
-	err = gormDB.AutoMigrate(&TestUser{})
+	err = gormDB.AutoMigrate(&TestUser{}, &TestPost{})
 	if err != nil {
 		return nil, err
 	}
