@@ -3,7 +3,7 @@
  * @Date: 2025-11-23 23:15:00
  * @LastEditors: kamalyes 501893067@qq.com
  * @LastEditTime: 2025-11-23 23:15:00
- * @FilePath: \go-sqlbuilder\model_test.go
+ * @FilePath: \go-sqlbuilder\repository\model_test.go
  * @Description: 模型定义测试用例
  *
  * Copyright (c) 2025 by kamalyes, All Rights Reserved.
@@ -11,11 +11,12 @@
 package repository
 
 import (
+	"testing"
+	"time"
+
 	"github.com/stretchr/testify/assert"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
-	"testing"
-	"time"
 )
 
 // TestBaseModel 测试BaseModel
@@ -58,8 +59,8 @@ func TestBaseModel(t *testing.T) {
 	assert.Equal(t, now, model.UpdatedAt, "更新时间应正确设置")
 }
 
-// TestBaseModel_BeforeUpdate 测试BaseModel的BeforeUpdate钩子
-func TestBaseModel_BeforeUpdate(t *testing.T) {
+// TestBaseModelBeforeUpdate 测试BaseModel的BeforeUpdate钩子
+func TestBaseModelBeforeUpdate(t *testing.T) {
 	// 创建数据库
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	assert.NoError(t, err)
@@ -133,8 +134,8 @@ func TestUUIDModel(t *testing.T) {
 	assert.Equal(t, 10, model.Version, "版本号应正确设置")
 }
 
-// TestUUIDModel_BeforeUpdate 测试UUIDModel的BeforeUpdate钩子
-func TestUUIDModel_BeforeUpdate(t *testing.T) {
+// TestUUIDModelBeforeUpdate 测试UUIDModel的BeforeUpdate钩子
+func TestUUIDModelBeforeUpdate(t *testing.T) {
 	// 创建数据库
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	assert.NoError(t, err)
@@ -276,8 +277,8 @@ func TestModelInterfaces(t *testing.T) {
 	assert.True(t, sm.IsEnabled(), "接口方法Enable和IsEnabled应正常工作")
 }
 
-// TestBaseModel_WithGORM 测试BaseModel与GORM集成
-func TestBaseModel_WithGORM(t *testing.T) {
+// TestBaseModelWithGORM 测试BaseModel与GORM集成
+func TestBaseModelWithGORM(t *testing.T) {
 	// 创建数据库
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	assert.NoError(t, err)
@@ -324,8 +325,8 @@ func TestBaseModel_WithGORM(t *testing.T) {
 	assert.Equal(t, int64(1), count, "Unscoped查询应能找到软删除的记录")
 }
 
-// TestAuditModel_WithGORM 测试AuditModel与GORM集成
-func TestAuditModel_WithGORM(t *testing.T) {
+// TestAuditModelWithGORM 测试AuditModel与GORM集成
+func TestAuditModelWithGORM(t *testing.T) {
 	// 创建数据库
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	assert.NoError(t, err)
@@ -365,8 +366,8 @@ func TestAuditModel_WithGORM(t *testing.T) {
 	assert.Equal(t, uint(1002), savedOrder.GetUpdatedBy(), "更新人ID应正确")
 }
 
-// TestSimpleModel_WithGORM 测试SimpleModel与GORM集成
-func TestSimpleModel_WithGORM(t *testing.T) {
+// TestSimpleModelWithGORM 测试SimpleModel与GORM集成
+func TestSimpleModelWithGORM(t *testing.T) {
 	// 创建数据库
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	assert.NoError(t, err)
@@ -393,8 +394,8 @@ func TestSimpleModel_WithGORM(t *testing.T) {
 	assert.NotZero(t, category.UpdatedAt, "更新时间应被自动设置")
 }
 
-// TestLightModel_WithGORM 测试LightModel与GORM集成
-func TestLightModel_WithGORM(t *testing.T) {
+// TestLightModelWithGORM 测试LightModel与GORM集成
+func TestLightModelWithGORM(t *testing.T) {
 	// 创建数据库
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	assert.NoError(t, err)
@@ -430,8 +431,8 @@ func TestLightModel_WithGORM(t *testing.T) {
 	assert.Equal(t, int8(0), savedTag.Status, "状态应为0")
 }
 
-// TestUUIDModel_WithGORM 测试UUIDModel与GORM集成
-func TestUUIDModel_WithGORM(t *testing.T) {
+// TestUUIDModelWithGORM 测试UUIDModel与GORM集成
+func TestUUIDModelWithGORM(t *testing.T) {
 	// 创建数据库
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	assert.NoError(t, err)
@@ -464,8 +465,8 @@ func TestUUIDModel_WithGORM(t *testing.T) {
 	assert.Equal(t, 2, session.Version, "版本应自增")
 }
 
-// TestUUIDModel_GetVersion 测试 UUIDModel GetVersion 方法
-func TestUUIDModel_GetVersion(t *testing.T) {
+// TestUUIDModelGetVersion 测试 UUIDModel GetVersion 方法
+func TestUUIDModelGetVersion(t *testing.T) {
 	// 新模型版本为 1
 	model := &UUIDModel{Version: 1}
 	assert.Equal(t, 1, model.GetVersion())
@@ -475,8 +476,8 @@ func TestUUIDModel_GetVersion(t *testing.T) {
 	assert.Equal(t, 5, model.GetVersion())
 }
 
-// TestUUIDModel_IsDeleted 测试 UUIDModel IsDeleted 方法
-func TestUUIDModel_IsDeleted(t *testing.T) {
+// TestUUIDModelIsDeleted 测试 UUIDModel IsDeleted 方法
+func TestUUIDModelIsDeleted(t *testing.T) {
 	// 未删除状态
 	model := &UUIDModel{}
 	assert.False(t, model.IsDeleted())

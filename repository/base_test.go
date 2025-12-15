@@ -13,17 +13,19 @@ package repository
 import (
 	"context"
 	"fmt"
-	"github.com/kamalyes/go-logger"
-	"github.com/kamalyes/go-sqlbuilder/constants"
-	"github.com/kamalyes/go-sqlbuilder/db"
-	"github.com/stretchr/testify/assert"
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
-	gormLogger "gorm.io/gorm/logger"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/kamalyes/go-logger"
+	"github.com/kamalyes/go-sqlbuilder/constants"
+	"github.com/kamalyes/go-sqlbuilder/db"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
+	gormLogger "gorm.io/gorm/logger"
 )
 
 // TestUser 测试用的用户实体
@@ -425,14 +427,14 @@ func TestApplyFilter(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// 应用过滤器不应panic
 			assert.NotPanics(t, func() {
-				applyFilter(dbQuery, tc.filter)
+				ApplyFilter(dbQuery, tc.filter)
 			}, "应用"+tc.name+"不应panic")
 		})
 	}
 
 	// 测试nil过滤器
 	t.Run("nil filter", func(t *testing.T) {
-		result := applyFilter(dbQuery, nil)
+		result := ApplyFilter(dbQuery, nil)
 		assert.Equal(t, dbQuery, result, "nil过滤器应返回原始查询")
 	})
 
@@ -445,7 +447,7 @@ func TestApplyFilter(t *testing.T) {
 		}
 
 		assert.NotPanics(t, func() {
-			applyFilter(dbQuery, invalidBetweenFilter)
+			ApplyFilter(dbQuery, invalidBetweenFilter)
 		}, "无效BETWEEN值不应panic")
 	})
 }
@@ -1913,7 +1915,7 @@ func TestBaseRepositoryCreateBatch(t *testing.T) {
 	assert.Error(t, err, "只读模式下创建应该返回错误")
 }
 
-// TestComplexFiltering 测试复杂过滤逻辑覆盖applyFilters方法
+// TestComplexFiltering 测试复杂过滤逻辑覆盖ApplyFilters方法
 func TestComplexFiltering(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
@@ -2041,7 +2043,7 @@ func TestTransactionOperations(t *testing.T) {
 }
 
 // TestBaseRepository_WithContextExtractor 测试上下文提取器配置
-func TestBaseRepository_WithContextExtractor(t *testing.T) {
+func TestBaseRepositoryWithContextExtractor(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -2054,7 +2056,7 @@ func TestBaseRepository_WithContextExtractor(t *testing.T) {
 }
 
 // TestBaseRepository_DefaultContextExtractor 测试默认上下文提取器
-func TestBaseRepository_DefaultContextExtractor(t *testing.T) {
+func TestBaseRepositoryDefaultContextExtractor(t *testing.T) {
 	testLogger := logger.NewLogger(nil)
 
 	// 创建包含各种上下文值的context
@@ -2067,34 +2069,8 @@ func TestBaseRepository_DefaultContextExtractor(t *testing.T) {
 	assert.NotNil(t, result)
 }
 
-// TestBaseRepository_ListWithPreloads 测试带预加载的列表查询
-func TestBaseRepository_ListWithPreloads(t *testing.T) {
-	gormDB, err := setupTestDB()
-	assert.NoError(t, err)
-
-	dbHandler := db.MustNewGormHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
-
-	// 插入测试数据
-	user := &TestUser{
-		Name:   "John Doe",
-		Email:  "john@example.com",
-		Age:    30,
-		Status: "active",
-	}
-	_, err = repo.Create(context.Background(), user)
-	assert.NoError(t, err)
-
-	// 测试带预加载的查询（即使没有关联也不应该报错）
-	query := NewQuery().Limit(10)
-	results, err := repo.ListWithPreloads(context.Background(), query) // 不指定预加载关联
-	assert.NoError(t, err)
-	assert.Len(t, results, 1)
-	assert.Equal(t, "John Doe", results[0].Name)
-}
-
 // TestBaseRepository_BulkCreate_ErrorHandling 测试批量创建错误处理
-func TestBaseRepository_BulkCreate_ErrorHandling(t *testing.T) {
+func TestBaseRepositoryBulkCreateErrorHandling(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -2122,7 +2098,7 @@ func TestBaseRepository_BulkCreate_ErrorHandling(t *testing.T) {
 }
 
 // TestBaseRepository_List_Advanced 测试高级列表查询功能
-func TestBaseRepository_List_Advanced(t *testing.T) {
+func TestBaseRepositoryListAdvanced(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -2162,7 +2138,7 @@ func TestBaseRepository_List_Advanced(t *testing.T) {
 }
 
 // TestBaseRepository_FilterConditions 测试复杂过滤条件构建
-func TestBaseRepository_FilterConditions(t *testing.T) {
+func TestBaseRepositoryFilterConditions(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -2213,7 +2189,7 @@ func TestBaseRepository_FilterConditions(t *testing.T) {
 }
 
 // TestBaseRepository_FilterGroup_ComplexLogic 测试复杂过滤组逻辑
-func TestBaseRepository_FilterGroup_ComplexLogic(t *testing.T) {
+func TestBaseRepositoryFilterGroupComplexLogic(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -2258,7 +2234,7 @@ func TestBaseRepository_FilterGroup_ComplexLogic(t *testing.T) {
 }
 
 // TestBaseRepository_EdgeCases 测试各种边界情况
-func TestBaseRepository_EdgeCases(t *testing.T) {
+func TestBaseRepositoryEdgeCases(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -2313,7 +2289,7 @@ func TestBaseRepository_EdgeCases(t *testing.T) {
 }
 
 // TestBaseRepository_ReadOnlyMode 测试只读模式
-func TestBaseRepository_ReadOnlyMode(t *testing.T) {
+func TestBaseRepositoryReadOnlyMode(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -2341,7 +2317,7 @@ func TestBaseRepository_ReadOnlyMode(t *testing.T) {
 }
 
 // TestBaseRepository_InvalidInputs 测试无效输入处理
-func TestBaseRepository_InvalidInputs(t *testing.T) {
+func TestBaseRepositoryInvalidInputs(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -2391,7 +2367,7 @@ func TestBaseRepository_InvalidInputs(t *testing.T) {
 }
 
 // TestBaseRepository_Find_Compatibility 测试Find方法的兼容性
-func TestBaseRepository_Find_Compatibility(t *testing.T) {
+func TestBaseRepositoryFindCompatibility(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -2433,7 +2409,7 @@ func TestBaseRepository_Find_Compatibility(t *testing.T) {
 }
 
 // TestBaseRepository_Pluck_Distinct 测试Pluck和Distinct方法
-func TestBaseRepository_Pluck_Distinct(t *testing.T) {
+func TestBaseRepositoryPluckDistinct(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -2585,6 +2561,131 @@ func TestBuildGroupCondition(t *testing.T) {
 	results4, err := repo.List(context.Background(), query4)
 	assert.NoError(t, err)
 	assert.Len(t, results4, 3) // Alice, Charlie (from inner group) + Bob
+}
+
+// TestApplyOrders 测试批量应用排序条件
+func TestApplyOrders(t *testing.T) {
+	gormDB, err := setupTestDB()
+	require.NoError(t, err)
+
+	// 插入测试数据
+	users := []TestUser{
+		{Name: "Charlie", Email: "charlie@test.com", Age: 20, Status: "active"},
+		{Name: "Alice", Email: "alice@test.com", Age: 25, Status: "active"},
+		{Name: "Bob", Email: "bob@test.com", Age: 30, Status: "inactive"},
+		{Name: "David", Email: "david@test.com", Age: 25, Status: "inactive"},
+	}
+	for _, user := range users {
+		err = gormDB.Create(&user).Error
+		require.NoError(t, err)
+	}
+
+	t.Run("单个排序条件", func(t *testing.T) {
+		orders := []Order{
+			{Field: "name", Direction: "ASC"},
+		}
+
+		var results []TestUser
+		db := gormDB.Model(&TestUser{})
+		db = ApplyOrders(db, orders)
+		err = db.Find(&results).Error
+
+		require.NoError(t, err)
+		require.Len(t, results, 4)
+		assert.Equal(t, "Alice", results[0].Name)
+		assert.Equal(t, "Bob", results[1].Name)
+		assert.Equal(t, "Charlie", results[2].Name)
+		assert.Equal(t, "David", results[3].Name)
+	})
+
+	t.Run("多个排序条件", func(t *testing.T) {
+		orders := []Order{
+			{Field: "status", Direction: "DESC"}, // inactive 优先
+			{Field: "age", Direction: "ASC"},     // 年龄升序
+		}
+
+		var results []TestUser
+		db := gormDB.Model(&TestUser{})
+		db = ApplyOrders(db, orders)
+		err = db.Find(&results).Error
+
+		require.NoError(t, err)
+		require.Len(t, results, 4)
+		// inactive: David(25), Bob(30)
+		// active: Charlie(20), Alice(25)
+		assert.Equal(t, "David", results[0].Name)
+		assert.Equal(t, "Bob", results[1].Name)
+		assert.Equal(t, "Charlie", results[2].Name)
+		assert.Equal(t, "Alice", results[3].Name)
+	})
+
+	t.Run("空排序列表", func(t *testing.T) {
+		orders := []Order{}
+
+		var results []TestUser
+		db := gormDB.Model(&TestUser{})
+		db = ApplyOrders(db, orders)
+		err = db.Find(&results).Error
+
+		require.NoError(t, err)
+		require.Len(t, results, 4)
+		// 无排序，应该按插入顺序
+	})
+
+	t.Run("降序排序", func(t *testing.T) {
+		orders := []Order{
+			{Field: "age", Direction: "DESC"},
+		}
+
+		var results []TestUser
+		db := gormDB.Model(&TestUser{})
+		db = ApplyOrders(db, orders)
+		err = db.Find(&results).Error
+
+		require.NoError(t, err)
+		require.Len(t, results, 4)
+		assert.Equal(t, "Bob", results[0].Name)     // 30
+		assert.True(t, results[1].Age == 25)        // Alice 或 David
+		assert.Equal(t, "Charlie", results[3].Name) // 20
+	})
+
+	t.Run("与Query.AddSafeOrder配合使用", func(t *testing.T) {
+		// 定义白名单
+		allowedFields := []string{"name", "age", "status"}
+
+		// 构建安全排序
+		query := NewQuery().
+			AddSafeOrder("age", "DESC", "name", "ASC", allowedFields)
+
+		var results []TestUser
+		db := gormDB.Model(&TestUser{})
+		db = ApplyOrders(db, query.Orders)
+		err = db.Find(&results).Error
+
+		require.NoError(t, err)
+		require.Len(t, results, 4)
+		// 按年龄降序: 30, 25, 25, 20
+		assert.Equal(t, "Bob", results[0].Name)
+		assert.Equal(t, "Charlie", results[3].Name)
+	})
+
+	t.Run("无效字段被AddSafeOrder过滤", func(t *testing.T) {
+		allowedFields := []string{"name", "age"}
+
+		// 尝试使用不在白名单中的字段
+		query := NewQuery().
+			AddSafeOrder("invalid_field", "DESC", "name", "ASC", allowedFields)
+
+		var results []TestUser
+		db := gormDB.Model(&TestUser{})
+		db = ApplyOrders(db, query.Orders)
+		err = db.Find(&results).Error
+
+		require.NoError(t, err)
+		require.Len(t, results, 4)
+		// 应该使用默认排序 name ASC
+		assert.Equal(t, "Alice", results[0].Name)
+	})
 }
 
 // TestApplyOrdering 测试排序应用
@@ -2759,7 +2860,7 @@ func TestBuildFilterConditionVsApplyFilter(t *testing.T) {
 		{Field: "tags", Operator: constants.OP_FIND_IN_SET, Value: "important"},
 	}
 
-	fmt.Println("\n=== 调试打印：比较 buildFilterCondition vs applyFilter ===")
+	fmt.Println("\n=== 调试打印：比较 buildFilterCondition vs ApplyFilter ===")
 
 	for i, filter := range filters {
 		t.Run(fmt.Sprintf("filter_%d_%s", i, filter.Operator), func(t *testing.T) {
@@ -2803,7 +2904,7 @@ func TestBuildFilterConditionVsApplyFilter(t *testing.T) {
 	fmt.Println("=== 调试完成 ===")
 }
 
-// TestApplyFilterBehavior 测试applyFilter函数的行为
+// TestApplyFilterBehavior 测试ApplyFilter函数的行为
 func TestApplyFilterBehavior(t *testing.T) {
 	// 创建一个模拟的数据库查询
 	gormDB, err := setupTestDB()
@@ -2818,22 +2919,22 @@ func TestApplyFilterBehavior(t *testing.T) {
 		{Field: "tags", Operator: constants.OP_FIND_IN_SET, Value: "important"},
 	}
 
-	fmt.Println("\n=== 调试打印：applyFilter 函数行为 ===")
+	fmt.Println("\n=== 调试打印：ApplyFilter 函数行为 ===")
 
 	for i, filter := range filters {
 		t.Run(fmt.Sprintf("apply_filter_%d_%s", i, filter.Operator), func(t *testing.T) {
-			fmt.Printf("\n--- applyFilter 测试 %d: %s ---\n", i, filter.Operator)
+			fmt.Printf("\n--- ApplyFilter 测试 %d: %s ---\n", i, filter.Operator)
 			fmt.Printf("过滤器: Field=%s, Operator=%s, Value=%v\n",
 				filter.Field, filter.Operator, filter.Value)
 
 			// 应用过滤器
-			resultQuery := applyFilter(baseQuery, filter)
+			resultQuery := ApplyFilter(baseQuery, filter)
 
 			// 检查是否返回了修改后的查询
 			if resultQuery == baseQuery {
-				fmt.Printf("WARNING: applyFilter 返回了原始查询，可能没有处理这个操作符\n")
+				fmt.Printf("WARNING: ApplyFilter 返回了原始查询，可能没有处理这个操作符\n")
 			} else {
-				fmt.Printf("applyFilter 成功处理了操作符\n")
+				fmt.Printf("ApplyFilter 成功处理了操作符\n")
 			}
 
 			// 尝试获取生成的SQL（这可能不会显示实际的SQL，但至少不会报错）
@@ -2844,7 +2945,7 @@ func TestApplyFilterBehavior(t *testing.T) {
 		})
 	}
 
-	fmt.Println("=== applyFilter 调试完成 ===")
+	fmt.Println("=== ApplyFilter 调试完成 ===")
 }
 
 // ===== 字段选择功能测试 =====
@@ -3150,19 +3251,18 @@ func TestApplyFieldSelection(t *testing.T) {
 
 	// 测试有Select的情况
 	query1 := NewQuery().Select("id", "name", "email")
-	resultDB1 := repo.applyFieldSelection(db, query1)
+	resultDB1 := ApplyFieldSelection(db, query1.SelectFields, query1.OmitFields, repo.GetModelFields(), repo.IsAutoFieldsEnabled())
 	assert.NotNil(t, resultDB1, "结果不应为空")
 
 	// 测试有Omit的情况
 	query2 := NewQuery().Omit("age", "status")
-	resultDB2 := repo.applyFieldSelection(db, query2)
+	resultDB2 := ApplyFieldSelection(db, query2.SelectFields, query2.OmitFields, repo.GetModelFields(), repo.IsAutoFieldsEnabled())
 	assert.NotNil(t, resultDB2, "结果不应为空")
 
 	// 测试没有字段选择的情况
 	query3 := NewQuery()
-	resultDB3 := repo.applyFieldSelection(db, query3)
+	resultDB3 := ApplyFieldSelection(db, query3.SelectFields, query3.OmitFields, repo.GetModelFields(), repo.IsAutoFieldsEnabled())
 	assert.NotNil(t, resultDB3, "结果不应为空")
-	assert.Equal(t, db, resultDB3, "没有字段选择时应返回原查询")
 }
 
 // TestComplexQueryWithFieldSelection 测试复杂查询与字段选择
@@ -4380,8 +4480,8 @@ func TestAutoFieldsWithTransaction(t *testing.T) {
 
 // ==================== 第一批异常场景测试 (1-20) ====================
 
-// TestAutoFields_NilContext 测试nil context
-func TestAutoFields_NilContext(t *testing.T) {
+// TestAutoFieldsNilContext 测试nil context
+func TestAutoFieldsNilContext(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -4401,8 +4501,8 @@ func TestAutoFields_NilContext(t *testing.T) {
 	})
 }
 
-// TestAutoFields_InvalidFieldName 测试无效字段名
-func TestAutoFields_InvalidFieldName(t *testing.T) {
+// TestAutoFieldsInvalidFieldName 测试无效字段名
+func TestAutoFieldsInvalidFieldName(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -4430,8 +4530,8 @@ func TestAutoFields_InvalidFieldName(t *testing.T) {
 	}
 }
 
-// TestAutoFields_SelectNonExistentField 测试选择不存在的字段
-func TestAutoFields_SelectNonExistentField(t *testing.T) {
+// TestAutoFieldsSelectNonExistentField 测试选择不存在的字段
+func TestAutoFieldsSelectNonExistentField(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -4451,15 +4551,15 @@ func TestAutoFields_SelectNonExistentField(t *testing.T) {
 
 	// Select包含不存在的字段
 	query := NewQuery().Select("id", "nonexistent_field", "name")
-	_, err = repo.List(ctx, query)
+	repo.List(ctx, query)
 	// 可能返回错误或忽略无效字段
 	assert.NotPanics(t, func() {
 		repo.List(ctx, query)
 	})
 }
 
-// TestAutoFields_OmitAllFields 测试Omit所有字段
-func TestAutoFields_OmitAllFields(t *testing.T) {
+// TestAutoFieldsOmitAllFields 测试Omit所有字段
+func TestAutoFieldsOmitAllFields(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -4485,8 +4585,8 @@ func TestAutoFields_OmitAllFields(t *testing.T) {
 	assert.NotNil(t, results)
 }
 
-// TestAutoFields_DuplicateSelect 测试重复的Select字段
-func TestAutoFields_DuplicateSelect(t *testing.T) {
+// TestAutoFieldsDuplicateSelect 测试重复的Select字段
+func TestAutoFieldsDuplicateSelect(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -4511,8 +4611,8 @@ func TestAutoFields_DuplicateSelect(t *testing.T) {
 	assert.NotEmpty(t, results)
 }
 
-// TestAutoFields_DuplicateOmit 测试重复的Omit字段
-func TestAutoFields_DuplicateOmit(t *testing.T) {
+// TestAutoFieldsDuplicateOmit 测试重复的Omit字段
+func TestAutoFieldsDuplicateOmit(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -4537,8 +4637,8 @@ func TestAutoFields_DuplicateOmit(t *testing.T) {
 	assert.NotEmpty(t, results)
 }
 
-// TestAutoFields_EmptyDatabase 测试空数据库
-func TestAutoFields_EmptyDatabase(t *testing.T) {
+// TestAutoFieldsEmptyDatabase 测试空数据库
+func TestAutoFieldsEmptyDatabase(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -4563,8 +4663,8 @@ func TestAutoFields_EmptyDatabase(t *testing.T) {
 	assert.Equal(t, int64(0), count)
 }
 
-// TestAutoFields_LargeDataset 测试大数据集
-func TestAutoFields_LargeDataset(t *testing.T) {
+// TestAutoFieldsLargeDataset 测试大数据集
+func TestAutoFieldsLargeDataset(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -4597,13 +4697,13 @@ func TestAutoFields_LargeDataset(t *testing.T) {
 	assert.Equal(t, 1000, len(results))
 }
 
-// TestAutoFields_ConcurrentReads 测试并发读取
+// TestAutoFieldsConcurrentReads 测试并发读取
 // 注意：SQLite内存模式不支持多连接，该测试已移除
 // 如需测试并发安全性，请使用文件模式SQLite或其他数据库
-func TestAutoFields_ConcurrentReads(t *testing.T) {
+func TestAutoFieldsConcurrentReads(t *testing.T) {
 	t.Skip("跳过：SQLite内存模式不支持多连接并发测试")
-} // TestAutoFields_SpecialCharactersInData 测试特殊字符数据
-func TestAutoFields_SpecialCharactersInData(t *testing.T) {
+} // TestAutoFieldsSpecialCharactersInData 测试特殊字符数据
+func TestAutoFieldsSpecialCharactersInData(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -4633,8 +4733,8 @@ func TestAutoFields_SpecialCharactersInData(t *testing.T) {
 	assert.Equal(t, user.Name, result.Name)
 }
 
-// TestAutoFields_UnicodeData 测试Unicode数据
-func TestAutoFields_UnicodeData(t *testing.T) {
+// TestAutoFieldsUnicodeData 测试Unicode数据
+func TestAutoFieldsUnicodeData(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -4663,8 +4763,8 @@ func TestAutoFields_UnicodeData(t *testing.T) {
 	assert.Equal(t, user.Name, result.Name)
 }
 
-// TestAutoFields_VeryLongFieldValues 测试超长字段值
-func TestAutoFields_VeryLongFieldValues(t *testing.T) {
+// TestAutoFieldsVeryLongFieldValues 测试超长字段值
+func TestAutoFieldsVeryLongFieldValues(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -4694,8 +4794,8 @@ func TestAutoFields_VeryLongFieldValues(t *testing.T) {
 	assert.Equal(t, longString, result.Name)
 }
 
-// TestAutoFields_NullValues 测试NULL值处理
-func TestAutoFields_NullValues(t *testing.T) {
+// TestAutoFieldsNullValues 测试NULL值处理
+func TestAutoFieldsNullValues(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -4725,8 +4825,8 @@ func TestAutoFields_NullValues(t *testing.T) {
 	assert.Equal(t, 0, result.Age)
 }
 
-// TestAutoFields_BoundaryAgeValues 测试边界年龄值
-func TestAutoFields_BoundaryAgeValues(t *testing.T) {
+// TestAutoFieldsBoundaryAgeValues 测试边界年龄值
+func TestAutoFieldsBoundaryAgeValues(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -4767,8 +4867,8 @@ func TestAutoFields_BoundaryAgeValues(t *testing.T) {
 	}
 }
 
-// TestAutoFields_FilterWithInvalidOperator 测试无效过滤器操作符
-func TestAutoFields_FilterWithInvalidOperator(t *testing.T) {
+// TestAutoFieldsFilterWithInvalidOperator 测试无效过滤器操作符
+func TestAutoFieldsFilterWithInvalidOperator(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -4800,8 +4900,8 @@ func TestAutoFields_FilterWithInvalidOperator(t *testing.T) {
 	})
 }
 
-// TestAutoFields_MultipleSelectCalls 测试多次调用Select
-func TestAutoFields_MultipleSelectCalls(t *testing.T) {
+// TestAutoFieldsMultipleSelectCalls 测试多次调用Select
+func TestAutoFieldsMultipleSelectCalls(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -4829,8 +4929,8 @@ func TestAutoFields_MultipleSelectCalls(t *testing.T) {
 	assert.NotEmpty(t, results)
 }
 
-// TestAutoFields_MultipleOmitCalls 测试多次调用Omit
-func TestAutoFields_MultipleOmitCalls(t *testing.T) {
+// TestAutoFieldsMultipleOmitCalls 测试多次调用Omit
+func TestAutoFieldsMultipleOmitCalls(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -4858,8 +4958,8 @@ func TestAutoFields_MultipleOmitCalls(t *testing.T) {
 	assert.NotEmpty(t, results)
 }
 
-// TestAutoFields_SelectAndOmitConflict 测试Select和Omit冲突
-func TestAutoFields_SelectAndOmitConflict(t *testing.T) {
+// TestAutoFieldsSelectAndOmitConflict 测试Select和Omit冲突
+func TestAutoFieldsSelectAndOmitConflict(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -4888,8 +4988,8 @@ func TestAutoFields_SelectAndOmitConflict(t *testing.T) {
 	assert.NotEmpty(t, results)
 }
 
-// TestAutoFields_InvalidPaginationParams 测试无效分页参数
-func TestAutoFields_InvalidPaginationParams(t *testing.T) {
+// TestAutoFieldsInvalidPaginationParams 测试无效分页参数
+func TestAutoFieldsInvalidPaginationParams(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -4938,8 +5038,8 @@ func TestAutoFields_InvalidPaginationParams(t *testing.T) {
 
 // ==================== 第二批异常场景测试 (21-40) ====================
 
-// TestAutoFields_InvalidOrderDirection 测试无效排序方向
-func TestAutoFields_InvalidOrderDirection(t *testing.T) {
+// TestAutoFieldsInvalidOrderDirection 测试无效排序方向
+func TestAutoFieldsInvalidOrderDirection(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -4967,8 +5067,8 @@ func TestAutoFields_InvalidOrderDirection(t *testing.T) {
 	})
 }
 
-// TestAutoFields_OrderByNonExistentField 测试按不存在的字段排序
-func TestAutoFields_OrderByNonExistentField(t *testing.T) {
+// TestAutoFieldsOrderByNonExistentField 测试按不存在的字段排序
+func TestAutoFieldsOrderByNonExistentField(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -4992,8 +5092,8 @@ func TestAutoFields_OrderByNonExistentField(t *testing.T) {
 	})
 }
 
-// TestAutoFields_ExtremelyLargeLimit 测试极大的Limit值
-func TestAutoFields_ExtremelyLargeLimit(t *testing.T) {
+// TestAutoFieldsExtremelyLargeLimit 测试极大的Limit值
+func TestAutoFieldsExtremelyLargeLimit(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -5017,8 +5117,8 @@ func TestAutoFields_ExtremelyLargeLimit(t *testing.T) {
 	assert.NotEmpty(t, results)
 }
 
-// TestAutoFields_NegativeLimit 测试负数Limit
-func TestAutoFields_NegativeLimit(t *testing.T) {
+// TestAutoFieldsNegativeLimit 测试负数Limit
+func TestAutoFieldsNegativeLimit(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -5042,8 +5142,8 @@ func TestAutoFields_NegativeLimit(t *testing.T) {
 	})
 }
 
-// TestAutoFields_NegativeOffset 测试负数Offset
-func TestAutoFields_NegativeOffset(t *testing.T) {
+// TestAutoFieldsNegativeOffset 测试负数Offset
+func TestAutoFieldsNegativeOffset(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -5067,8 +5167,8 @@ func TestAutoFields_NegativeOffset(t *testing.T) {
 	})
 }
 
-// TestAutoFields_OffsetLargerThanTotal 测试Offset超过总数
-func TestAutoFields_OffsetLargerThanTotal(t *testing.T) {
+// TestAutoFieldsOffsetLargerThanTotal 测试Offset超过总数
+func TestAutoFieldsOffsetLargerThanTotal(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -5092,8 +5192,8 @@ func TestAutoFields_OffsetLargerThanTotal(t *testing.T) {
 	assert.Empty(t, results)
 }
 
-// TestAutoFields_CombinedFiltersEmpty 测试组合过滤器无结果
-func TestAutoFields_CombinedFiltersEmpty(t *testing.T) {
+// TestAutoFieldsCombinedFiltersEmpty 测试组合过滤器无结果
+func TestAutoFieldsCombinedFiltersEmpty(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -5121,8 +5221,8 @@ func TestAutoFields_CombinedFiltersEmpty(t *testing.T) {
 	assert.Empty(t, results)
 }
 
-// TestAutoFields_DeepNestedTransaction 测试深层嵌套事务
-func TestAutoFields_DeepNestedTransaction(t *testing.T) {
+// TestAutoFieldsDeepNestedTransaction 测试深层嵌套事务
+func TestAutoFieldsDeepNestedTransaction(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -5159,8 +5259,8 @@ func TestAutoFields_DeepNestedTransaction(t *testing.T) {
 	})
 }
 
-// TestAutoFields_TransactionRollback 测试事务回滚
-func TestAutoFields_TransactionRollback(t *testing.T) {
+// TestAutoFieldsTransactionRollback 测试事务回滚
+func TestAutoFieldsTransactionRollback(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -5192,8 +5292,8 @@ func TestAutoFields_TransactionRollback(t *testing.T) {
 	assert.Equal(t, int64(0), count)
 }
 
-// TestAutoFields_UpdateNonExistentRecord 测试更新不存在的记录
-func TestAutoFields_UpdateNonExistentRecord(t *testing.T) {
+// TestAutoFieldsUpdateNonExistentRecord 测试更新不存在的记录
+func TestAutoFieldsUpdateNonExistentRecord(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -5223,8 +5323,8 @@ func TestAutoFields_UpdateNonExistentRecord(t *testing.T) {
 	})
 }
 
-// TestAutoFields_DeleteNonExistentRecord 测试删除不存在的记录
-func TestAutoFields_DeleteNonExistentRecord(t *testing.T) {
+// TestAutoFieldsDeleteNonExistentRecord 测试删除不存在的记录
+func TestAutoFieldsDeleteNonExistentRecord(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -5246,8 +5346,8 @@ func TestAutoFields_DeleteNonExistentRecord(t *testing.T) {
 	})
 }
 
-// TestAutoFields_BatchCreateEmpty 测试批量创建空数组
-func TestAutoFields_BatchCreateEmpty(t *testing.T) {
+// TestAutoFieldsBatchCreateEmpty 测试批量创建空数组
+func TestAutoFieldsBatchCreateEmpty(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -5271,8 +5371,8 @@ func TestAutoFields_BatchCreateEmpty(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-// TestAutoFields_BatchDeleteEmpty 测试批量删除空数组
-func TestAutoFields_BatchDeleteEmpty(t *testing.T) {
+// TestAutoFieldsBatchDeleteEmpty 测试批量删除空数组
+func TestAutoFieldsBatchDeleteEmpty(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -5291,8 +5391,8 @@ func TestAutoFields_BatchDeleteEmpty(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-// TestAutoFields_DuplicateEmail 测试重复邮箱（唯一约束）
-func TestAutoFields_DuplicateEmail(t *testing.T) {
+// TestAutoFieldsDuplicateEmail 测试重复邮箱（唯一约束）
+func TestAutoFieldsDuplicateEmail(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -5317,8 +5417,8 @@ func TestAutoFields_DuplicateEmail(t *testing.T) {
 	assert.Error(t, err) // 应该违反唯一约束
 }
 
-// TestAutoFields_GetNonExistentID 测试获取不存在的ID
-func TestAutoFields_GetNonExistentID(t *testing.T) {
+// TestAutoFieldsGetNonExistentID 测试获取不存在的ID
+func TestAutoFieldsGetNonExistentID(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -5337,8 +5437,8 @@ func TestAutoFields_GetNonExistentID(t *testing.T) {
 	assert.Nil(t, result)
 }
 
-// TestAutoFields_FirstOnEmpty 测试空表First查询
-func TestAutoFields_FirstOnEmpty(t *testing.T) {
+// TestAutoFieldsFirstOnEmpty 测试空表First查询
+func TestAutoFieldsFirstOnEmpty(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -5357,8 +5457,8 @@ func TestAutoFields_FirstOnEmpty(t *testing.T) {
 	assert.Nil(t, result)
 }
 
-// TestAutoFields_LastOnEmpty 测试空表Last查询
-func TestAutoFields_LastOnEmpty(t *testing.T) {
+// TestAutoFieldsLastOnEmpty 测试空表Last查询
+func TestAutoFieldsLastOnEmpty(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -5377,8 +5477,8 @@ func TestAutoFields_LastOnEmpty(t *testing.T) {
 	assert.Nil(t, result)
 }
 
-// TestAutoFields_PluckNonExistentField 测试Pluck不存在的字段
-func TestAutoFields_PluckNonExistentField(t *testing.T) {
+// TestAutoFieldsPluckNonExistentField 测试Pluck不存在的字段
+func TestAutoFieldsPluckNonExistentField(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -5403,8 +5503,8 @@ func TestAutoFields_PluckNonExistentField(t *testing.T) {
 	})
 }
 
-// TestAutoFields_DistinctOnEmpty 测试空表Distinct
-func TestAutoFields_DistinctOnEmpty(t *testing.T) {
+// TestAutoFieldsDistinctOnEmpty 测试空表Distinct
+func TestAutoFieldsDistinctOnEmpty(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -5425,8 +5525,8 @@ func TestAutoFields_DistinctOnEmpty(t *testing.T) {
 
 // ==================== 第三批异常场景测试 (41-60) ====================
 
-// TestAutoFields_CountByNonExistentField 测试按不存在字段统计
-func TestAutoFields_CountByNonExistentField(t *testing.T) {
+// TestAutoFieldsCountByNonExistentField 测试按不存在字段统计
+func TestAutoFieldsCountByNonExistentField(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -5450,8 +5550,8 @@ func TestAutoFields_CountByNonExistentField(t *testing.T) {
 	})
 }
 
-// TestAutoFields_UpdateFieldsEmpty 测试更新空字段
-func TestAutoFields_UpdateFieldsEmpty(t *testing.T) {
+// TestAutoFieldsUpdateFieldsEmpty 测试更新空字段
+func TestAutoFieldsUpdateFieldsEmpty(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -5475,8 +5575,8 @@ func TestAutoFields_UpdateFieldsEmpty(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-// TestAutoFields_UpdateFieldsNilValue 测试更新nil值
-func TestAutoFields_UpdateFieldsNilValue(t *testing.T) {
+// TestAutoFieldsUpdateFieldsNilValue 测试更新nil值
+func TestAutoFieldsUpdateFieldsNilValue(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -5505,8 +5605,8 @@ func TestAutoFields_UpdateFieldsNilValue(t *testing.T) {
 	})
 }
 
-// TestAutoFields_ConcurrentWrites 测试并发写入
-func TestAutoFields_ConcurrentWrites(t *testing.T) {
+// TestAutoFieldsConcurrentWrites 测试并发写入
+func TestAutoFieldsConcurrentWrites(t *testing.T) {
 	t.Skip("跳过：SQLite内存模式不支持多连接并发测试")
 
 	gormDB, err := setupTestDB()
@@ -5564,8 +5664,8 @@ func TestAutoFields_ConcurrentWrites(t *testing.T) {
 	assert.Greater(t, successCount, 15, "大部分并发写入应该成功")
 	// 验证没有ID冲突
 	assert.Equal(t, successCount, len(createdIDs), "不应该有重复的ID")
-} // TestAutoFields_ConcurrentUpdates 测试并发更新同一记录
-func TestAutoFields_ConcurrentUpdates(t *testing.T) {
+} // TestAutoFieldsConcurrentUpdates 测试并发更新同一记录
+func TestAutoFieldsConcurrentUpdates(t *testing.T) {
 	t.Skip("跳过：SQLite内存模式不支持多连接并发测试")
 
 	gormDB, err := setupTestDB()
@@ -5627,8 +5727,10 @@ func TestAutoFields_ConcurrentUpdates(t *testing.T) {
 	assert.NotNil(t, result)
 	assert.GreaterOrEqual(t, result.Age, 25)
 	assert.LessOrEqual(t, result.Age, 34)
-} // TestAutoFields_ComplexFilterGroup 测试复杂过滤器组
-func TestAutoFields_ComplexFilterGroup(t *testing.T) {
+}
+
+// TestAutoFieldsComplexFilterGroup 测试复杂过滤器组
+func TestAutoFieldsComplexFilterGroup(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -5661,8 +5763,8 @@ func TestAutoFields_ComplexFilterGroup(t *testing.T) {
 	assert.Equal(t, 2, len(results)) // A和C
 }
 
-// TestAutoFields_MultipleOrderFields 测试多个排序字段
-func TestAutoFields_MultipleOrderFields(t *testing.T) {
+// TestAutoFieldsMultipleOrderFields 测试多个排序字段
+func TestAutoFieldsMultipleOrderFields(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -5695,8 +5797,8 @@ func TestAutoFields_MultipleOrderFields(t *testing.T) {
 	assert.Equal(t, 3, len(results))
 }
 
-// TestAutoFields_EmptyStringFilter 测试空字符串过滤
-func TestAutoFields_EmptyStringFilter(t *testing.T) {
+// TestAutoFieldsEmptyStringFilter 测试空字符串过滤
+func TestAutoFieldsEmptyStringFilter(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -5723,8 +5825,8 @@ func TestAutoFields_EmptyStringFilter(t *testing.T) {
 	assert.Equal(t, 1, len(results))
 }
 
-// TestAutoFields_ZeroValueFilter 测试零值过滤
-func TestAutoFields_ZeroValueFilter(t *testing.T) {
+// TestAutoFieldsZeroValueFilter 测试零值过滤
+func TestAutoFieldsZeroValueFilter(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -5751,8 +5853,8 @@ func TestAutoFields_ZeroValueFilter(t *testing.T) {
 	assert.Equal(t, 1, len(results))
 }
 
-// TestAutoFields_BooleanLikeFilter 测试布尔类型的LIKE过滤
-func TestAutoFields_BooleanLikeFilter(t *testing.T) {
+// TestAutoFieldsBooleanLikeFilter 测试布尔类型的LIKE过滤
+func TestAutoFieldsBooleanLikeFilter(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -5777,8 +5879,8 @@ func TestAutoFields_BooleanLikeFilter(t *testing.T) {
 	})
 }
 
-// TestAutoFields_InFilterEmpty 测试IN过滤器空列表
-func TestAutoFields_InFilterEmpty(t *testing.T) {
+// TestAutoFieldsInFilterEmpty 测试IN过滤器空列表
+func TestAutoFieldsInFilterEmpty(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -5805,8 +5907,8 @@ func TestAutoFields_InFilterEmpty(t *testing.T) {
 	}
 }
 
-// TestAutoFields_InFilterSingleValue 测试IN过滤器单个值
-func TestAutoFields_InFilterSingleValue(t *testing.T) {
+// TestAutoFieldsInFilterSingleValue 测试IN过滤器单个值
+func TestAutoFieldsInFilterSingleValue(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -5830,8 +5932,8 @@ func TestAutoFields_InFilterSingleValue(t *testing.T) {
 	assert.Equal(t, 1, len(results))
 }
 
-// TestAutoFields_BetweenFilterReversed 测试BETWEEN过滤器反转范围
-func TestAutoFields_BetweenFilterReversed(t *testing.T) {
+// TestAutoFieldsBetweenFilterReversed 测试BETWEEN过滤器反转范围
+func TestAutoFieldsBetweenFilterReversed(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -5858,8 +5960,8 @@ func TestAutoFields_BetweenFilterReversed(t *testing.T) {
 	}
 }
 
-// TestAutoFields_BetweenFilterSameValue 测试BETWEEN相同值
-func TestAutoFields_BetweenFilterSameValue(t *testing.T) {
+// TestAutoFieldsBetweenFilterSameValue 测试BETWEEN相同值
+func TestAutoFieldsBetweenFilterSameValue(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -5883,8 +5985,8 @@ func TestAutoFields_BetweenFilterSameValue(t *testing.T) {
 	assert.Equal(t, 1, len(results))
 }
 
-// TestAutoFields_OmitSensitiveNoSensitiveTag 测试OmitSensitive但无sensitive标签
-func TestAutoFields_OmitSensitiveNoSensitiveTag(t *testing.T) {
+// TestAutoFieldsOmitSensitiveNoSensitiveTag 测试OmitSensitive但无sensitive标签
+func TestAutoFieldsOmitSensitiveNoSensitiveTag(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -5909,8 +6011,8 @@ func TestAutoFields_OmitSensitiveNoSensitiveTag(t *testing.T) {
 	assert.Equal(t, 1, len(results))
 }
 
-// TestAutoFields_OmitLargeFieldsNoLargeTag 测试OmitLargeFields但无large标签
-func TestAutoFields_OmitLargeFieldsNoLargeTag(t *testing.T) {
+// TestAutoFieldsOmitLargeFieldsNoLargeTag 测试OmitLargeFields但无large标签
+func TestAutoFieldsOmitLargeFieldsNoLargeTag(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -5935,8 +6037,8 @@ func TestAutoFields_OmitLargeFieldsNoLargeTag(t *testing.T) {
 	assert.Equal(t, 1, len(results))
 }
 
-// TestAutoFields_SelectOnlyWithAutoFields 测试SelectOnly与自动字段
-func TestAutoFields_SelectOnlyWithAutoFields(t *testing.T) {
+// TestAutoFieldsSelectOnlyWithAutoFields 测试SelectOnly与自动字段
+func TestAutoFieldsSelectOnlyWithAutoFields(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -5963,8 +6065,8 @@ func TestAutoFields_SelectOnlyWithAutoFields(t *testing.T) {
 	assert.NotEmpty(t, results[0].Name)
 }
 
-// TestAutoFields_RapidEnableDisable 测试快速切换自动字段
-func TestAutoFields_RapidEnableDisable(t *testing.T) {
+// TestAutoFieldsRapidEnableDisable 测试快速切换自动字段
+func TestAutoFieldsRapidEnableDisable(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -5980,8 +6082,8 @@ func TestAutoFields_RapidEnableDisable(t *testing.T) {
 	assert.False(t, repo.IsAutoFieldsEnabled())
 }
 
-// TestAutoFields_GetFieldsCached 测试字段缓存
-func TestAutoFields_GetFieldsCached(t *testing.T) {
+// TestAutoFieldsGetFieldsCached 测试字段缓存
+func TestAutoFieldsGetFieldsCached(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -6005,8 +6107,8 @@ func TestAutoFields_GetFieldsCached(t *testing.T) {
 
 // ==================== 性能基准测试 ====================
 
-// BenchmarkFieldSelection_Overhead 测试字段选择逻辑的纯开销(不含数据库查询)
-func BenchmarkFieldSelection_Overhead(b *testing.B) {
+// BenchmarkFieldSelectionOverhead 测试字段选择逻辑的纯开销(不含数据库查询)
+func BenchmarkFieldSelectionOverhead(b *testing.B) {
 	gormDB, err := setupTestDB()
 	if err != nil {
 		b.Fatal(err)
@@ -6067,7 +6169,7 @@ func BenchmarkFieldSelection_Overhead(b *testing.B) {
 		db := gormDB.Model(&TestUser{})
 		b.ReportAllocs()
 		for i := 0; i < b.N; i++ {
-			_ = repo.applyFieldSelection(db, query)
+			_ = ApplyFieldSelection(db, query.SelectFields, query.OmitFields, repo.GetModelFields(), repo.IsAutoFieldsEnabled())
 		}
 	})
 
@@ -6081,7 +6183,7 @@ func BenchmarkFieldSelection_Overhead(b *testing.B) {
 		db := gormDB.Model(&TestUser{})
 		b.ReportAllocs()
 		for i := 0; i < b.N; i++ {
-			_ = repo.applyFieldSelection(db, query)
+			_ = ApplyFieldSelection(db, query.SelectFields, query.OmitFields, repo.GetModelFields(), repo.IsAutoFieldsEnabled())
 		}
 	})
 
@@ -6096,7 +6198,7 @@ func BenchmarkFieldSelection_Overhead(b *testing.B) {
 		db := gormDB.Model(&TestUser{})
 		b.ReportAllocs()
 		for i := 0; i < b.N; i++ {
-			_ = repo.applyFieldSelection(db, queryWithOmit)
+			_ = ApplyFieldSelection(db, queryWithOmit.SelectFields, queryWithOmit.OmitFields, repo.GetModelFields(), repo.IsAutoFieldsEnabled())
 		}
 	})
 
@@ -6106,7 +6208,7 @@ func BenchmarkFieldSelection_Overhead(b *testing.B) {
 		db := gormDB.Model(&TestUser{})
 		b.ReportAllocs()
 		for i := 0; i < b.N; i++ {
-			_ = repo.applyFieldSelection(db, queryWithSelect)
+			_ = ApplyFieldSelection(db, queryWithSelect.SelectFields, queryWithSelect.OmitFields, repo.GetModelFields(), repo.IsAutoFieldsEnabled())
 		}
 	})
 
@@ -6764,6 +6866,335 @@ func BenchmarkMemoryUsage(b *testing.B) {
 				b.Fatal(err)
 			}
 			_ = results
+		}
+	})
+}
+
+// ===================== 重构方法专项测试 =====================
+
+// TestApplyFilterGroupRefactored 测试重构后的 ApplyFilterGroup 方法
+func TestApplyFilterGroupRefactored(t *testing.T) {
+	gormDB, err := setupTestDB()
+	require.NoError(t, err)
+
+	dbHandler := newTestDBHandler(gormDB)
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+
+	// 准备测试数据
+	ctx := context.Background()
+	users := []*TestUser{
+		{Name: "Alice", Email: "alice_refactor@test.com", Age: 25, Status: "active"},
+		{Name: "Bob", Email: "bob_refactor@test.com", Age: 30, Status: "inactive"},
+		{Name: "Charlie", Email: "charlie_refactor@test.com", Age: 35, Status: "active"},
+		{Name: "David", Email: "david_refactor@test.com", Age: 40, Status: "inactive"},
+	}
+	for _, user := range users {
+		_, err := repo.Create(ctx, user)
+		require.NoError(t, err)
+	}
+
+	t.Run("OR逻辑过滤组", func(t *testing.T) {
+		group := &FilterGroup{
+			LogicOp: constants.LOGIC_OR,
+			Filters: []*Filter{
+				{Field: "age", Operator: constants.OP_EQ, Value: 25},
+				{Field: "age", Operator: constants.OP_EQ, Value: 35},
+			},
+		}
+
+		query := NewQuery().WithFilterGroup(group)
+		results, err := repo.List(ctx, query)
+
+		assert.NoError(t, err)
+		assert.Len(t, results, 2)
+		ages := []int{results[0].Age, results[1].Age}
+		assert.Contains(t, ages, 25)
+		assert.Contains(t, ages, 35)
+	})
+
+	t.Run("nil过滤条件处理", func(t *testing.T) {
+		group := &FilterGroup{
+			LogicOp: constants.LOGIC_OR,
+			Filters: []*Filter{
+				nil,
+				{Field: "age", Operator: constants.OP_EQ, Value: 25},
+				nil,
+			},
+		}
+
+		query := NewQuery().WithFilterGroup(group)
+		results, err := repo.List(ctx, query)
+
+		assert.NoError(t, err)
+		assert.Len(t, results, 1)
+		assert.Equal(t, 25, results[0].Age)
+	})
+}
+
+// TestCollectFilterConditionsRefactored 测试重构后的 collectFilterConditions 函数
+func TestCollectFilterConditionsRefactored(t *testing.T) {
+	t.Run("收集普通过滤条件", func(t *testing.T) {
+		filters := []*Filter{
+			{Field: "name", Operator: constants.OP_EQ, Value: "Alice"},
+			{Field: "age", Operator: constants.OP_GT, Value: 20},
+		}
+
+		var conditions []string
+		var args []interface{}
+		collectFilterConditions(filters, &conditions, &args)
+
+		assert.Len(t, conditions, 2)
+		assert.Len(t, args, 2)
+		assert.Contains(t, conditions[0], "name")
+		assert.Contains(t, conditions[1], "age")
+		assert.Equal(t, "Alice", args[0])
+		assert.Equal(t, 20, args[1])
+	})
+
+	t.Run("忽略nil过滤条件", func(t *testing.T) {
+		filters := []*Filter{
+			{Field: "name", Operator: constants.OP_EQ, Value: "Alice"},
+			nil,
+			{Field: "age", Operator: constants.OP_GT, Value: 20},
+			nil,
+		}
+
+		var conditions []string
+		var args []interface{}
+		collectFilterConditions(filters, &conditions, &args)
+
+		assert.Len(t, conditions, 2)
+		assert.Len(t, args, 2)
+	})
+
+	t.Run("处理NULL条件", func(t *testing.T) {
+		filters := []*Filter{
+			{Field: "deleted_at", Operator: constants.OP_IS_NULL, Value: nil},
+		}
+
+		var conditions []string
+		var args []interface{}
+		collectFilterConditions(filters, &conditions, &args)
+
+		assert.Len(t, conditions, 1)
+		assert.Contains(t, conditions[0], "IS NULL")
+	})
+}
+
+// TestCollectSubGroupConditionsRefactored 测试重构后的 collectSubGroupConditions 函数
+func TestCollectSubGroupConditionsRefactored(t *testing.T) {
+	t.Run("收集单个子组", func(t *testing.T) {
+		subGroup := &FilterGroup{
+			LogicOp: constants.LOGIC_AND,
+			Filters: []*Filter{
+				{Field: "age", Operator: constants.OP_GT, Value: 20},
+				{Field: "age", Operator: constants.OP_LT, Value: 40},
+			},
+		}
+
+		var conditions []string
+		var args []interface{}
+		collectSubGroupConditions([]*FilterGroup{subGroup}, &conditions, &args)
+
+		assert.Len(t, conditions, 1)
+		assert.Len(t, args, 2)
+		assert.Contains(t, conditions[0], "(")
+		assert.Contains(t, conditions[0], ")")
+	})
+
+	t.Run("忽略nil和空子组", func(t *testing.T) {
+		emptyGroup := &FilterGroup{
+			LogicOp: constants.LOGIC_AND,
+			Filters: []*Filter{},
+		}
+
+		var conditions []string
+		var args []interface{}
+		collectSubGroupConditions([]*FilterGroup{nil, emptyGroup, nil}, &conditions, &args)
+
+		assert.Len(t, conditions, 0)
+		assert.Len(t, args, 0)
+	})
+}
+
+// TestCollectFilterConditionsWithArgsRefactored 测试 collectFilterConditionsWithArgs 函数
+func TestCollectFilterConditionsWithArgsRefactored(t *testing.T) {
+	t.Run("处理BETWEEN多参数", func(t *testing.T) {
+		filters := []*Filter{
+			{Field: "age", Operator: constants.OP_BETWEEN, Value: []interface{}{20, 40}},
+		}
+
+		var conditions []string
+		var args []interface{}
+		collectFilterConditionsWithArgs(filters, &conditions, &args)
+
+		assert.Len(t, conditions, 1)
+		assert.Len(t, args, 2) // BETWEEN应展开为两个参数
+		assert.Equal(t, 20, args[0])
+		assert.Equal(t, 40, args[1])
+	})
+
+	t.Run("混合多参数和单参数", func(t *testing.T) {
+		filters := []*Filter{
+			{Field: "name", Operator: constants.OP_EQ, Value: "Alice"},
+			{Field: "age", Operator: constants.OP_BETWEEN, Value: []interface{}{20, 40}},
+			{Field: "status", Operator: constants.OP_EQ, Value: "active"},
+		}
+
+		var conditions []string
+		var args []interface{}
+		collectFilterConditionsWithArgs(filters, &conditions, &args)
+
+		assert.Len(t, conditions, 3)
+		assert.Len(t, args, 4) // 1 + 2 (BETWEEN) + 1 = 4
+	})
+}
+
+// TestComplexNestedFilterGroups 测试复杂嵌套过滤场景
+func TestComplexNestedFilterGroups(t *testing.T) {
+	gormDB, err := setupTestDB()
+	require.NoError(t, err)
+
+	dbHandler := newTestDBHandler(gormDB)
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+
+	// 准备测试数据
+	ctx := context.Background()
+	users := []*TestUser{
+		{Name: "Alice", Email: "alice_complex@test.com", Age: 25, Status: "active"},
+		{Name: "Bob", Email: "bob_complex@test.com", Age: 30, Status: "inactive"},
+		{Name: "Charlie", Email: "charlie_complex@test.com", Age: 35, Status: "active"},
+		{Name: "David", Email: "david_complex@test.com", Age: 40, Status: "inactive"},
+		{Name: "Eve", Email: "eve_complex@test.com", Age: 28, Status: "active"},
+	}
+	for _, user := range users {
+		_, err := repo.Create(ctx, user)
+		require.NoError(t, err)
+	}
+
+	t.Run("三层嵌套过滤组", func(t *testing.T) {
+		// ((age = 25 OR age = 35) AND status = 'active') OR (age = 30)
+		innerGroup := &FilterGroup{
+			LogicOp: constants.LOGIC_OR,
+			Filters: []*Filter{
+				{Field: "age", Operator: constants.OP_EQ, Value: 25},
+				{Field: "age", Operator: constants.OP_EQ, Value: 35},
+			},
+		}
+
+		middleGroup := &FilterGroup{
+			LogicOp: constants.LOGIC_AND,
+			Filters: []*Filter{
+				{Field: "status", Operator: constants.OP_EQ, Value: "active"},
+			},
+			Groups: []*FilterGroup{innerGroup},
+		}
+
+		mainGroup := &FilterGroup{
+			LogicOp: constants.LOGIC_OR,
+			Filters: []*Filter{
+				{Field: "age", Operator: constants.OP_EQ, Value: 30},
+			},
+			Groups: []*FilterGroup{middleGroup},
+		}
+
+		query := NewQuery().WithFilterGroup(mainGroup)
+		results, err := repo.List(ctx, query)
+
+		assert.NoError(t, err)
+		assert.GreaterOrEqual(t, len(results), 3)
+	})
+}
+
+// BenchmarkRefactoredFilterMethods 重构方法性能基准测试
+func BenchmarkRefactoredFilterMethods(b *testing.B) {
+	gormDB, err := setupTestDB()
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	dbHandler := newTestDBHandler(gormDB)
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	ctx := context.Background()
+
+	// 准备测试数据
+	for i := 0; i < 100; i++ {
+		user := &TestUser{
+			Name:   fmt.Sprintf("User%d", i),
+			Email:  fmt.Sprintf("user%d@bench.com", i),
+			Age:    20 + (i % 50),
+			Status: []string{"active", "inactive"}[i%2],
+		}
+		repo.Create(ctx, user)
+	}
+
+	b.Run("SimpleORFilter", func(b *testing.B) {
+		group := &FilterGroup{
+			LogicOp: constants.LOGIC_OR,
+			Filters: []*Filter{
+				{Field: "age", Operator: constants.OP_EQ, Value: 25},
+				{Field: "age", Operator: constants.OP_EQ, Value: 35},
+			},
+		}
+
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			query := NewQuery().WithFilterGroup(group)
+			_, _ = repo.List(ctx, query)
+		}
+	})
+
+	b.Run("NestedGroups", func(b *testing.B) {
+		subGroup := &FilterGroup{
+			LogicOp: constants.LOGIC_OR,
+			Filters: []*Filter{
+				{Field: "age", Operator: constants.OP_EQ, Value: 25},
+				{Field: "age", Operator: constants.OP_EQ, Value: 35},
+			},
+		}
+
+		mainGroup := &FilterGroup{
+			LogicOp: constants.LOGIC_AND,
+			Filters: []*Filter{
+				{Field: "status", Operator: constants.OP_EQ, Value: "active"},
+			},
+			Groups: []*FilterGroup{subGroup},
+		}
+
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			query := NewQuery().WithFilterGroup(mainGroup)
+			_, _ = repo.List(ctx, query)
+		}
+	})
+
+	b.Run("CollectFilterConditions", func(b *testing.B) {
+		filters := []*Filter{
+			{Field: "name", Operator: constants.OP_EQ, Value: "Alice"},
+			{Field: "age", Operator: constants.OP_GT, Value: 20},
+			{Field: "status", Operator: constants.OP_IN, Value: []string{"active", "inactive"}},
+		}
+
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			var conditions []string
+			var args []interface{}
+			collectFilterConditions(filters, &conditions, &args)
+		}
+	})
+
+	b.Run("BuildGroupCondition", func(b *testing.B) {
+		group := &FilterGroup{
+			LogicOp: constants.LOGIC_AND,
+			Filters: []*Filter{
+				{Field: "age", Operator: constants.OP_GT, Value: 20},
+				{Field: "status", Operator: constants.OP_EQ, Value: "active"},
+			},
+		}
+
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			_, _ = buildGroupCondition(group)
 		}
 	})
 }

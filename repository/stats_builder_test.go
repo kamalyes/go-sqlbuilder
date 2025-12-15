@@ -13,13 +13,14 @@ package repository
 
 import (
 	"context"
-	"github.com/kamalyes/go-logger"
-	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
+
+	"github.com/kamalyes/go-logger"
+	"github.com/stretchr/testify/assert"
 )
 
-func TestMultiTableStatsBuilder_Count(t *testing.T) {
+func TestMultiTabletatsBuilderCount(t *testing.T) {
 	db, err := setupTestDB()
 	assert.NoError(t, err)
 	log := logger.NewLogger(nil)
@@ -59,7 +60,7 @@ func TestMultiTableStatsBuilder_Count(t *testing.T) {
 	assert.Equal(t, int64(2), stats["unique_post_authors"])
 }
 
-func TestMultiTableStatsBuilder_WithTimeRange(t *testing.T) {
+func TestMultiTabletatsBuilderWithTimeRange(t *testing.T) {
 	db, err := setupTestDB()
 	assert.NoError(t, err)
 	log := logger.NewLogger(nil)
@@ -91,7 +92,7 @@ func TestMultiTableStatsBuilder_WithTimeRange(t *testing.T) {
 	assert.Equal(t, int64(2), stats["today_users"])
 }
 
-func TestMultiTableStatsBuilder_WithConditions(t *testing.T) {
+func TestMultiTabletatsBuilderWithConditions(t *testing.T) {
 	db, err := setupTestDB()
 	assert.NoError(t, err)
 	log := logger.NewLogger(nil)
@@ -121,7 +122,7 @@ func TestMultiTableStatsBuilder_WithConditions(t *testing.T) {
 	assert.Equal(t, int64(3), stats["total_users"]) // 30, 35, 50
 }
 
-func TestMultiTableStatsBuilder_Sum(t *testing.T) {
+func TestMultiTabletatsBuilderSum(t *testing.T) {
 	db, err := setupTestDB()
 	assert.NoError(t, err)
 	log := logger.NewLogger(nil)
@@ -148,7 +149,7 @@ func TestMultiTableStatsBuilder_Sum(t *testing.T) {
 	assert.Equal(t, int64(90), stats["total_age"]) // 20 + 30 + 40
 }
 
-func TestMultiTableStatsBuilder_WithTimeout(t *testing.T) {
+func TestMultiTabletatsBuilderWithTimeout(t *testing.T) {
 	db, err := setupTestDB()
 	assert.NoError(t, err)
 	log := logger.NewLogger(nil)
@@ -173,7 +174,7 @@ func TestMultiTableStatsBuilder_WithTimeout(t *testing.T) {
 	assert.Equal(t, int64(1), stats["total_users"])
 }
 
-func TestMultiTableStatsBuilder_WithWorkers(t *testing.T) {
+func TestMultiTabletatsBuilderWithWorkers(t *testing.T) {
 	db, err := setupTestDB()
 	assert.NoError(t, err)
 	log := logger.NewLogger(nil)
@@ -212,7 +213,7 @@ func TestMultiTableStatsBuilder_WithWorkers(t *testing.T) {
 	assert.Equal(t, int64(2), stats["unique_authors"])
 }
 
-func TestMultiTableStatsBuilder_ExecuteWithDetails(t *testing.T) {
+func TestMultiTabletatsBuilderExecuteWithDetails(t *testing.T) {
 	db, err := setupTestDB()
 	assert.NoError(t, err)
 	log := logger.NewLogger(nil)

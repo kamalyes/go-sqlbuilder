@@ -35,8 +35,8 @@ const (
 	TestPriorityHigh   TestPriority = 3
 )
 
-// TestAddFilterIfNotEmpty_String 测试字符串过滤
-func TestAddFilterIfNotEmpty_String(t *testing.T) {
+// TestAddFilterIfNotEmptyString 测试字符串过滤
+func TestAddFilterIfNotEmptyString(t *testing.T) {
 	// 非空字符串
 	query := NewQuery()
 	query.AddFilterIfNotEmpty("name", "test")
@@ -56,8 +56,8 @@ func TestAddFilterIfNotEmpty_String(t *testing.T) {
 	assert.Equal(t, 0, len(query.Filters))
 }
 
-// TestAddFilterIfNotEmpty_StringPointer 测试字符串指针过滤
-func TestAddFilterIfNotEmpty_StringPointer(t *testing.T) {
+// TestAddFilterIfNotEmptyStringPointer 测试字符串指针过滤
+func TestAddFilterIfNotEmptyStringPointer(t *testing.T) {
 	// 非空字符串指针
 	str := "test"
 	query := NewQuery()
@@ -78,8 +78,8 @@ func TestAddFilterIfNotEmpty_StringPointer(t *testing.T) {
 	assert.Equal(t, 0, len(query.Filters))
 }
 
-// TestAddFilterIfNotEmpty_StringSlice 测试字符串切片过滤
-func TestAddFilterIfNotEmpty_StringSlice(t *testing.T) {
+// TestAddFilterIfNotEmptyStringSlice 测试字符串切片过滤
+func TestAddFilterIfNotEmptyStringSlice(t *testing.T) {
 	// 非空字符串切片
 	query := NewQuery()
 	query.AddFilterIfNotEmpty("status", []string{"active", "pending"})
@@ -103,8 +103,8 @@ func TestAddFilterIfNotEmpty_StringSlice(t *testing.T) {
 	assert.Equal(t, 0, len(query.Filters))
 }
 
-// TestAddFilterIfNotEmpty_IntSlice 测试 int 切片过滤
-func TestAddFilterIfNotEmpty_IntSlice(t *testing.T) {
+// TestAddFilterIfNotEmptyIntSlice 测试 int 切片过滤
+func TestAddFilterIfNotEmptyIntSlice(t *testing.T) {
 	// 非空 int 切片
 	query := NewQuery()
 	query.AddFilterIfNotEmpty("age", []int{20, 30, 40})
@@ -121,8 +121,8 @@ func TestAddFilterIfNotEmpty_IntSlice(t *testing.T) {
 	assert.Equal(t, 0, len(query.Filters))
 }
 
-// TestAddFilterIfNotEmpty_Int32Slice 测试 int32 切片过滤
-func TestAddFilterIfNotEmpty_Int32Slice(t *testing.T) {
+// TestAddFilterIfNotEmptyInt32Slice 测试 int32 切片过滤
+func TestAddFilterIfNotEmptyInt32Slice(t *testing.T) {
 	// 非空 int32 切片
 	query := NewQuery()
 	query.AddFilterIfNotEmpty("count", []int32{100, 200, 300})
@@ -139,8 +139,8 @@ func TestAddFilterIfNotEmpty_Int32Slice(t *testing.T) {
 	assert.Equal(t, 0, len(query.Filters))
 }
 
-// TestAddFilterIfNotEmpty_Int64Slice 测试 int64 切片过滤
-func TestAddFilterIfNotEmpty_Int64Slice(t *testing.T) {
+// TestAddFilterIfNotEmptyInt64Slice 测试 int64 切片过滤
+func TestAddFilterIfNotEmptyInt64Slice(t *testing.T) {
 	// 非空 int64 切片
 	query := NewQuery()
 	query.AddFilterIfNotEmpty("id", []int64{1000, 2000, 3000})
@@ -157,8 +157,8 @@ func TestAddFilterIfNotEmpty_Int64Slice(t *testing.T) {
 	assert.Equal(t, 0, len(query.Filters))
 }
 
-// TestAddFilterIfNotEmpty_Int 测试单个 int 值过滤
-func TestAddFilterIfNotEmpty_Int(t *testing.T) {
+// TestAddFilterIfNotEmptyInt 测试单个 int 值过滤
+func TestAddFilterIfNotEmptyInt(t *testing.T) {
 	query := NewQuery()
 	query.AddFilterIfNotEmpty("age", 25)
 	assert.Equal(t, 1, len(query.Filters))
@@ -167,48 +167,48 @@ func TestAddFilterIfNotEmpty_Int(t *testing.T) {
 	assert.Equal(t, 25, query.Filters[0].Value)
 }
 
-// TestAddFilterIfNotEmpty_Int32 测试单个 int32 值过滤
-func TestAddFilterIfNotEmpty_Int32(t *testing.T) {
+// TestAddFilterIfNotEmptyInt32 测试单个 int32 值过滤
+func TestAddFilterIfNotEmptyInt32(t *testing.T) {
 	query := NewQuery()
 	query.AddFilterIfNotEmpty("count", int32(100))
 	assert.Equal(t, 1, len(query.Filters))
 	assert.Equal(t, int32(100), query.Filters[0].Value)
 }
 
-// TestAddFilterIfNotEmpty_Int64 测试单个 int64 值过滤
-func TestAddFilterIfNotEmpty_Int64(t *testing.T) {
+// TestAddFilterIfNotEmptyInt64 测试单个 int64 值过滤
+func TestAddFilterIfNotEmptyInt64(t *testing.T) {
 	query := NewQuery()
 	query.AddFilterIfNotEmpty("id", int64(1000))
 	assert.Equal(t, 1, len(query.Filters))
 	assert.Equal(t, int64(1000), query.Filters[0].Value)
 }
 
-// TestAddFilterIfNotEmpty_Uint 测试 uint 类型过滤
-func TestAddFilterIfNotEmpty_Uint(t *testing.T) {
+// TestAddFilterIfNotEmptyUint 测试 uint 类型过滤
+func TestAddFilterIfNotEmptyUint(t *testing.T) {
 	query := NewQuery()
 	query.AddFilterIfNotEmpty("count", uint(100))
 	assert.Equal(t, 1, len(query.Filters))
 	assert.Equal(t, uint(100), query.Filters[0].Value)
 }
 
-// TestAddFilterIfNotEmpty_Uint32 测试 uint32 类型过滤
-func TestAddFilterIfNotEmpty_Uint32(t *testing.T) {
+// TestAddFilterIfNotEmptyUint32 测试 uint32 类型过滤
+func TestAddFilterIfNotEmptyUint32(t *testing.T) {
 	query := NewQuery()
 	query.AddFilterIfNotEmpty("count", uint32(100))
 	assert.Equal(t, 1, len(query.Filters))
 	assert.Equal(t, uint32(100), query.Filters[0].Value)
 }
 
-// TestAddFilterIfNotEmpty_Uint64 测试 uint64 类型过滤
-func TestAddFilterIfNotEmpty_Uint64(t *testing.T) {
+// TestAddFilterIfNotEmptyUint64 测试 uint64 类型过滤
+func TestAddFilterIfNotEmptyUint64(t *testing.T) {
 	query := NewQuery()
 	query.AddFilterIfNotEmpty("id", uint64(1000))
 	assert.Equal(t, 1, len(query.Filters))
 	assert.Equal(t, uint64(1000), query.Filters[0].Value)
 }
 
-// TestAddFilterIfNotEmpty_Bool 测试布尔值过滤
-func TestAddFilterIfNotEmpty_Bool(t *testing.T) {
+// TestAddFilterIfNotEmptyBool 测试布尔值过滤
+func TestAddFilterIfNotEmptyBool(t *testing.T) {
 	// true
 	query := NewQuery()
 	query.AddFilterIfNotEmpty("is_active", true)
@@ -222,8 +222,8 @@ func TestAddFilterIfNotEmpty_Bool(t *testing.T) {
 	assert.Equal(t, false, query.Filters[0].Value)
 }
 
-// TestAddFilterIfNotEmpty_EnumSlice 测试枚举切片过滤
-func TestAddFilterIfNotEmpty_EnumSlice(t *testing.T) {
+// TestAddFilterIfNotEmptyEnumSlice 测试枚举切片过滤
+func TestAddFilterIfNotEmptyEnumSlice(t *testing.T) {
 	// 非空枚举切片
 	query := NewQuery()
 	statuses := []TestStatus{TestStatusPending, TestStatusActive}
@@ -240,8 +240,8 @@ func TestAddFilterIfNotEmpty_EnumSlice(t *testing.T) {
 	assert.Equal(t, 0, len(query.Filters))
 }
 
-// TestAddFilterIfNotEmpty_EnumValue 测试单个枚举值过滤
-func TestAddFilterIfNotEmpty_EnumValue(t *testing.T) {
+// TestAddFilterIfNotEmptyEnumValue 测试单个枚举值过滤
+func TestAddFilterIfNotEmptyEnumValue(t *testing.T) {
 	query := NewQuery()
 	query.AddFilterIfNotEmpty("status", TestStatusActive)
 	assert.Equal(t, 1, len(query.Filters))
@@ -250,8 +250,8 @@ func TestAddFilterIfNotEmpty_EnumValue(t *testing.T) {
 	assert.Equal(t, TestStatusActive, query.Filters[0].Value)
 }
 
-// TestAddFilterIfNotEmpty_ChainCall 测试链式调用
-func TestAddFilterIfNotEmpty_ChainCall(t *testing.T) {
+// TestAddFilterIfNotEmptyChainCall 测试链式调用
+func TestAddFilterIfNotEmptyChainCall(t *testing.T) {
 	query := NewQuery()
 	result := query.
 		AddFilterIfNotEmpty("name", "test").
@@ -332,8 +332,8 @@ func TestAddTimeRangeFilter(t *testing.T) {
 	assert.Equal(t, 2, len(query.Filters))
 }
 
-// TestAddTimeRangeFilter_TimePointer 测试时间指针
-func TestAddTimeRangeFilter_TimePointer(t *testing.T) {
+// TestAddTimeRangeFilterTimePointer 测试时间指针
+func TestAddTimeRangeFilterTimePointer(t *testing.T) {
 	startTime := time.Now().Add(-24 * time.Hour)
 	endTime := time.Now()
 
@@ -386,8 +386,8 @@ func TestAddInFilterIfNotEmpty(t *testing.T) {
 	assert.Equal(t, 1, len(query.Filters))
 }
 
-// TestAddInFilterIfNotEmpty_NonSliceValue 测试非切片值
-func TestAddInFilterIfNotEmpty_NonSliceValue(t *testing.T) {
+// TestAddInFilterIfNotEmptyNonSliceValue 测试非切片值
+func TestAddInFilterIfNotEmptyNonSliceValue(t *testing.T) {
 	// 传入非切片值 - 不应添加过滤条件
 	query := NewQuery()
 	query.AddInFilterIfNotEmpty("status", "active")
@@ -491,8 +491,8 @@ func TestValidValueScenarios(t *testing.T) {
 
 // =============== AddSafeOrder 排序方法测试 ===============
 
-// TestAddSafeOrder_DefaultValues 测试使用默认值
-func TestAddSafeOrder_DefaultValues(t *testing.T) {
+// TestAddSafeOrderDefaultValues 测试使用默认值
+func TestAddSafeOrderDefaultValues(t *testing.T) {
 	query := NewQuery()
 	query.AddSafeOrder("", "", "created_at", "DESC")
 
@@ -501,8 +501,8 @@ func TestAddSafeOrder_DefaultValues(t *testing.T) {
 	assert.Equal(t, "DESC", query.Orders[0].Direction)
 }
 
-// TestAddSafeOrder_CustomValues 测试自定义排序值
-func TestAddSafeOrder_CustomValues(t *testing.T) {
+// TestAddSafeOrderCustomValues 测试自定义排序值
+func TestAddSafeOrderCustomValues(t *testing.T) {
 	query := NewQuery()
 	query.AddSafeOrder("updated_at", "ASC", "created_at", "DESC")
 
@@ -511,8 +511,8 @@ func TestAddSafeOrder_CustomValues(t *testing.T) {
 	assert.Equal(t, "ASC", query.Orders[0].Direction)
 }
 
-// TestAddSafeOrder_WhitelistValidField 测试白名单 - 有效字段
-func TestAddSafeOrder_WhitelistValidField(t *testing.T) {
+// TestAddSafeOrderWhitelistValidField 测试白名单 - 有效字段
+func TestAddSafeOrderWhitelistValidField(t *testing.T) {
 	allowedFields := []string{"id", "created_at", "updated_at", "name"}
 	query := NewQuery()
 	query.AddSafeOrder("name", "ASC", "created_at", "DESC", allowedFields)
@@ -522,8 +522,8 @@ func TestAddSafeOrder_WhitelistValidField(t *testing.T) {
 	assert.Equal(t, "ASC", query.Orders[0].Direction)
 }
 
-// TestAddSafeOrder_WhitelistInvalidField 测试白名单 - 无效字段(使用默认值)
-func TestAddSafeOrder_WhitelistInvalidField(t *testing.T) {
+// TestAddSafeOrderWhitelistInvalidField 测试白名单 - 无效字段(使用默认值)
+func TestAddSafeOrderWhitelistInvalidField(t *testing.T) {
 	allowedFields := []string{"id", "created_at", "updated_at"}
 	query := NewQuery()
 	query.AddSafeOrder("malicious_field", "ASC", "created_at", "DESC", allowedFields)
@@ -533,8 +533,8 @@ func TestAddSafeOrder_WhitelistInvalidField(t *testing.T) {
 	assert.Equal(t, "DESC", query.Orders[0].Direction)   // 使用默认方向
 }
 
-// TestAddSafeOrder_SQLInjectionAttempt 测试SQL注入攻击防护
-func TestAddSafeOrder_SQLInjectionAttempt(t *testing.T) {
+// TestAddSafeOrderSQLInjectionAttempt 测试SQL注入攻击防护
+func TestAddSafeOrderSQLInjectionAttempt(t *testing.T) {
 	query := NewQuery()
 	// 尝试注入恶意SQL
 	query.AddSafeOrder("id; DROP TABLE users--", "DESC", "created_at", "DESC")
@@ -543,8 +543,8 @@ func TestAddSafeOrder_SQLInjectionAttempt(t *testing.T) {
 	assert.Equal(t, "created_at", query.Orders[0].Field) // 回退到默认字段
 }
 
-// TestAddSafeOrder_InvalidDirection 测试无效排序方向(使用默认值)
-func TestAddSafeOrder_InvalidDirection(t *testing.T) {
+// TestAddSafeOrderInvalidDirection 测试无效排序方向(使用默认值)
+func TestAddSafeOrderInvalidDirection(t *testing.T) {
 	query := NewQuery()
 	query.AddSafeOrder("id", "INVALID", "created_at", "DESC")
 
@@ -553,8 +553,8 @@ func TestAddSafeOrder_InvalidDirection(t *testing.T) {
 	assert.Equal(t, "DESC", query.Orders[0].Direction) // 无效方向,使用默认值
 }
 
-// TestAddSafeOrder_LowercaseDirection 测试小写排序方向(自动转大写)
-func TestAddSafeOrder_LowercaseDirection(t *testing.T) {
+// TestAddSafeOrderLowercaseDirection 测试小写排序方向(自动转大写)
+func TestAddSafeOrderLowercaseDirection(t *testing.T) {
 	query := NewQuery()
 	query.AddSafeOrder("id", "asc", "created_at", "DESC")
 
@@ -562,8 +562,8 @@ func TestAddSafeOrder_LowercaseDirection(t *testing.T) {
 	assert.Equal(t, "ASC", query.Orders[0].Direction) // 自动转为大写
 }
 
-// TestAddSafeOrder_MixedCaseDirection 测试混合大小写排序方向
-func TestAddSafeOrder_MixedCaseDirection(t *testing.T) {
+// TestAddSafeOrderMixedCaseDirection 测试混合大小写排序方向
+func TestAddSafeOrderMixedCaseDirection(t *testing.T) {
 	query := NewQuery()
 	query.AddSafeOrder("id", "DeSc", "created_at", "ASC")
 
@@ -571,8 +571,8 @@ func TestAddSafeOrder_MixedCaseDirection(t *testing.T) {
 	assert.Equal(t, "DESC", query.Orders[0].Direction) // 标准化为大写
 }
 
-// TestAddSafeOrder_EmptyWhitelist 测试空白名单(使用字段名安全检查)
-func TestAddSafeOrder_EmptyWhitelist(t *testing.T) {
+// TestAddSafeOrderEmptyWhitelist 测试空白名单(使用字段名安全检查)
+func TestAddSafeOrderEmptyWhitelist(t *testing.T) {
 	query := NewQuery()
 	query.AddSafeOrder("valid_field_123", "ASC", "created_at", "DESC", []string{})
 
@@ -580,8 +580,8 @@ func TestAddSafeOrder_EmptyWhitelist(t *testing.T) {
 	assert.Equal(t, "valid_field_123", query.Orders[0].Field) // 安全字段名,允许通过
 }
 
-// TestAddSafeOrder_DotNotation 测试点号表示法(表名.字段名)
-func TestAddSafeOrder_DotNotation(t *testing.T) {
+// TestAddSafeOrderDotNotation 测试点号表示法(表名.字段名)
+func TestAddSafeOrderDotNotation(t *testing.T) {
 	query := NewQuery()
 	query.AddSafeOrder("users.created_at", "ASC", "id", "DESC")
 
@@ -589,8 +589,8 @@ func TestAddSafeOrder_DotNotation(t *testing.T) {
 	assert.Equal(t, "users.created_at", query.Orders[0].Field) // 允许表名.字段名格式
 }
 
-// TestAddSafeOrder_ChainCalls 测试链式调用
-func TestAddSafeOrder_ChainCalls(t *testing.T) {
+// TestAddSafeOrderChainCalls 测试链式调用
+func TestAddSafeOrderChainCalls(t *testing.T) {
 	query := NewQuery()
 	query.AddSafeOrder("name", "ASC", "id", "DESC").
 		AddSafeOrder("created_at", "DESC", "updated_at", "ASC")
@@ -602,8 +602,8 @@ func TestAddSafeOrder_ChainCalls(t *testing.T) {
 	assert.Equal(t, "DESC", query.Orders[1].Direction)
 }
 
-// TestAddSafeOrder_SpecialCharactersBlocked 测试特殊字符被阻止
-func TestAddSafeOrder_SpecialCharactersBlocked(t *testing.T) {
+// TestAddSafeOrderSpecialCharactersBlocked 测试特殊字符被阻止
+func TestAddSafeOrderSpecialCharactersBlocked(t *testing.T) {
 	testCases := []struct {
 		name      string
 		sortBy    string
@@ -633,8 +633,8 @@ func TestAddSafeOrder_SpecialCharactersBlocked(t *testing.T) {
 	}
 }
 
-// Test_isSafeFieldName 测试字段名安全检查函数
-func Test_isSafeFieldName(t *testing.T) {
+// TestIsSafeFieldName 测试字段名安全检查函数
+func TestIsSafeFieldName(t *testing.T) {
 	testCases := []struct {
 		name     string
 		field    string
@@ -744,7 +744,7 @@ func TestSetPagination(t *testing.T) {
 	assert.Equal(t, query, result, "SetPagination should return the same Query instance for chaining")
 }
 
-func TestSetPagination_DefaultValues(t *testing.T) {
+func TestSetPaginationDefaultValues(t *testing.T) {
 	query := NewQuery()
 
 	// 测试零值或负值的处理
@@ -776,7 +776,7 @@ func TestAddRawOrder(t *testing.T) {
 	assert.Equal(t, query, result, "AddRawOrder should return the same Query instance for chaining")
 }
 
-func TestAddRawOrder_EmptyExpression(t *testing.T) {
+func TestAddRawOrderEmptyExpression(t *testing.T) {
 	query := NewQuery()
 
 	// 测试空表达式不会添加排序
@@ -785,7 +785,7 @@ func TestAddRawOrder_EmptyExpression(t *testing.T) {
 	assert.Len(t, result.Orders, 0, "Empty order expression should not add any order")
 }
 
-func TestAddRawOrder_MultipleOrders(t *testing.T) {
+func TestAddRawOrderMultipleOrders(t *testing.T) {
 	query := NewQuery()
 
 	// 测试多个原始排序
@@ -808,7 +808,7 @@ func TestAddRawOrder_MultipleOrders(t *testing.T) {
 	assert.Equal(t, "ASC", query.Orders[2].Direction)
 }
 
-func TestSetPagination_Integration_WithOtherMethods(t *testing.T) {
+func TestSetPaginationIntegrationWithOtherMethods(t *testing.T) {
 	query := NewQuery()
 
 	// 测试与其他方法的集成

@@ -13,12 +13,13 @@ package repository
 
 import (
 	"context"
-	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
-func TestTimeGroupBuilder_GroupByDay(t *testing.T) {
+func TestTimeGroupBuilderGroupByDay(t *testing.T) {
 	db, err := setupTestDB()
 	assert.NoError(t, err)
 	ctx := context.Background()
@@ -49,7 +50,7 @@ func TestTimeGroupBuilder_GroupByDay(t *testing.T) {
 	assert.GreaterOrEqual(t, len(results), 1) // 至少有一天的数据
 }
 
-func TestTimeGroupBuilder_GroupByHour(t *testing.T) {
+func TestTimeGroupBuilderGroupByHour(t *testing.T) {
 	db, err := setupTestDB()
 	assert.NoError(t, err)
 	ctx := context.Background()
@@ -80,7 +81,7 @@ func TestTimeGroupBuilder_GroupByHour(t *testing.T) {
 	assert.GreaterOrEqual(t, len(results), 1)
 }
 
-func TestTimeGroupBuilder_MultipleAggregations(t *testing.T) {
+func TestTimeGroupBuilderMultipleAggregations(t *testing.T) {
 	db, err := setupTestDB()
 	assert.NoError(t, err)
 	ctx := context.Background()
@@ -123,7 +124,7 @@ func TestTimeGroupBuilder_MultipleAggregations(t *testing.T) {
 	}
 }
 
-func TestTimeGroupBuilder_CountDistinct(t *testing.T) {
+func TestTimeGroupBuilderCountDistinct(t *testing.T) {
 	db, err := setupTestDB()
 	assert.NoError(t, err)
 	ctx := context.Background()
@@ -154,7 +155,7 @@ func TestTimeGroupBuilder_CountDistinct(t *testing.T) {
 	assert.Equal(t, float64(2), getFloat64(results[0], "unique_users"))
 }
 
-func TestTimeGroupBuilder_CountWhen(t *testing.T) {
+func TestTimeGroupBuilderCountWhen(t *testing.T) {
 	db, err := setupTestDB()
 	assert.NoError(t, err)
 	ctx := context.Background()
@@ -187,7 +188,7 @@ func TestTimeGroupBuilder_CountWhen(t *testing.T) {
 	assert.Equal(t, float64(2), getFloat64(results[0], "young_count"))
 }
 
-func TestTimeGroupBuilder_SumWhen(t *testing.T) {
+func TestTimeGroupBuilderSumWhen(t *testing.T) {
 	db, err := setupTestDB()
 	assert.NoError(t, err)
 	ctx := context.Background()
@@ -218,7 +219,7 @@ func TestTimeGroupBuilder_SumWhen(t *testing.T) {
 	assert.Equal(t, float64(2), getFloat64(results[0], "adult_sum"))  // 30, 40 的计数
 }
 
-func TestTimeGroupBuilder_AddGroupBy(t *testing.T) {
+func TestTimeGroupBuilderAddGroupBy(t *testing.T) {
 	db, err := setupTestDB()
 	assert.NoError(t, err)
 	ctx := context.Background()
@@ -254,7 +255,7 @@ func TestTimeGroupBuilder_AddGroupBy(t *testing.T) {
 	}
 }
 
-func TestTimeGroupBuilder_Where(t *testing.T) {
+func TestTimeGroupBuilderWhere(t *testing.T) {
 	db, err := setupTestDB()
 	assert.NoError(t, err)
 	ctx := context.Background()
@@ -284,7 +285,7 @@ func TestTimeGroupBuilder_Where(t *testing.T) {
 	assert.Equal(t, float64(2), getFloat64(results[0], "adult_count"))
 }
 
-func TestTimeGroupBuilder_Having(t *testing.T) {
+func TestTimeGroupBuilderHaving(t *testing.T) {
 	db, err := setupTestDB()
 	assert.NoError(t, err)
 	ctx := context.Background()
@@ -314,7 +315,7 @@ func TestTimeGroupBuilder_Having(t *testing.T) {
 	assert.GreaterOrEqual(t, len(results), 1) // 至少有一天满足条件
 }
 
-func TestTimeGroupBuilder_OrderBy(t *testing.T) {
+func TestTimeGroupBuilderOrderBy(t *testing.T) {
 	db, err := setupTestDB()
 	assert.NoError(t, err)
 	ctx := context.Background()
@@ -343,7 +344,7 @@ func TestTimeGroupBuilder_OrderBy(t *testing.T) {
 	assert.GreaterOrEqual(t, len(results), 1)
 }
 
-func TestTimeGroupBuilder_Limit(t *testing.T) {
+func TestTimeGroupBuilderLimit(t *testing.T) {
 	db, err := setupTestDB()
 	assert.NoError(t, err)
 	ctx := context.Background()
@@ -374,7 +375,7 @@ func TestTimeGroupBuilder_Limit(t *testing.T) {
 	assert.LessOrEqual(t, len(results), 2)
 }
 
-func TestTimeGroupBuilder_ExecuteInto(t *testing.T) {
+func TestTimeGroupBuilderExecuteInto(t *testing.T) {
 	db, err := setupTestDB()
 	assert.NoError(t, err)
 	ctx := context.Background()

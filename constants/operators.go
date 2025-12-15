@@ -13,6 +13,11 @@ package constants
 // Operator 操作符类型（统一定义，避免重复）
 type Operator string
 
+// String 返回操作符的字符串表示
+func (op Operator) String() string {
+	return string(op)
+}
+
 // ==================== 比较操作符 ====================
 
 const (

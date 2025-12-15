@@ -13,12 +13,13 @@ package repository
 
 import (
 	"context"
-	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
-func TestConditionalAggregateBuilder_SumWhen(t *testing.T) {
+func TestConditionalAggregateBuilderSumWhen(t *testing.T) {
 	db, err := setupTestDB()
 	assert.NoError(t, err)
 	ctx := context.Background()
@@ -46,7 +47,7 @@ func TestConditionalAggregateBuilder_SumWhen(t *testing.T) {
 	assert.Equal(t, float64(1), getFloat64(result, "young_count")) // 20
 }
 
-func TestConditionalAggregateBuilder_CountWhen(t *testing.T) {
+func TestConditionalAggregateBuilderCountWhen(t *testing.T) {
 	db, err := setupTestDB()
 	assert.NoError(t, err)
 	ctx := context.Background()
@@ -73,7 +74,7 @@ func TestConditionalAggregateBuilder_CountWhen(t *testing.T) {
 	assert.Equal(t, float64(1), getFloat64(result, "short_posts"))
 }
 
-func TestConditionalAggregateBuilder_WithTimeRange(t *testing.T) {
+func TestConditionalAggregateBuilderWithTimeRange(t *testing.T) {
 	db, err := setupTestDB()
 	assert.NoError(t, err)
 	ctx := context.Background()
@@ -103,7 +104,7 @@ func TestConditionalAggregateBuilder_WithTimeRange(t *testing.T) {
 	assert.Equal(t, float64(1), getFloat64(result, "adult_count")) // 只有今天的 age=30
 }
 
-func TestConditionalAggregateBuilder_GroupBy(t *testing.T) {
+func TestConditionalAggregateBuilderGroupBy(t *testing.T) {
 	db, err := setupTestDB()
 	assert.NoError(t, err)
 	ctx := context.Background()
@@ -142,7 +143,7 @@ func TestConditionalAggregateBuilder_GroupBy(t *testing.T) {
 	assert.Equal(t, float64(1), getFloat64(results[1], "short_posts"))
 }
 
-func TestConditionalAggregateBuilder_Having(t *testing.T) {
+func TestConditionalAggregateBuilderHaving(t *testing.T) {
 	db, err := setupTestDB()
 	assert.NoError(t, err)
 	ctx := context.Background()
@@ -172,7 +173,7 @@ func TestConditionalAggregateBuilder_Having(t *testing.T) {
 	assert.Equal(t, float64(2), getFloat64(results[0], "long_posts"))
 }
 
-func TestConditionalAggregateBuilder_AvgWhen(t *testing.T) {
+func TestConditionalAggregateBuilderAvgWhen(t *testing.T) {
 	db, err := setupTestDB()
 	assert.NoError(t, err)
 	ctx := context.Background()
@@ -198,7 +199,7 @@ func TestConditionalAggregateBuilder_AvgWhen(t *testing.T) {
 	assert.Equal(t, float64(35), getFloat64(result, "avg_adult_age")) // (30 + 40) / 2
 }
 
-func TestConditionalAggregateBuilder_MaxMinWhen(t *testing.T) {
+func TestConditionalAggregateBuilderMaxMinWhen(t *testing.T) {
 	db, err := setupTestDB()
 	assert.NoError(t, err)
 	ctx := context.Background()
@@ -226,7 +227,7 @@ func TestConditionalAggregateBuilder_MaxMinWhen(t *testing.T) {
 	assert.Equal(t, float64(30), getFloat64(result, "min_adult_age"))
 }
 
-func TestConditionalAggregateBuilder_ExecuteInto(t *testing.T) {
+func TestConditionalAggregateBuilderExecuteInto(t *testing.T) {
 	db, err := setupTestDB()
 	assert.NoError(t, err)
 	ctx := context.Background()

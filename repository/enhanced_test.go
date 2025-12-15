@@ -47,8 +47,8 @@ func TestNewEnhancedRepositoryWithDB(t *testing.T) {
 	assert.Equal(t, "test_users", repo.tableName, "表名应正确")
 }
 
-// TestEnhancedRepository_FindByField 测试根据字段查找
-func TestEnhancedRepository_FindByField(t *testing.T) {
+// TestEnhancedRepositoryFindByField 测试根据字段查找
+func TestEnhancedRepositoryFindByField(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -79,8 +79,8 @@ func TestEnhancedRepository_FindByField(t *testing.T) {
 	assert.Equal(t, "Alice", users25[0].Name)
 }
 
-// TestEnhancedRepository_FindOneByField 测试根据字段查找单条记录
-func TestEnhancedRepository_FindOneByField(t *testing.T) {
+// TestEnhancedRepositoryFindOneByField 测试根据字段查找单条记录
+func TestEnhancedRepositoryFindOneByField(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -104,8 +104,8 @@ func TestEnhancedRepository_FindOneByField(t *testing.T) {
 	assert.Error(t, err, "查找不存在的记录应返回错误")
 }
 
-// TestEnhancedRepository_FindByFields 测试根据多个字段查找
-func TestEnhancedRepository_FindByFields(t *testing.T) {
+// TestEnhancedRepositoryFindByFields 测试根据多个字段查找
+func TestEnhancedRepositoryFindByFields(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -137,8 +137,8 @@ func TestEnhancedRepository_FindByFields(t *testing.T) {
 	assert.Len(t, emptyResults, 3, "空条件应返回所有记录")
 }
 
-// TestEnhancedRepository_FindByFieldWithPagination 测试带分页的字段查找
-func TestEnhancedRepository_FindByFieldWithPagination(t *testing.T) {
+// TestEnhancedRepositoryFindByFieldWithPagination 测试带分页的字段查找
+func TestEnhancedRepositoryFindByFieldWithPagination(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -174,8 +174,8 @@ func TestEnhancedRepository_FindByFieldWithPagination(t *testing.T) {
 	assert.Len(t, emptyPage, 0, "应返回空结果")
 }
 
-// TestEnhancedRepository_FindByFieldWithCursor 测试游标分页
-func TestEnhancedRepository_FindByFieldWithCursor(t *testing.T) {
+// TestEnhancedRepositoryFindByFieldWithCursor 测试游标分页
+func TestEnhancedRepositoryFindByFieldWithCursor(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -212,8 +212,8 @@ func TestEnhancedRepository_FindByFieldWithCursor(t *testing.T) {
 	}
 }
 
-// TestEnhancedRepository_FindInField 测试IN查询
-func TestEnhancedRepository_FindInField(t *testing.T) {
+// TestEnhancedRepositoryFindInField 测试IN查询
+func TestEnhancedRepositoryFindInField(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -241,8 +241,8 @@ func TestEnhancedRepository_FindInField(t *testing.T) {
 	assert.Len(t, emptyResults, 0, "空IN查询应返回空结果")
 }
 
-// TestEnhancedRepository_CountByField 测试根据字段统计
-func TestEnhancedRepository_CountByField(t *testing.T) {
+// TestEnhancedRepositoryCountByField 测试根据字段统计
+func TestEnhancedRepositoryCountByField(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -269,8 +269,8 @@ func TestEnhancedRepository_CountByField(t *testing.T) {
 	assert.Equal(t, int64(0), count2, "统计应为0")
 }
 
-// TestEnhancedRepository_UpdateByField 测试根据字段更新
-func TestEnhancedRepository_UpdateByField(t *testing.T) {
+// TestEnhancedRepositoryUpdateByField 测试根据字段更新
+func TestEnhancedRepositoryUpdateByField(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -298,8 +298,8 @@ func TestEnhancedRepository_UpdateByField(t *testing.T) {
 	}
 }
 
-// TestEnhancedRepository_DeleteByField 测试根据字段删除
-func TestEnhancedRepository_DeleteByField(t *testing.T) {
+// TestEnhancedRepositoryDeleteByField 测试根据字段删除
+func TestEnhancedRepositoryDeleteByField(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -325,8 +325,8 @@ func TestEnhancedRepository_DeleteByField(t *testing.T) {
 	assert.Equal(t, "Alice", remaining[0].Name)
 }
 
-// TestEnhancedRepository_UpdateSingleField 测试更新单个字段
-func TestEnhancedRepository_UpdateSingleField(t *testing.T) {
+// TestEnhancedRepositoryUpdateSingleField 测试更新单个字段
+func TestEnhancedRepositoryUpdateSingleField(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -348,8 +348,8 @@ func TestEnhancedRepository_UpdateSingleField(t *testing.T) {
 	assert.Equal(t, 30, updatedUser.Age, "年龄应被更新为30")
 }
 
-// TestEnhancedRepository_IncrementField 测试字段自增
-func TestEnhancedRepository_IncrementField(t *testing.T) {
+// TestEnhancedRepositoryIncrementField 测试字段自增
+func TestEnhancedRepositoryIncrementField(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -371,8 +371,8 @@ func TestEnhancedRepository_IncrementField(t *testing.T) {
 	assert.Equal(t, 30, updatedUser.Age, "年龄应增加5")
 }
 
-// TestEnhancedRepository_DecrementField 测试字段自减
-func TestEnhancedRepository_DecrementField(t *testing.T) {
+// TestEnhancedRepositoryDecrementField 测试字段自减
+func TestEnhancedRepositoryDecrementField(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -394,8 +394,8 @@ func TestEnhancedRepository_DecrementField(t *testing.T) {
 	assert.Equal(t, 22, updatedUser.Age, "年龄应减少3")
 }
 
-// TestEnhancedRepository_BatchUpdateByField 测试批量更新
-func TestEnhancedRepository_BatchUpdateByField(t *testing.T) {
+// TestEnhancedRepositoryBatchUpdateByField 测试批量更新
+func TestEnhancedRepositoryBatchUpdateByField(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -423,8 +423,8 @@ func TestEnhancedRepository_BatchUpdateByField(t *testing.T) {
 	assert.Len(t, suspendedUsers, 2, "应有2个用户被挂起")
 }
 
-// TestEnhancedRepository_FindWithOrder 测试带排序的查找
-func TestEnhancedRepository_FindWithOrder(t *testing.T) {
+// TestEnhancedRepositoryFindWithOrder 测试带排序的查找
+func TestEnhancedRepositoryFindWithOrder(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -464,8 +464,8 @@ func TestEnhancedRepository_FindWithOrder(t *testing.T) {
 	assert.Len(t, defaultResults, 3)
 }
 
-// TestEnhancedRepository_FindByTimeRange 测试时间范围查找
-func TestEnhancedRepository_FindByTimeRange(t *testing.T) {
+// TestEnhancedRepositoryFindByTimeRange 测试时间范围查找
+func TestEnhancedRepositoryFindByTimeRange(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -491,8 +491,8 @@ func TestEnhancedRepository_FindByTimeRange(t *testing.T) {
 	assert.Len(t, results, 2, "应找到2个用户")
 }
 
-// TestEnhancedRepository_ExistsBy 测试记录存在性检查
-func TestEnhancedRepository_ExistsBy(t *testing.T) {
+// TestEnhancedRepositoryExistsBy 测试记录存在性检查
+func TestEnhancedRepositoryExistsBy(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -515,8 +515,8 @@ func TestEnhancedRepository_ExistsBy(t *testing.T) {
 	assert.False(t, notExists, "记录不应存在")
 }
 
-// TestEnhancedRepository_GetDistinctValues 测试获取不同值
-func TestEnhancedRepository_GetDistinctValues(t *testing.T) {
+// TestEnhancedRepositoryGetDistinctValues 测试获取不同值
+func TestEnhancedRepositoryGetDistinctValues(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -548,8 +548,8 @@ func TestEnhancedRepository_GetDistinctValues(t *testing.T) {
 	assert.True(t, statusMap["pending"], "应包含pending")
 }
 
-// TestEnhancedRepository_CreateIfNotExists_Enhanced 测试增强版的条件创建
-func TestEnhancedRepository_CreateIfNotExists_Enhanced(t *testing.T) {
+// TestEnhancedRepositoryCreateIfNotExistsEnhanced 测试增强版的条件创建
+func TestEnhancedRepositoryCreateIfNotExistsEnhanced(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -583,8 +583,8 @@ func TestEnhancedRepository_CreateIfNotExists_Enhanced(t *testing.T) {
 	assert.Error(t, err, "无效字段应返回错误")
 }
 
-// TestEnhancedRepository_NewEnhancedRepositoryWithDB 测试使用 gorm.DB 创建增强仓储
-func TestEnhancedRepository_NewEnhancedRepositoryWithDB(t *testing.T) {
+// TestEnhancedRepositoryNewEnhancedRepositoryWithDB 测试使用 gorm.DB 创建增强仓储
+func TestEnhancedRepositoryNewEnhancedRepositoryWithDB(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
@@ -594,8 +594,8 @@ func TestEnhancedRepository_NewEnhancedRepositoryWithDB(t *testing.T) {
 	assert.NotNil(t, repo.BaseRepository)
 }
 
-// TestEnhancedRepository_FindByField_ErrorCase 测试 FindByField 错误场景
-func TestEnhancedRepository_FindByField_ErrorCase(t *testing.T) {
+// TestEnhancedRepositoryFindByFieldErrorCase 测试 FindByField 错误场景
+func TestEnhancedRepositoryFindByFieldErrorCase(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
