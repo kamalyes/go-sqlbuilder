@@ -24,25 +24,27 @@ type Dialect interface {
 	FormatTimeGroup(field string, groupType TimeGroupType) string
 }
 
+// formatTimeGroup 获取格式化字符串
+func formatTimeGroup(groupType TimeGroupType, formatMap map[TimeGroupType]string) string {
+	format, ok := formatMap[groupType]
+	if !ok {
+		format = formatMap[GroupByDay] // 默认使用 GroupByDay 格式
+	}
+	return format
+}
+
 // MySQLDialect MySQL 方言
 type MySQLDialect struct{}
 
 func (d *MySQLDialect) FormatTimeGroup(field string, groupType TimeGroupType) string {
-	var format string
-	switch groupType {
-	case GroupByHour:
-		format = "%Y-%m-%d %H:00:00"
-	case GroupByDay:
-		format = "%Y-%m-%d"
-	case GroupByWeek:
-		format = "%Y-%u"
-	case GroupByMonth:
-		format = "%Y-%m"
-	case GroupByYear:
-		format = "%Y"
-	default:
-		format = "%Y-%m-%d"
+	formatMap := map[TimeGroupType]string{
+		GroupByHour:  "%Y-%m-%d %H:00:00",
+		GroupByDay:   "%Y-%m-%d",
+		GroupByWeek:  "%Y-%u",
+		GroupByMonth: "%Y-%m",
+		GroupByYear:  "%Y",
 	}
+	format := formatTimeGroup(groupType, formatMap)
 	return fmt.Sprintf("DATE_FORMAT(%s, '%s')", field, format)
 }
 
@@ -50,21 +52,14 @@ func (d *MySQLDialect) FormatTimeGroup(field string, groupType TimeGroupType) st
 type SQLiteDialect struct{}
 
 func (d *SQLiteDialect) FormatTimeGroup(field string, groupType TimeGroupType) string {
-	var format string
-	switch groupType {
-	case GroupByHour:
-		format = "%Y-%m-%d %H:00:00"
-	case GroupByDay:
-		format = "%Y-%m-%d"
-	case GroupByWeek:
-		format = "%Y-%W"
-	case GroupByMonth:
-		format = "%Y-%m"
-	case GroupByYear:
-		format = "%Y"
-	default:
-		format = "%Y-%m-%d"
+	formatMap := map[TimeGroupType]string{
+		GroupByHour:  "%Y-%m-%d %H:00:00",
+		GroupByDay:   "%Y-%m-%d",
+		GroupByWeek:  "%Y-%W",
+		GroupByMonth: "%Y-%m",
+		GroupByYear:  "%Y",
 	}
+	format := formatTimeGroup(groupType, formatMap)
 	return fmt.Sprintf("strftime('%s', %s)", format, field)
 }
 
@@ -72,28 +67,21 @@ func (d *SQLiteDialect) FormatTimeGroup(field string, groupType TimeGroupType) s
 type PostgreSQLDialect struct{}
 
 func (d *PostgreSQLDialect) FormatTimeGroup(field string, groupType TimeGroupType) string {
-	var format string
-	switch groupType {
-	case GroupByHour:
-		format = "YYYY-MM-DD HH24:00:00"
-	case GroupByDay:
-		format = "YYYY-MM-DD"
-	case GroupByWeek:
-		format = "IYYY-IW"
-	case GroupByMonth:
-		format = "YYYY-MM"
-	case GroupByYear:
-		format = "YYYY"
-	default:
-		format = "YYYY-MM-DD"
+	formatMap := map[TimeGroupType]string{
+		GroupByHour:  "YYYY-MM-DD HH24:00:00",
+		GroupByDay:   "YYYY-MM-DD",
+		GroupByWeek:  "IYYY-IW",
+		GroupByMonth: "YYYY-MM",
+		GroupByYear:  "YYYY",
 	}
+	format := formatTimeGroup(groupType, formatMap)
 	return fmt.Sprintf("TO_CHAR(%s, '%s')", field, format)
 }
 
 // DetectDialect 自动检测数据库方言
 func DetectDialect(db *gorm.DB) Dialect {
 	dialector := db.Dialector.Name()
-	
+
 	switch strings.ToLower(dialector) {
 	case "mysql":
 		return &MySQLDialect{}

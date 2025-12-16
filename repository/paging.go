@@ -102,27 +102,29 @@ func IsTodayRange(startTime, endTime *time.Time) bool {
 	todayEnd := todayStart.Add(24 * time.Hour)
 
 	// 如果开始时间在今天范围内
-	if startTime != nil {
-		if startTime.Before(todayEnd) && (startTime.After(todayStart) || startTime.Equal(todayStart)) {
-			return true
-		}
+	if IsTimeInTodayRange(startTime, todayStart, todayEnd) {
+		return true
 	}
 
 	// 如果结束时间在今天范围内
-	if endTime != nil {
-		if endTime.After(todayStart) && (endTime.Before(todayEnd) || endTime.Equal(todayEnd)) {
-			return true
-		}
+	if IsTimeInTodayRange(endTime, todayStart, todayEnd) {
+		return true
 	}
 
 	// 如果时间范围跨越今天
-	if startTime != nil && endTime != nil {
-		if startTime.Before(todayStart) && endTime.After(todayEnd) {
-			return true
-		}
+	if startTime != nil && endTime != nil && startTime.Before(todayStart) && endTime.After(todayEnd) {
+		return true
 	}
 
 	return false
+}
+
+// IsTimeInTodayRange 判断时间是否在今天范围内
+func IsTimeInTodayRange(t *time.Time, todayStart, todayEnd time.Time) bool {
+	if t == nil {
+		return false
+	}
+	return t.Before(todayEnd) && (t.After(todayStart) || t.Equal(todayStart))
 }
 
 // GetTodayRange 获取今天的时间范围（00:00:00 - 23:59:59）

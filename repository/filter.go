@@ -10,7 +10,12 @@
  */
 package repository
 
-import "github.com/kamalyes/go-sqlbuilder/constants"
+import (
+	"reflect"
+
+	"github.com/kamalyes/go-sqlbuilder/constants"
+	"github.com/kamalyes/go-toolbox/pkg/validator"
+)
 
 // SubQuery 子查询结构
 type SubQuery struct {
@@ -88,6 +93,167 @@ func (fg *FilterGroup) Count() int {
 		count += group.Count()
 	}
 	return count
+}
+
+// AddFilterIf 当条件为真时添加过滤条件
+func (fg *FilterGroup) AddFilterIf(condition bool, filter *Filter) *FilterGroup {
+	if condition && filter != nil {
+		fg.Filters = append(fg.Filters, filter)
+	}
+	return fg
+}
+
+// AddFilterIfNotEmpty 当值不为空时添加过滤条件
+// 支持 string, slice, map 等类型的空值判断
+func (fg *FilterGroup) AddFilterIfNotEmpty(field string, operator constants.Operator, value interface{}) *FilterGroup {
+	if !validator.IsEmptyValue(reflect.ValueOf(value)) {
+		fg.AddFilter(&Filter{Field: field, Operator: operator, Value: value})
+	}
+	return fg
+}
+
+// AddEqFilterIfNotEmpty 当值不为空时添加等于过滤条件
+func (fg *FilterGroup) AddEqFilterIfNotEmpty(field string, value interface{}) *FilterGroup {
+	return fg.AddFilterIfNotEmpty(field, constants.OP_EQ, value)
+}
+
+// AddNeqFilterIfNotEmpty 当值不为空时添加不等于过滤条件
+func (fg *FilterGroup) AddNeqFilterIfNotEmpty(field string, value interface{}) *FilterGroup {
+	return fg.AddFilterIfNotEmpty(field, constants.OP_NEQ, value)
+}
+
+// AddGtFilterIfNotEmpty 当值不为空时添加大于过滤条件
+func (fg *FilterGroup) AddGtFilterIfNotEmpty(field string, value interface{}) *FilterGroup {
+	return fg.AddFilterIfNotEmpty(field, constants.OP_GT, value)
+}
+
+// AddGteFilterIfNotEmpty 当值不为空时添加大于等于过滤条件
+func (fg *FilterGroup) AddGteFilterIfNotEmpty(field string, value interface{}) *FilterGroup {
+	return fg.AddFilterIfNotEmpty(field, constants.OP_GTE, value)
+}
+
+// AddLtFilterIfNotEmpty 当值不为空时添加小于过滤条件
+func (fg *FilterGroup) AddLtFilterIfNotEmpty(field string, value interface{}) *FilterGroup {
+	return fg.AddFilterIfNotEmpty(field, constants.OP_LT, value)
+}
+
+// AddLteFilterIfNotEmpty 当值不为空时添加小于等于过滤条件
+func (fg *FilterGroup) AddLteFilterIfNotEmpty(field string, value interface{}) *FilterGroup {
+	return fg.AddFilterIfNotEmpty(field, constants.OP_LTE, value)
+}
+
+// AddLikeFilterIfNotEmpty 当值不为空时添加 LIKE 过滤条件
+func (fg *FilterGroup) AddLikeFilterIfNotEmpty(field string, value string) *FilterGroup {
+	if !validator.IsEmptyValue(reflect.ValueOf(value)) {
+		fg.AddFilter(&Filter{Field: field, Operator: constants.OP_LIKE, Value: "%" + value + "%"})
+	}
+	return fg
+}
+
+// AddInFilterIfNotEmpty 当切片不为空时添加 IN 过滤条件
+func (fg *FilterGroup) AddInFilterIfNotEmpty(field string, values []interface{}) *FilterGroup {
+	if !validator.IsEmptyValue(reflect.ValueOf(values)) {
+		fg.AddFilter(&Filter{Field: field, Operator: constants.OP_IN, Value: values})
+	}
+	return fg
+}
+
+// AddNotInFilterIfNotEmpty 当切片不为空时添加 NOT IN 过滤条件
+func (fg *FilterGroup) AddNotInFilterIfNotEmpty(field string, values []interface{}) *FilterGroup {
+	if !validator.IsEmptyValue(reflect.ValueOf(values)) {
+		fg.AddFilter(&Filter{Field: field, Operator: constants.OP_NOT_IN, Value: values})
+	}
+	return fg
+}
+
+// AddBetweenFilterIfNotEmpty 当最小值和最大值都不为空时添加 BETWEEN 过滤条件
+func (fg *FilterGroup) AddBetweenFilterIfNotEmpty(field string, min, max interface{}) *FilterGroup {
+	if !validator.IsEmptyValue(reflect.ValueOf(min)) && !validator.IsEmptyValue(reflect.ValueOf(max)) {
+		fg.AddFilter(&Filter{Field: field, Operator: constants.OP_BETWEEN, Value: []interface{}{min, max}})
+	}
+	return fg
+}
+
+// AddStartsWithFilterIfNotEmpty 当值不为空时添加前缀匹配过滤条件
+func (fg *FilterGroup) AddStartsWithFilterIfNotEmpty(field string, value string) *FilterGroup {
+	if !validator.IsEmptyValue(reflect.ValueOf(value)) {
+		fg.AddFilter(&Filter{Field: field, Operator: constants.OP_LIKE, Value: value + "%"})
+	}
+	return fg
+}
+
+// AddEndsWithFilterIfNotEmpty 当值不为空时添加后缀匹配过滤条件
+func (fg *FilterGroup) AddEndsWithFilterIfNotEmpty(field string, value string) *FilterGroup {
+	if !validator.IsEmptyValue(reflect.ValueOf(value)) {
+		fg.AddFilter(&Filter{Field: field, Operator: constants.OP_LIKE, Value: "%" + value})
+	}
+	return fg
+}
+
+// AddContainsFilterIfNotEmpty 当值不为空时添加包含匹配过滤条件
+func (fg *FilterGroup) AddContainsFilterIfNotEmpty(field string, value string) *FilterGroup {
+	return fg.AddLikeFilterIfNotEmpty(field, value)
+}
+
+// AddNotLikeFilterIfNotEmpty 当值不为空时添加 NOT LIKE 过滤条件
+func (fg *FilterGroup) AddNotLikeFilterIfNotEmpty(field string, value string) *FilterGroup {
+	if !validator.IsEmptyValue(reflect.ValueOf(value)) {
+		fg.AddFilter(&Filter{Field: field, Operator: constants.OP_NOT_LIKE, Value: "%" + value + "%"})
+	}
+	return fg
+}
+
+// AddFindInSetFilterIfNotEmpty 当值不为空时添加 FIND_IN_SET 过滤条件（MySQL特定）
+func (fg *FilterGroup) AddFindInSetFilterIfNotEmpty(field string, value interface{}) *FilterGroup {
+	if !validator.IsEmptyValue(reflect.ValueOf(value)) {
+		fg.AddFilter(&Filter{Field: field, Operator: constants.OP_FIND_IN_SET, Value: value})
+	}
+	return fg
+}
+
+// AddGroupIf 当条件为真时添加嵌套条件组
+func (fg *FilterGroup) AddGroupIf(condition bool, group *FilterGroup) *FilterGroup {
+	if condition && group != nil && !group.IsEmpty() {
+		fg.Groups = append(fg.Groups, group)
+	}
+	return fg
+}
+
+// AddGroupIfNotEmpty 当嵌套条件组不为空时添加
+func (fg *FilterGroup) AddGroupIfNotEmpty(group *FilterGroup) *FilterGroup {
+	if group != nil && !group.IsEmpty() {
+		fg.Groups = append(fg.Groups, group)
+	}
+	return fg
+}
+
+// Clear 清空所有过滤条件和条件组
+func (fg *FilterGroup) Clear() *FilterGroup {
+	fg.Filters = make([]*Filter, 0)
+	fg.Groups = make([]*FilterGroup, 0)
+	return fg
+}
+
+// Clone 克隆条件组（深拷贝）
+func (fg *FilterGroup) Clone() *FilterGroup {
+	newGroup := NewFilterGroup(fg.LogicOp)
+
+	// 克隆过滤条件
+	for _, f := range fg.Filters {
+		newFilter := &Filter{
+			Field:    f.Field,
+			Operator: f.Operator,
+			Value:    f.Value,
+		}
+		newGroup.Filters = append(newGroup.Filters, newFilter)
+	}
+
+	// 克隆嵌套条件组
+	for _, g := range fg.Groups {
+		newGroup.Groups = append(newGroup.Groups, g.Clone())
+	}
+
+	return newGroup
 }
 
 // Order 排序条件
