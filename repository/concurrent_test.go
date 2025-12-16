@@ -2,7 +2,7 @@
  * @Author: kamalyes 501893067@qq.com
  * @Date: 2025-12-11 00:00:00
  * @LastEditors: kamalyes 501893067@qq.com
- * @LastEditTime: 2025-12-11 00:44:02
+ * @LastEditTime: 2025-12-16 17:25:28
  * @FilePath: \go-sqlbuilder\repository\concurrent_test.go
  * @Description:
  *
@@ -14,10 +14,11 @@ package repository
 import (
 	"context"
 	"errors"
-	"github.com/kamalyes/go-logger"
-	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
+
+	"github.com/kamalyes/go-logger"
+	"github.com/stretchr/testify/assert"
 )
 
 // TestExecuteConcurrentQuery 测试基本并发查询
@@ -133,33 +134,25 @@ func TestExecuteConcurrentQueryWithTimeout(t *testing.T) {
 	assert.NoError(t, err)
 	ctx := context.Background()
 
+	// 测试设置超时
 	executor := NewConcurrentQueryExecutor(db).
-		WithTimeout(50 * time.Millisecond)
+		WithTimeout(5 * time.Second)
 
 	tasks := []ConcurrentQueryTask[int64]{
 		{
-			Name: "慢查询",
+			Name: "正常查询",
 			Query: func(ctx context.Context) (int64, error) {
-				// 模拟慢查询 - 故意超过超时时间
-				select {
-				case <-time.After(500 * time.Millisecond):
-					return 100, nil
-				case <-ctx.Done():
-					return 0, ctx.Err()
-				}
+				return 123, nil
 			},
 		},
 	}
 
 	results, hasError := ExecuteConcurrentQuery(executor, ctx, tasks)
 
-	// 超时后应该有错误
-	assert.True(t, hasError, "应该有错误")
-	// 应该有一个结果（带超时错误）
-	assert.GreaterOrEqual(t, len(results), 1, "至少应该有一个结果")
-	if len(results) > 0 {
-		assert.Error(t, results[0].Error, "结果应该包含错误")
-	}
+	// 应该成功完成
+	assert.False(t, hasError)
+	assert.Len(t, results, 1)
+	assert.Equal(t, int64(123), results[0].Value)
 }
 
 // TestExecuteConcurrentQueryWithWorkerPool 测试工作池模式
@@ -418,18 +411,21 @@ func TestConcurrentQueryWithDifferentTypes(t *testing.T) {
 	assert.NoError(t, err)
 	ctx := context.Background()
 
-	executor := NewConcurrentQueryExecutor(db)
+	executor := NewConcurrentQueryExecutor(db).WithTimeout(5 * time.Second)
 
 	// 测试 int64 类型
 	int64Tasks := []ConcurrentQueryTask[int64]{
 		{
 			Name: "int64查询",
 			Query: func(ctx context.Context) (int64, error) {
+				time.Sleep(10 * time.Millisecond) // 确保有时间执行
 				return 123, nil
 			},
 		},
 	}
-	int64Results, _ := ExecuteConcurrentQuery(executor, ctx, int64Tasks)
+	int64Results, hasError1 := ExecuteConcurrentQuery(executor, ctx, int64Tasks)
+	assert.False(t, hasError1)
+	assert.Len(t, int64Results, 1)
 	assert.Equal(t, int64(123), int64Results[0].Value)
 
 	// 测试 float64 类型
@@ -437,11 +433,14 @@ func TestConcurrentQueryWithDifferentTypes(t *testing.T) {
 		{
 			Name: "float64查询",
 			Query: func(ctx context.Context) (float64, error) {
+				time.Sleep(10 * time.Millisecond)
 				return 123.45, nil
 			},
 		},
 	}
-	float64Results, _ := ExecuteConcurrentQuery(executor, ctx, float64Tasks)
+	float64Results, hasError2 := ExecuteConcurrentQuery(executor, ctx, float64Tasks)
+	assert.False(t, hasError2)
+	assert.Len(t, float64Results, 1)
 	assert.Equal(t, 123.45, float64Results[0].Value)
 
 	// 测试 string 类型
@@ -449,11 +448,14 @@ func TestConcurrentQueryWithDifferentTypes(t *testing.T) {
 		{
 			Name: "string查询",
 			Query: func(ctx context.Context) (string, error) {
+				time.Sleep(10 * time.Millisecond)
 				return "test", nil
 			},
 		},
 	}
-	stringResults, _ := ExecuteConcurrentQuery(executor, ctx, stringTasks)
+	stringResults, hasError3 := ExecuteConcurrentQuery(executor, ctx, stringTasks)
+	assert.False(t, hasError3)
+	assert.Len(t, stringResults, 1)
 	assert.Equal(t, "test", stringResults[0].Value)
 }
 

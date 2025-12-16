@@ -17,6 +17,8 @@ import (
 	"time"
 
 	"github.com/kamalyes/go-sqlbuilder/constants"
+	"github.com/kamalyes/go-toolbox/pkg/convert"
+	"github.com/kamalyes/go-toolbox/pkg/stringx"
 	"github.com/kamalyes/go-toolbox/pkg/validator"
 )
 
@@ -197,51 +199,24 @@ func (q *Query) AddFilterIfNotEmpty(field string, value interface{}) *Query {
 		if v != nil && *v != "" {
 			q.AddFilter(NewEqFilter(field, *v))
 		}
-	case []string:
-		if len(v) > 0 {
-			values := make([]interface{}, len(v))
-			for i, s := range v {
-				values[i] = s
-			}
-			q.AddFilter(NewInFilterSlice(field, values))
-		}
-	case []int:
-		if len(v) > 0 {
-			values := make([]interface{}, len(v))
-			for i, n := range v {
-				values[i] = n
-			}
-			q.AddFilter(NewInFilterSlice(field, values))
-		}
-	case []int32:
-		if len(v) > 0 {
-			values := make([]interface{}, len(v))
-			for i, n := range v {
-				values[i] = n
-			}
-			q.AddFilter(NewInFilterSlice(field, values))
-		}
-	case []int64:
-		if len(v) > 0 {
-			values := make([]interface{}, len(v))
-			for i, n := range v {
-				values[i] = n
-			}
-			q.AddFilter(NewInFilterSlice(field, values))
-		}
 	case int, int32, int64, uint, uint32, uint64:
 		q.AddFilter(NewEqFilter(field, v))
 	case bool:
 		q.AddFilter(NewEqFilter(field, v))
 	default:
-		// 处理枚举类型（通过反射）
-		// 尝试将切片类型转换为 []interface{}
-		if IsSliceType(v) {
-			if slice := ConvertToInterfaceSlice(v); len(slice) > 0 {
-				q.AddFilter(NewInFilterSlice(field, slice))
-			}
+		// 处理其他切片类型（如枚举切片）或单个值
+		slice := convert.AnySliceToInterfaceSlice(v)
+		if len(slice) > 0 {
+			// 非空切片，添加 IN 过滤器
+			q.AddFilter(NewInFilterSlice(field, slice))
 		} else {
-			// 单个枚举值或其他类型
+			// 检查是否是切片类型
+			rv := reflect.ValueOf(v)
+			if rv.Kind() == reflect.Slice || rv.Kind() == reflect.Array {
+				// 空切片，不添加任何过滤器
+				return q
+			}
+			// 非切片类型的其他值，添加等于过滤器
 			q.AddFilter(NewEqFilter(field, v))
 		}
 	}
@@ -297,7 +272,7 @@ func (q *Query) AddInFilterIfNotEmpty(field string, values interface{}) *Query {
 		return q
 	}
 
-	if slice := ConvertToInterfaceSlice(values); len(slice) > 0 {
+	if slice := convert.AnySliceToInterfaceSlice(values); len(slice) > 0 {
 		q.AddFilter(NewInFilterSlice(field, slice))
 	}
 	return q
@@ -353,7 +328,7 @@ func (q *Query) AddNotInFilterIfNotEmpty(field string, values interface{}) *Quer
 	if values == nil {
 		return q
 	}
-	if slice := ConvertToInterfaceSlice(values); len(slice) > 0 {
+	if slice := convert.AnySliceToInterfaceSlice(values); len(slice) > 0 {
 		q.AddFilter(NewNotInFilterSlice(field, slice))
 	}
 	return q
@@ -416,61 +391,17 @@ func (q *Query) AddFindInSetFilterIfNotEmpty(field string, value interface{}) *Q
 //
 //	query.AddSafeOrder(filter.SortBy, filter.SortOrder, "created_at", "DESC", []string{"created_at", "updated_at", "id"})
 func (q *Query) AddSafeOrder(sortBy, sortOrder, defaultField, defaultDirection string, allowedFields ...[]string) *Query {
-	// 1. 确定排序字段
 	field := defaultField
-	if sortBy != "" && isAllowedField(sortBy, allowedFields...) {
+	direction := defaultDirection
+
+	if sortBy != "" && validator.IsAllowedField(sortBy, allowedFields...) {
 		field = sortBy
+		direction = stringx.NormalizeSQLDirection(sortOrder, defaultDirection)
 	}
 
-	// 2. 确定排序方向（标准化为大写）
-	direction := normalizeDirection(sortOrder, defaultDirection)
-
-	// 3. 添加排序
+	// 字段无效，使用默认字段和默认方向
 	q.AddOrder(field, direction)
 	return q
-}
-
-// isAllowedField 检查字段是否允许排序
-func isAllowedField(field string, allowedFields ...[]string) bool {
-	// 如果提供了白名单，检查字段是否在白名单中
-	if len(allowedFields) > 0 && len(allowedFields[0]) > 0 {
-		for _, allowedField := range allowedFields[0] {
-			if field == allowedField {
-				return true
-			}
-		}
-		return false
-	}
-	// 没有白名单，验证字段名是否安全
-	return isSafeFieldName(field)
-}
-
-// isSafeFieldName 检查字段名是否安全(仅包含字母、数字、下划线、点号)
-func isSafeFieldName(field string) bool {
-	if field == "" {
-		return false
-	}
-	for _, ch := range field {
-		if !((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') ||
-			(ch >= '0' && ch <= '9') || ch == '_' || ch == '.') {
-			return false
-		}
-	}
-	return true
-}
-
-// normalizeDirection 标准化排序方向为大写的 ASC 或 DESC
-func normalizeDirection(direction, defaultDirection string) string {
-	if direction == "" {
-		return defaultDirection
-	}
-	// 转换为大写
-	upper := strings.ToUpper(direction)
-	// 验证是否为有效的排序方向
-	if upper == "ASC" || upper == "DESC" {
-		return upper
-	}
-	return defaultDirection
 }
 
 // AddEqual 添加等于条件
@@ -868,8 +799,7 @@ func (q *Query) buildGroupCondition(group *FilterGroup) (string, []interface{}) 
 	}
 
 	// 根据逻辑操作符连接条件
-	separator := q.getLogicSeparator(group.LogicOp)
-	return strings.Join(conditions, separator), args
+	return strings.Join(conditions, fmt.Sprintf(" %s ", group.LogicOp.String())), args
 }
 
 // processGroupFilters 处理组内的过滤条件
@@ -896,12 +826,4 @@ func (q *Query) processSubGroups(group *FilterGroup, conditions *[]string, args 
 			}
 		}
 	}
-}
-
-// getLogicSeparator 获取逻辑操作符对应的分隔符
-func (q *Query) getLogicSeparator(logicOp constants.Operator) string {
-	if logicOp == constants.LOGIC_OR {
-		return " OR "
-	}
-	return " AND "
 }

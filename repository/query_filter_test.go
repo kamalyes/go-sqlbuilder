@@ -633,34 +633,6 @@ func TestAddSafeOrderSpecialCharactersBlocked(t *testing.T) {
 	}
 }
 
-// TestIsSafeFieldName 测试字段名安全检查函数
-func TestIsSafeFieldName(t *testing.T) {
-	testCases := []struct {
-		name     string
-		field    string
-		expected bool
-	}{
-		{"空字符串", "", false},
-		{"简单字段名", "id", true},
-		{"下划线字段名", "user_id", true},
-		{"数字结尾", "field123", true},
-		{"大写字母", "UserId", true},
-		{"点号表示法", "users.id", true},
-		{"包含空格", "user id", false},
-		{"包含单引号", "user'id", false},
-		{"包含分号", "id;DROP", false},
-		{"包含星号", "id*", false},
-		{"包含减号", "user-id", false},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			result := isSafeFieldName(tc.field)
-			assert.Equal(t, tc.expected, result)
-		})
-	}
-}
-
 func TestAddTimeRangeValidFilter(t *testing.T) {
 	t.Log("测试 AddTimeRangeFilter 的零值处理...")
 
@@ -1013,5 +985,920 @@ func TestSpecialOperators(t *testing.T) {
 		expected := "description LIKE ?"
 		assert.Equal(t, expected, whereClause)
 		assert.Equal(t, []interface{}{"%test%"}, args)
+	})
+
+	t.Run("FIND_IN_SET", func(t *testing.T) {
+		query := NewQuery().AddFilter(&Filter{
+			Field:    "tags",
+			Operator: constants.OP_FIND_IN_SET,
+			Value:    "important",
+		})
+
+		whereClause, args := query.BuildWhereClause()
+		expected := "FIND_IN_SET(?, tags) > 0"
+		assert.Equal(t, expected, whereClause)
+		assert.Equal(t, []interface{}{"important"}, args)
+	})
+}
+
+// TestQueryAddEqFilterIfNotEmpty 测试 AddEqFilterIfNotEmpty 方法
+func TestQueryAddEqFilterIfNotEmpty(t *testing.T) {
+	t.Run("非空值", func(t *testing.T) {
+		query := NewQuery().AddEqFilterIfNotEmpty("name", "John")
+		assert.Equal(t, 1, len(query.Filters))
+		assert.Equal(t, constants.OP_EQ, query.Filters[0].Operator)
+	})
+
+	t.Run("空字符串", func(t *testing.T) {
+		query := NewQuery().AddEqFilterIfNotEmpty("name", "")
+		assert.Equal(t, 0, len(query.Filters))
+	})
+
+	t.Run("nil值", func(t *testing.T) {
+		query := NewQuery().AddEqFilterIfNotEmpty("name", nil)
+		assert.Equal(t, 0, len(query.Filters))
+	})
+}
+
+// TestQueryAddNeqFilterIfNotEmpty 测试 AddNeqFilterIfNotEmpty 方法
+func TestQueryAddNeqFilterIfNotEmpty(t *testing.T) {
+	t.Run("非空值", func(t *testing.T) {
+		query := NewQuery().AddNeqFilterIfNotEmpty("status", "deleted")
+		assert.Equal(t, 1, len(query.Filters))
+		assert.Equal(t, constants.OP_NEQ, query.Filters[0].Operator)
+	})
+
+	t.Run("空值", func(t *testing.T) {
+		query := NewQuery().AddNeqFilterIfNotEmpty("status", "")
+		assert.Equal(t, 0, len(query.Filters))
+	})
+}
+
+// TestQueryAddGtFilterIfNotEmpty 测试 AddGtFilterIfNotEmpty 方法
+func TestQueryAddGtFilterIfNotEmpty(t *testing.T) {
+	t.Run("非空值", func(t *testing.T) {
+		query := NewQuery().AddGtFilterIfNotEmpty("age", 18)
+		assert.Equal(t, 1, len(query.Filters))
+		assert.Equal(t, constants.OP_GT, query.Filters[0].Operator)
+	})
+
+	t.Run("零值整数", func(t *testing.T) {
+		query := NewQuery().AddGtFilterIfNotEmpty("age", 0)
+		assert.Equal(t, 0, len(query.Filters))
+	})
+}
+
+// TestQueryAddGteFilterIfNotEmpty 测试 AddGteFilterIfNotEmpty 方法
+func TestQueryAddGteFilterIfNotEmpty(t *testing.T) {
+	t.Run("非空值", func(t *testing.T) {
+		query := NewQuery().AddGteFilterIfNotEmpty("score", 60)
+		assert.Equal(t, 1, len(query.Filters))
+		assert.Equal(t, constants.OP_GTE, query.Filters[0].Operator)
+	})
+
+	t.Run("空值", func(t *testing.T) {
+		query := NewQuery().AddGteFilterIfNotEmpty("score", nil)
+		assert.Equal(t, 0, len(query.Filters))
+	})
+}
+
+// TestQueryAddLtFilterIfNotEmpty 测试 AddLtFilterIfNotEmpty 方法
+func TestQueryAddLtFilterIfNotEmpty(t *testing.T) {
+	t.Run("非空值", func(t *testing.T) {
+		query := NewQuery().AddLtFilterIfNotEmpty("age", 65)
+		assert.Equal(t, 1, len(query.Filters))
+		assert.Equal(t, constants.OP_LT, query.Filters[0].Operator)
+	})
+
+	t.Run("空值", func(t *testing.T) {
+		query := NewQuery().AddLtFilterIfNotEmpty("age", nil)
+		assert.Equal(t, 0, len(query.Filters))
+	})
+}
+
+// TestQueryAddLteFilterIfNotEmpty 测试 AddLteFilterIfNotEmpty 方法
+func TestQueryAddLteFilterIfNotEmpty(t *testing.T) {
+	t.Run("非空值", func(t *testing.T) {
+		query := NewQuery().AddLteFilterIfNotEmpty("price", 100.0)
+		assert.Equal(t, 1, len(query.Filters))
+		assert.Equal(t, constants.OP_LTE, query.Filters[0].Operator)
+	})
+
+	t.Run("空值", func(t *testing.T) {
+		query := NewQuery().AddLteFilterIfNotEmpty("price", nil)
+		assert.Equal(t, 0, len(query.Filters))
+	})
+}
+
+// TestQueryAddNotInFilterIfNotEmpty 测试 AddNotInFilterIfNotEmpty 方法
+func TestQueryAddNotInFilterIfNotEmpty(t *testing.T) {
+	t.Run("非空切片", func(t *testing.T) {
+		query := NewQuery().AddNotInFilterIfNotEmpty("status", []string{"deleted", "banned"})
+		assert.Equal(t, 1, len(query.Filters))
+		assert.Equal(t, constants.OP_NOT_IN, query.Filters[0].Operator)
+	})
+
+	t.Run("空切片", func(t *testing.T) {
+		query := NewQuery().AddNotInFilterIfNotEmpty("status", []string{})
+		assert.Equal(t, 0, len(query.Filters))
+	})
+
+	t.Run("nil切片", func(t *testing.T) {
+		var nilSlice []string
+		query := NewQuery().AddNotInFilterIfNotEmpty("status", nilSlice)
+		assert.Equal(t, 0, len(query.Filters))
+	})
+}
+
+// TestQueryAddBetweenFilterIfNotEmpty 测试 AddBetweenFilterIfNotEmpty 方法
+func TestQueryAddBetweenFilterIfNotEmpty(t *testing.T) {
+	t.Run("非空值", func(t *testing.T) {
+		query := NewQuery().AddBetweenFilterIfNotEmpty("age", 18, 65)
+		assert.Equal(t, 1, len(query.Filters))
+		assert.Equal(t, constants.OP_BETWEEN, query.Filters[0].Operator)
+	})
+
+	t.Run("第一个值为空", func(t *testing.T) {
+		query := NewQuery().AddBetweenFilterIfNotEmpty("age", nil, 65)
+		assert.Equal(t, 0, len(query.Filters))
+	})
+
+	t.Run("第二个值为空", func(t *testing.T) {
+		query := NewQuery().AddBetweenFilterIfNotEmpty("age", 18, nil)
+		assert.Equal(t, 0, len(query.Filters))
+	})
+}
+
+// TestQueryAddStartsWithFilterIfNotEmpty 测试 AddStartsWithFilterIfNotEmpty 方法
+func TestQueryAddStartsWithFilterIfNotEmpty(t *testing.T) {
+	t.Run("非空值", func(t *testing.T) {
+		query := NewQuery().AddStartsWithFilterIfNotEmpty("name", "John")
+		assert.Equal(t, 1, len(query.Filters))
+		assert.Equal(t, constants.OP_STARTS_WITH, query.Filters[0].Operator)
+	})
+
+	t.Run("空字符串", func(t *testing.T) {
+		query := NewQuery().AddStartsWithFilterIfNotEmpty("name", "")
+		assert.Equal(t, 0, len(query.Filters))
+	})
+}
+
+// TestQueryAddEndsWithFilterIfNotEmpty 测试 AddEndsWithFilterIfNotEmpty 方法
+func TestQueryAddEndsWithFilterIfNotEmpty(t *testing.T) {
+	t.Run("非空值", func(t *testing.T) {
+		query := NewQuery().AddEndsWithFilterIfNotEmpty("email", "@example.com")
+		assert.Equal(t, 1, len(query.Filters))
+		assert.Equal(t, constants.OP_ENDS_WITH, query.Filters[0].Operator)
+	})
+
+	t.Run("空字符串", func(t *testing.T) {
+		query := NewQuery().AddEndsWithFilterIfNotEmpty("email", "")
+		assert.Equal(t, 0, len(query.Filters))
+	})
+}
+
+// TestQueryAddContainsFilterIfNotEmpty 测试 AddContainsFilterIfNotEmpty 方法
+func TestQueryAddContainsFilterIfNotEmpty(t *testing.T) {
+	t.Run("非空值", func(t *testing.T) {
+		query := NewQuery().AddContainsFilterIfNotEmpty("description", "test")
+		assert.Equal(t, 1, len(query.Filters))
+		assert.Equal(t, constants.OP_CONTAINS, query.Filters[0].Operator)
+	})
+
+	t.Run("空字符串", func(t *testing.T) {
+		query := NewQuery().AddContainsFilterIfNotEmpty("description", "")
+		assert.Equal(t, 0, len(query.Filters))
+	})
+}
+
+// TestQueryAddNotLikeFilterIfNotEmpty 测试 AddNotLikeFilterIfNotEmpty 方法
+func TestQueryAddNotLikeFilterIfNotEmpty(t *testing.T) {
+	t.Run("非空值", func(t *testing.T) {
+		query := NewQuery().AddNotLikeFilterIfNotEmpty("name", "%test%")
+		assert.Equal(t, 1, len(query.Filters))
+		assert.Equal(t, constants.OP_NOT_LIKE, query.Filters[0].Operator)
+	})
+
+	t.Run("空字符串", func(t *testing.T) {
+		query := NewQuery().AddNotLikeFilterIfNotEmpty("name", "")
+		assert.Equal(t, 0, len(query.Filters))
+	})
+}
+
+// TestQueryAddFindInSetFilterIfNotEmpty 测试 AddFindInSetFilterIfNotEmpty 方法
+func TestQueryAddFindInSetFilterIfNotEmpty(t *testing.T) {
+	t.Run("非空值", func(t *testing.T) {
+		query := NewQuery().AddFindInSetFilterIfNotEmpty("tags", "important")
+		assert.Equal(t, 1, len(query.Filters))
+		assert.Equal(t, constants.OP_FIND_IN_SET, query.Filters[0].Operator)
+	})
+
+	t.Run("空字符串", func(t *testing.T) {
+		query := NewQuery().AddFindInSetFilterIfNotEmpty("tags", "")
+		assert.Equal(t, 0, len(query.Filters))
+	})
+}
+
+// TestFilterGroupConditionalMethods 测试 FilterGroup 的条件方法
+func TestFilterGroupConditionalMethods(t *testing.T) {
+	t.Run("AddFilterIf - 条件为true", func(t *testing.T) {
+		group := NewFilterGroup(constants.LOGIC_AND)
+		filter := NewEqFilter("name", "John")
+		group.AddFilterIf(true, filter)
+		assert.Equal(t, 1, len(group.Filters))
+	})
+
+	t.Run("AddFilterIf - 条件为false", func(t *testing.T) {
+		group := NewFilterGroup(constants.LOGIC_AND)
+		filter := NewEqFilter("name", "John")
+		group.AddFilterIf(false, filter)
+		assert.Equal(t, 0, len(group.Filters))
+	})
+
+	t.Run("AddFilterIfNotEmpty - 非空值", func(t *testing.T) {
+		group := NewFilterGroup(constants.LOGIC_AND)
+		group.AddFilterIfNotEmpty("name", constants.OP_EQ, "John")
+		assert.Equal(t, 1, len(group.Filters))
+	})
+
+	t.Run("AddFilterIfNotEmpty - 空字符串", func(t *testing.T) {
+		group := NewFilterGroup(constants.LOGIC_AND)
+		group.AddFilterIfNotEmpty("name", constants.OP_EQ, "")
+		assert.Equal(t, 0, len(group.Filters))
+	})
+
+	t.Run("AddFilterIfNotEmpty - 空切片", func(t *testing.T) {
+		group := NewFilterGroup(constants.LOGIC_AND)
+		group.AddFilterIfNotEmpty("status", constants.OP_IN, []string{})
+		assert.Equal(t, 0, len(group.Filters))
+	})
+}
+
+// TestFilterGroupHelperMethods 测试 FilterGroup 的辅助方法
+func TestFilterGroupHelperMethods(t *testing.T) {
+	t.Run("AddEqFilterIfNotEmpty", func(t *testing.T) {
+		group := NewFilterGroup(constants.LOGIC_AND)
+		group.AddEqFilterIfNotEmpty("name", "John")
+		assert.Equal(t, 1, len(group.Filters))
+		assert.Equal(t, constants.OP_EQ, group.Filters[0].Operator)
+	})
+
+	t.Run("AddNeqFilterIfNotEmpty", func(t *testing.T) {
+		group := NewFilterGroup(constants.LOGIC_AND)
+		group.AddNeqFilterIfNotEmpty("status", "deleted")
+		assert.Equal(t, 1, len(group.Filters))
+		assert.Equal(t, constants.OP_NEQ, group.Filters[0].Operator)
+	})
+
+	t.Run("AddGtFilterIfNotEmpty", func(t *testing.T) {
+		group := NewFilterGroup(constants.LOGIC_AND)
+		group.AddGtFilterIfNotEmpty("age", 18)
+		assert.Equal(t, 1, len(group.Filters))
+		assert.Equal(t, constants.OP_GT, group.Filters[0].Operator)
+	})
+
+	t.Run("AddGteFilterIfNotEmpty", func(t *testing.T) {
+		group := NewFilterGroup(constants.LOGIC_AND)
+		group.AddGteFilterIfNotEmpty("score", 60)
+		assert.Equal(t, 1, len(group.Filters))
+		assert.Equal(t, constants.OP_GTE, group.Filters[0].Operator)
+	})
+
+	t.Run("AddLtFilterIfNotEmpty", func(t *testing.T) {
+		group := NewFilterGroup(constants.LOGIC_AND)
+		group.AddLtFilterIfNotEmpty("age", 65)
+		assert.Equal(t, 1, len(group.Filters))
+		assert.Equal(t, constants.OP_LT, group.Filters[0].Operator)
+	})
+
+	t.Run("AddLteFilterIfNotEmpty", func(t *testing.T) {
+		group := NewFilterGroup(constants.LOGIC_AND)
+		group.AddLteFilterIfNotEmpty("price", 100.0)
+		assert.Equal(t, 1, len(group.Filters))
+		assert.Equal(t, constants.OP_LTE, group.Filters[0].Operator)
+	})
+
+	t.Run("AddLikeFilterIfNotEmpty", func(t *testing.T) {
+		group := NewFilterGroup(constants.LOGIC_AND)
+		group.AddLikeFilterIfNotEmpty("name", "%test%")
+		assert.Equal(t, 1, len(group.Filters))
+		assert.Equal(t, constants.OP_LIKE, group.Filters[0].Operator)
+	})
+
+	t.Run("AddInFilterIfNotEmpty", func(t *testing.T) {
+		group := NewFilterGroup(constants.LOGIC_AND)
+		group.AddInFilterIfNotEmpty("status", []interface{}{"active", "pending"})
+		assert.Equal(t, 1, len(group.Filters))
+		assert.Equal(t, constants.OP_IN, group.Filters[0].Operator)
+	})
+
+	t.Run("AddNotInFilterIfNotEmpty", func(t *testing.T) {
+		group := NewFilterGroup(constants.LOGIC_AND)
+		group.AddNotInFilterIfNotEmpty("status", []interface{}{"deleted"})
+		assert.Equal(t, 1, len(group.Filters))
+		assert.Equal(t, constants.OP_NOT_IN, group.Filters[0].Operator)
+	})
+
+	t.Run("AddBetweenFilterIfNotEmpty", func(t *testing.T) {
+		group := NewFilterGroup(constants.LOGIC_AND)
+		group.AddBetweenFilterIfNotEmpty("age", 18, 65)
+		assert.Equal(t, 1, len(group.Filters))
+		assert.Equal(t, constants.OP_BETWEEN, group.Filters[0].Operator)
+	})
+
+	t.Run("AddStartsWithFilterIfNotEmpty", func(t *testing.T) {
+		group := NewFilterGroup(constants.LOGIC_AND)
+		group.AddStartsWithFilterIfNotEmpty("name", "John")
+		assert.Equal(t, 1, len(group.Filters))
+		assert.Equal(t, constants.OP_STARTS_WITH, group.Filters[0].Operator)
+	})
+
+	t.Run("AddEndsWithFilterIfNotEmpty", func(t *testing.T) {
+		group := NewFilterGroup(constants.LOGIC_AND)
+		group.AddEndsWithFilterIfNotEmpty("email", "@example.com")
+		assert.Equal(t, 1, len(group.Filters))
+		assert.Equal(t, constants.OP_ENDS_WITH, group.Filters[0].Operator)
+	})
+
+	t.Run("AddContainsFilterIfNotEmpty", func(t *testing.T) {
+		group := NewFilterGroup(constants.LOGIC_AND)
+		group.AddContainsFilterIfNotEmpty("description", "test")
+		assert.Equal(t, 1, len(group.Filters))
+		assert.Equal(t, constants.OP_CONTAINS, group.Filters[0].Operator)
+	})
+
+	t.Run("AddNotLikeFilterIfNotEmpty", func(t *testing.T) {
+		group := NewFilterGroup(constants.LOGIC_AND)
+		group.AddNotLikeFilterIfNotEmpty("name", "%test%")
+		assert.Equal(t, 1, len(group.Filters))
+		assert.Equal(t, constants.OP_NOT_LIKE, group.Filters[0].Operator)
+	})
+
+	t.Run("AddFindInSetFilterIfNotEmpty", func(t *testing.T) {
+		group := NewFilterGroup(constants.LOGIC_AND)
+		group.AddFindInSetFilterIfNotEmpty("tags", "important")
+		assert.Equal(t, 1, len(group.Filters))
+		assert.Equal(t, constants.OP_FIND_IN_SET, group.Filters[0].Operator)
+	})
+}
+
+// TestFilterGroupAddGroupIf 测试 AddGroupIf 方法
+func TestFilterGroupAddGroupIf(t *testing.T) {
+	t.Run("条件为true", func(t *testing.T) {
+		mainGroup := NewFilterGroup(constants.LOGIC_AND)
+		subGroup := NewFilterGroup(constants.LOGIC_OR).AddFilter(NewEqFilter("status", "active"))
+		mainGroup.AddGroupIf(true, subGroup)
+		assert.Equal(t, 1, len(mainGroup.Groups))
+	})
+
+	t.Run("条件为false", func(t *testing.T) {
+		mainGroup := NewFilterGroup(constants.LOGIC_AND)
+		subGroup := NewFilterGroup(constants.LOGIC_OR).AddFilter(NewEqFilter("status", "active"))
+		mainGroup.AddGroupIf(false, subGroup)
+		assert.Equal(t, 0, len(mainGroup.Groups))
+	})
+}
+
+// TestFilterGroupAddGroupIfNotEmpty 测试 AddGroupIfNotEmpty 方法
+func TestFilterGroupAddGroupIfNotEmpty(t *testing.T) {
+	t.Run("非空组", func(t *testing.T) {
+		mainGroup := NewFilterGroup(constants.LOGIC_AND)
+		subGroup := NewFilterGroup(constants.LOGIC_OR).AddFilter(NewEqFilter("status", "active"))
+		mainGroup.AddGroupIfNotEmpty(subGroup)
+		assert.Equal(t, 1, len(mainGroup.Groups))
+	})
+
+	t.Run("空组", func(t *testing.T) {
+		mainGroup := NewFilterGroup(constants.LOGIC_AND)
+		emptyGroup := NewFilterGroup(constants.LOGIC_OR)
+		mainGroup.AddGroupIfNotEmpty(emptyGroup)
+		assert.Equal(t, 0, len(mainGroup.Groups))
+	})
+}
+
+// TestFilterGroupClear 测试 Clear 方法
+func TestFilterGroupClear(t *testing.T) {
+	group := NewFilterGroup(constants.LOGIC_AND).
+		AddFilter(NewEqFilter("name", "John")).
+		AddFilter(NewEqFilter("age", 30)).
+		AddGroup(NewFilterGroup(constants.LOGIC_OR))
+
+	assert.Equal(t, 2, len(group.Filters))
+	assert.Equal(t, 1, len(group.Groups))
+
+	group.Clear()
+	assert.Equal(t, 0, len(group.Filters))
+	assert.Equal(t, 0, len(group.Groups))
+}
+
+// TestFilterGroupClone 测试 Clone 方法
+func TestFilterGroupClone(t *testing.T) {
+	original := NewFilterGroup(constants.LOGIC_AND).
+		AddFilter(NewEqFilter("name", "John")).
+		AddFilter(NewEqFilter("age", 30))
+
+	cloned := original.Clone()
+
+	// 验证克隆的内容相同
+	assert.Equal(t, original.LogicOp, cloned.LogicOp)
+	assert.Equal(t, len(original.Filters), len(cloned.Filters))
+	assert.Equal(t, original.Filters[0].Field, cloned.Filters[0].Field)
+
+	// 修改克隆的对象，不应影响原对象
+	cloned.AddFilter(NewEqFilter("status", "active"))
+	assert.Equal(t, 2, len(original.Filters))
+	assert.Equal(t, 3, len(cloned.Filters))
+}
+
+// TestNewInFilterSliceEmptySlice 测试空切片情况
+func TestNewInFilterSliceEmptySlice(t *testing.T) {
+	filter := NewInFilterSlice("status", []interface{}{})
+	assert.Equal(t, "status", filter.Field)
+	assert.Equal(t, constants.OP_IN, filter.Operator)
+	values := filter.Value.([]interface{})
+	assert.Equal(t, 0, len(values))
+}
+
+// TestNewNotInFilterSlice 测试 NewNotInFilterSlice 函数
+func TestNewNotInFilterSlice(t *testing.T) {
+	t.Run("非空切片", func(t *testing.T) {
+		filter := NewNotInFilterSlice("status", []interface{}{"deleted", "banned"})
+		assert.Equal(t, "status", filter.Field)
+		assert.Equal(t, constants.OP_NOT_IN, filter.Operator)
+		values := filter.Value.([]interface{})
+		assert.Equal(t, 2, len(values))
+	})
+
+	t.Run("空切片", func(t *testing.T) {
+		filter := NewNotInFilterSlice("status", []interface{}{})
+		assert.Equal(t, "status", filter.Field)
+		values := filter.Value.([]interface{})
+		assert.Equal(t, 0, len(values))
+	})
+}
+
+// TestIsTimeValidEdgeCases 测试 isTimeValid 的边界情况
+func TestIsTimeValidEdgeCases(t *testing.T) {
+	t.Run("零值time.Time", func(t *testing.T) {
+		var zeroTime time.Time
+		result := isTimeValid(&zeroTime)
+		assert.False(t, result)
+	})
+
+	t.Run("非零time.Time", func(t *testing.T) {
+		now := time.Now()
+		result := isTimeValid(&now)
+		assert.True(t, result)
+	})
+
+	t.Run("nil指针", func(t *testing.T) {
+		result := isTimeValid(nil)
+		assert.False(t, result)
+	})
+}
+
+// TestNewInFilterSliceNilValues 测试 NewInFilterSlice 处理 nil 值
+func TestNewInFilterSliceNilValues(t *testing.T) {
+	filter := NewInFilterSlice("status", nil)
+	assert.Equal(t, "status", filter.Field)
+	assert.Equal(t, constants.OP_IN, filter.Operator)
+	values := filter.Value.([]interface{})
+	assert.NotNil(t, values)
+	assert.Equal(t, 0, len(values))
+}
+
+// TestNewNotInFilterNilValues 测试 NewNotInFilter 处理 nil 值
+func TestNewNotInFilterNilValues(t *testing.T) {
+	filter := NewNotInFilter("status", nil)
+	assert.Equal(t, "status", filter.Field)
+	assert.Equal(t, constants.OP_NOT_IN, filter.Operator)
+	assert.Nil(t, filter.Value)
+}
+
+// TestNewNotInFilterSliceNilValues 测试 NewNotInFilterSlice 处理 nil 值
+func TestNewNotInFilterSliceNilValues(t *testing.T) {
+	filter := NewNotInFilterSlice("status", nil)
+	assert.Equal(t, "status", filter.Field)
+	assert.Equal(t, constants.OP_NOT_IN, filter.Operator)
+	values := filter.Value.([]interface{})
+	assert.NotNil(t, values)
+	assert.Equal(t, 0, len(values))
+}
+
+// TestFilterGroupCloneWithGroups 测试 Clone 方法包含嵌套组
+func TestFilterGroupCloneWithGroups(t *testing.T) {
+	subGroup := NewFilterGroup(constants.LOGIC_OR).
+		AddFilter(NewEqFilter("status", "active"))
+
+	original := NewFilterGroup(constants.LOGIC_AND).
+		AddFilter(NewEqFilter("name", "John")).
+		AddGroup(subGroup)
+
+	cloned := original.Clone()
+
+	// 验证克隆的内容相同
+	assert.Equal(t, len(original.Groups), len(cloned.Groups))
+	assert.Equal(t, original.Groups[0].LogicOp, cloned.Groups[0].LogicOp)
+
+	// 修改克隆的嵌套组，不应影响原对象
+	cloned.Groups[0].AddFilter(NewEqFilter("age", 30))
+	assert.Equal(t, 1, len(original.Groups[0].Filters))
+	assert.Equal(t, 2, len(cloned.Groups[0].Filters))
+}
+
+// TestQueryAddNotInFilterIfNotEmptyEdgeCases 测试 AddNotInFilterIfNotEmpty 边界情况
+func TestQueryAddNotInFilterIfNotEmptyEdgeCases(t *testing.T) {
+	t.Run("非空数组", func(t *testing.T) {
+		values := [3]string{"a", "b", "c"}
+		query := NewQuery().AddNotInFilterIfNotEmpty("status", values)
+		assert.Equal(t, 1, len(query.Filters))
+		assert.Equal(t, constants.OP_NOT_IN, query.Filters[0].Operator)
+	})
+
+	t.Run("空数组", func(t *testing.T) {
+		var emptyArray [0]string
+		query := NewQuery().AddNotInFilterIfNotEmpty("status", emptyArray)
+		assert.Equal(t, 0, len(query.Filters))
+	})
+}
+
+// TestIsTimeValidWithPointer 测试 isTimeValid 处理指针类型
+func TestIsTimeValidWithPointer(t *testing.T) {
+	t.Run("time.Time指针", func(t *testing.T) {
+		now := time.Now()
+		result := isTimeValid(&now)
+		assert.True(t, result)
+	})
+
+	t.Run("time.Time值", func(t *testing.T) {
+		now := time.Now()
+		result := isTimeValid(now)
+		assert.True(t, result)
+	})
+}
+
+// TestHandleSpecialOperatorsWithSubquery 测试特殊操作符处理子查询
+func TestHandleSpecialOperatorsWithSubquery(t *testing.T) {
+	t.Run("IS_NULL操作符", func(t *testing.T) {
+		query := NewQuery().AddFilter(&Filter{
+			Field:    "deleted_at",
+			Operator: constants.OP_IS_NULL,
+			Value:    nil,
+		})
+
+		whereClause, args := query.BuildWhereClause()
+		assert.Equal(t, "deleted_at IS NULL", whereClause)
+		assert.Equal(t, 0, len(args))
+	})
+
+	t.Run("IS_NOT_NULL操作符", func(t *testing.T) {
+		query := NewQuery().AddFilter(&Filter{
+			Field:    "updated_at",
+			Operator: constants.OP_IS_NOT_NULL,
+			Value:    nil,
+		})
+
+		whereClause, args := query.BuildWhereClause()
+		assert.Equal(t, "updated_at IS NOT NULL", whereClause)
+		assert.Equal(t, 0, len(args))
+	})
+
+	t.Run("BETWEEN操作符带数组值", func(t *testing.T) {
+		query := NewQuery().AddFilter(&Filter{
+			Field:    "age",
+			Operator: constants.OP_BETWEEN,
+			Value:    []interface{}{18, 65},
+		})
+
+		whereClause, args := query.BuildWhereClause()
+		assert.Equal(t, "age BETWEEN ? AND ?", whereClause)
+		assert.Equal(t, []interface{}{18, 65}, args)
+	})
+
+	t.Run("FIND_IN_SET操作符", func(t *testing.T) {
+		query := NewQuery().AddFilter(&Filter{
+			Field:    "tags",
+			Operator: constants.OP_FIND_IN_SET,
+			Value:    "urgent",
+		})
+
+		whereClause, args := query.BuildWhereClause()
+		assert.Equal(t, "FIND_IN_SET(?, tags) > 0", whereClause)
+		assert.Equal(t, []interface{}{"urgent"}, args)
+	})
+}
+
+// TestBuildWhereClauseWithEmptyFilters 测试空过滤条件
+func TestBuildWhereClauseWithEmptyFilters(t *testing.T) {
+	query := NewQuery()
+	whereClause, args := query.BuildWhereClause()
+	assert.Equal(t, "", whereClause)
+	assert.Equal(t, 0, len(args))
+}
+
+// TestBuildGroupConditionEdgeCases 测试 buildGroupCondition 边界情况
+func TestBuildGroupConditionEdgeCases(t *testing.T) {
+	t.Run("空组", func(t *testing.T) {
+		emptyGroup := NewFilterGroup(constants.LOGIC_AND)
+		query := NewQuery().WithFilterGroup(emptyGroup)
+		whereClause, args := query.BuildWhereClause()
+		assert.Equal(t, "", whereClause)
+		assert.Equal(t, 0, len(args))
+	})
+
+	t.Run("仅有过滤条件的组", func(t *testing.T) {
+		group := NewFilterGroup(constants.LOGIC_AND).
+			AddFilter(NewEqFilter("name", "John"))
+		query := NewQuery().WithFilterGroup(group)
+		whereClause, args := query.BuildWhereClause()
+		assert.Equal(t, "name = ?", whereClause)
+		assert.Equal(t, []interface{}{"John"}, args)
+	})
+
+	t.Run("仅有嵌套组的组", func(t *testing.T) {
+		subGroup := NewFilterGroup(constants.LOGIC_OR).
+			AddFilter(NewEqFilter("status", "active"))
+		mainGroup := NewFilterGroup(constants.LOGIC_AND).
+			AddGroup(subGroup)
+		query := NewQuery().WithFilterGroup(mainGroup)
+		whereClause, args := query.BuildWhereClause()
+		assert.Equal(t, "status = ?", whereClause)
+		assert.Equal(t, []interface{}{"active"}, args)
+	})
+}
+
+// TestNewNotInFilterVariadic 测试 NewNotInFilter 可变参数
+func TestNewNotInFilterVariadic(t *testing.T) {
+	t.Run("多个参数", func(t *testing.T) {
+		filter := NewNotInFilter("status", "deleted", "banned", "archived")
+		assert.Equal(t, "status", filter.Field)
+		assert.Equal(t, constants.OP_NOT_IN, filter.Operator)
+		values := filter.Value.([]interface{})
+		assert.Equal(t, 3, len(values))
+		assert.Equal(t, "deleted", values[0])
+		assert.Equal(t, "banned", values[1])
+		assert.Equal(t, "archived", values[2])
+	})
+
+	t.Run("单个参数", func(t *testing.T) {
+		filter := NewNotInFilter("status", "deleted")
+		values := filter.Value.([]interface{})
+		assert.Equal(t, 1, len(values))
+	})
+
+	t.Run("无参数", func(t *testing.T) {
+		filter := NewNotInFilter("status")
+		values := filter.Value.([]interface{})
+		assert.Equal(t, 0, len(values))
+	})
+}
+
+// TestIsTimeValidUnixZero 测试 isTimeValid 处理 Unix 零点前的时间
+func TestIsTimeValidUnixZero(t *testing.T) {
+	t.Run("Unix零点前的时间", func(t *testing.T) {
+		beforeUnix := time.Date(1960, 1, 1, 0, 0, 0, 0, time.UTC)
+		result := isTimeValid(beforeUnix)
+		assert.False(t, result)
+	})
+
+	t.Run("Unix零点后的时间", func(t *testing.T) {
+		afterUnix := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
+		result := isTimeValid(afterUnix)
+		assert.True(t, result)
+	})
+
+	t.Run("Unix零点前的时间指针", func(t *testing.T) {
+		beforeUnix := time.Date(1960, 1, 1, 0, 0, 0, 0, time.UTC)
+		result := isTimeValid(&beforeUnix)
+		assert.False(t, result)
+	})
+}
+
+// TestAddNotInFilterIfNotEmptyNilValue 测试 AddNotInFilterIfNotEmpty 处理 nil
+func TestAddNotInFilterIfNotEmptyNilValue(t *testing.T) {
+	query := NewQuery().AddNotInFilterIfNotEmpty("status", nil)
+	assert.Equal(t, 0, len(query.Filters))
+}
+
+// TestAddThisWeekOnSunday 测试 AddThisWeek 在周日的情况
+func TestAddThisWeekOnSunday(t *testing.T) {
+	// 这个测试会覆盖 weekday == 0 的分支
+	query := NewQuery().AddThisWeek("created_at")
+	assert.Equal(t, 1, len(query.Filters))
+	assert.Equal(t, constants.OP_BETWEEN, query.Filters[0].Operator)
+}
+
+// TestHandleOperatorsWithInvalidTypes 测试各种 handle 函数处理无效类型
+func TestHandleOperatorsWithInvalidTypes(t *testing.T) {
+	query := NewQuery()
+
+	t.Run("handleNullOperators返回空字符串", func(t *testing.T) {
+		filter := &Filter{
+			Field:    "test",
+			Operator: "INVALID_OP",
+			Value:    nil,
+		}
+		sql, arg := query.handleNullOperators(filter)
+		assert.Equal(t, "", sql)
+		assert.Nil(t, arg)
+	})
+
+	t.Run("handleBetweenOperator处理非切片值", func(t *testing.T) {
+		filter := &Filter{
+			Field:    "age",
+			Operator: constants.OP_BETWEEN,
+			Value:    "not a slice",
+		}
+		sql, arg := query.handleBetweenOperator(filter)
+		assert.Equal(t, "", sql)
+		assert.Nil(t, arg)
+	})
+
+	t.Run("handleBetweenOperator处理长度不为2的切片", func(t *testing.T) {
+		filter := &Filter{
+			Field:    "age",
+			Operator: constants.OP_BETWEEN,
+			Value:    []interface{}{18},
+		}
+		sql, arg := query.handleBetweenOperator(filter)
+		assert.Equal(t, "", sql)
+		assert.Nil(t, arg)
+	})
+
+	t.Run("handleStartsWithOperator处理非字符串值", func(t *testing.T) {
+		filter := &Filter{
+			Field:    "name",
+			Operator: constants.OP_STARTS_WITH,
+			Value:    123,
+		}
+		sql, arg := query.handleStartsWithOperator(filter)
+		assert.Equal(t, "", sql)
+		assert.Nil(t, arg)
+	})
+
+	t.Run("handleEndsWithOperator处理非字符串值", func(t *testing.T) {
+		filter := &Filter{
+			Field:    "email",
+			Operator: constants.OP_ENDS_WITH,
+			Value:    []byte("test"),
+		}
+		sql, arg := query.handleEndsWithOperator(filter)
+		assert.Equal(t, "", sql)
+		assert.Nil(t, arg)
+	})
+
+	t.Run("handleContainsOperator处理非字符串值", func(t *testing.T) {
+		filter := &Filter{
+			Field:    "description",
+			Operator: constants.OP_CONTAINS,
+			Value:    42,
+		}
+		sql, arg := query.handleContainsOperator(filter)
+		assert.Equal(t, "", sql)
+		assert.Nil(t, arg)
+	})
+
+	t.Run("handleFindInSetOperator返回空字符串对于无效操作符", func(t *testing.T) {
+		filter := &Filter{
+			Field:    "tags",
+			Operator: "INVALID_FIND_IN_SET",
+			Value:    "test",
+		}
+		sql, arg := query.handleFindInSetOperator(filter)
+		assert.Equal(t, "", sql)
+		assert.Nil(t, arg)
+	})
+}
+
+// TestBuildFilterConditionNilFilter 测试 buildFilterCondition 处理 nil
+func TestBuildFilterConditionNilFilter(t *testing.T) {
+	query := NewQuery()
+	sql, arg := query.buildFilterCondition(nil)
+	assert.Equal(t, "", sql)
+	assert.Nil(t, arg)
+}
+
+// TestBuildFilterConditionUnknownOperator 测试 buildFilterCondition 处理未知操作符
+func TestBuildFilterConditionUnknownOperator(t *testing.T) {
+	query := NewQuery()
+	filter := &Filter{
+		Field:    "test",
+		Operator: "UNKNOWN_OPERATOR",
+		Value:    "value",
+	}
+	sql, arg := query.buildFilterCondition(filter)
+	assert.Equal(t, "", sql)
+	assert.Nil(t, arg)
+}
+
+// TestBuildGroupConditionNilGroup 测试 buildGroupCondition 处理 nil
+func TestBuildGroupConditionNilGroup(t *testing.T) {
+	query := NewQuery()
+	sql, args := query.buildGroupCondition(nil)
+	assert.Equal(t, "", sql)
+	assert.Nil(t, args)
+}
+
+// TestBuildGroupConditionWithNilFilters 测试 buildGroupCondition 处理包含 nil 过滤条件的组
+func TestBuildGroupConditionWithNilFilters(t *testing.T) {
+	group := NewFilterGroup(constants.LOGIC_AND)
+	group.Filters = append(group.Filters, nil)
+	group.Filters = append(group.Filters, NewEqFilter("name", "John"))
+	group.Filters = append(group.Filters, nil)
+
+	query := NewQuery()
+	sql, args := query.buildGroupCondition(group)
+	assert.Equal(t, "name = ?", sql)
+	assert.Equal(t, []interface{}{"John"}, args)
+}
+
+// TestProcessSubGroupsWithNilGroup 测试 processSubGroups 处理 nil 子组
+func TestProcessSubGroupsWithNilGroup(t *testing.T) {
+	mainGroup := NewFilterGroup(constants.LOGIC_AND)
+	mainGroup.Groups = append(mainGroup.Groups, nil)
+	subGroup := NewFilterGroup(constants.LOGIC_OR).AddFilter(NewEqFilter("status", "active"))
+	mainGroup.Groups = append(mainGroup.Groups, subGroup)
+	mainGroup.Groups = append(mainGroup.Groups, nil)
+
+	query := NewQuery().WithFilterGroup(mainGroup)
+	whereClause, args := query.BuildWhereClause()
+	assert.Equal(t, "status = ?", whereClause)
+	assert.Equal(t, []interface{}{"active"}, args)
+}
+
+// TestProcessSubGroupsWithEmptyGroup 测试 processSubGroups 处理空子组
+func TestProcessSubGroupsWithEmptyGroup(t *testing.T) {
+	mainGroup := NewFilterGroup(constants.LOGIC_AND)
+	emptyGroup := NewFilterGroup(constants.LOGIC_OR)
+	mainGroup.Groups = append(mainGroup.Groups, emptyGroup)
+	validGroup := NewFilterGroup(constants.LOGIC_OR).AddFilter(NewEqFilter("name", "John"))
+	mainGroup.Groups = append(mainGroup.Groups, validGroup)
+
+	query := NewQuery().WithFilterGroup(mainGroup)
+	whereClause, args := query.BuildWhereClause()
+	assert.Equal(t, "name = ?", whereClause)
+	assert.Equal(t, []interface{}{"John"}, args)
+}
+
+// TestIsTimeValidWithOtherTypes 测试 isTimeValid 处理其他类型（返回 true）
+func TestIsTimeValidWithOtherTypes(t *testing.T) {
+	t.Run("字符串类型", func(t *testing.T) {
+		result := isTimeValid("2025-01-01")
+		assert.True(t, result)
+	})
+
+	t.Run("整数类型", func(t *testing.T) {
+		result := isTimeValid(123456789)
+		assert.True(t, result)
+	})
+
+	t.Run("布尔类型", func(t *testing.T) {
+		result := isTimeValid(true)
+		assert.True(t, result)
+	})
+}
+
+// TestAddThisWeekCoverage 测试 AddThisWeek 完整覆盖
+func TestAddThisWeekCoverage(t *testing.T) {
+	// 通过多次调用确保覆盖不同的星期几
+	for i := 0; i < 7; i++ {
+		query := NewQuery().AddThisWeek("created_at")
+		assert.Equal(t, 1, len(query.Filters))
+	}
+}
+
+// TestBuildGroupConditionAllBranches 测试 buildGroupCondition 所有分支
+func TestBuildGroupConditionAllBranches(t *testing.T) {
+	query := NewQuery()
+
+	t.Run("空条件列表", func(t *testing.T) {
+		group := NewFilterGroup(constants.LOGIC_AND)
+		// 添加一个返回空条件的过滤器
+		group.Filters = append(group.Filters, &Filter{
+			Field:    "test",
+			Operator: "UNKNOWN_OP",
+			Value:    "value",
+		})
+		sql, args := query.buildGroupCondition(group)
+		assert.Equal(t, "", sql)
+		assert.Nil(t, args)
+	})
+
+	t.Run("混合有效和无效过滤器", func(t *testing.T) {
+		group := NewFilterGroup(constants.LOGIC_AND)
+		group.Filters = append(group.Filters, &Filter{
+			Field:    "test",
+			Operator: "UNKNOWN_OP",
+			Value:    "value",
+		})
+		group.Filters = append(group.Filters, NewEqFilter("name", "John"))
+		group.Filters = append(group.Filters, &Filter{
+			Field:    "test2",
+			Operator: "UNKNOWN_OP",
+			Value:    "value2",
+		})
+		sql, args := query.buildGroupCondition(group)
+		assert.Equal(t, "name = ?", sql)
+		assert.Equal(t, []interface{}{"John"}, args)
 	})
 }

@@ -13,13 +13,14 @@ package repository
 import (
 	"context"
 	"errors"
+	"testing"
+	"time"
+
 	"github.com/kamalyes/go-logger"
 	"github.com/kamalyes/go-sqlbuilder/constants"
 	"github.com/kamalyes/go-sqlbuilder/db"
+	"github.com/kamalyes/go-toolbox/pkg/convert"
 	"github.com/stretchr/testify/assert"
-	"reflect"
-	"testing"
-	"time"
 )
 
 // TestNewEqFilter 测试等于过滤器创建
@@ -632,50 +633,45 @@ func TestQueryFlattenFilters(t *testing.T) {
 	assert.True(t, hasRatingFilter, "应包含 rating 过滤器")
 }
 
-// TestIsSliceType 测试切片类型判断
-func TestIsSliceType(t *testing.T) {
-	// 测试 nil
-	assert.False(t, IsSliceType(nil))
-
-	// 测试切片类型
-	assert.True(t, IsSliceType([]int{1, 2, 3}))
-	assert.True(t, IsSliceType([]string{"a", "b"}))
-	assert.True(t, IsSliceType([3]int{1, 2, 3})) // 数组
-
-	// 测试非切片类型
-	assert.False(t, IsSliceType(42))
-	assert.False(t, IsSliceType("string"))
-	assert.False(t, IsSliceType(map[string]int{"key": 1}))
-	assert.False(t, IsSliceType(struct{}{}))
-}
-
 // TestConvertToInterfaceSlice 测试切片转换
 func TestConvertToInterfaceSlice(t *testing.T) {
-	// 测试 nil
-	assert.Nil(t, ConvertToInterfaceSlice(nil))
+	// 测试 nil - go-toolbox 返回空切片而不是 nil
+	result := convert.AnySliceToInterfaceSlice(nil)
+	assert.NotNil(t, result)
+	assert.Len(t, result, 0)
 
-	// 测试空切片
-	assert.Nil(t, ConvertToInterfaceSlice([]int{}))
+	// 测试空切片 - go-toolbox 返回空切片而不是 nil
+	result = convert.AnySliceToInterfaceSlice([]int{})
+	assert.NotNil(t, result)
+	assert.Len(t, result, 0)
 
 	// 测试 int 切片
 	intSlice := []int{1, 2, 3}
-	result := ConvertToInterfaceSlice(intSlice)
+	result = convert.AnySliceToInterfaceSlice(intSlice)
 	assert.Equal(t, []interface{}{1, 2, 3}, result)
 
 	// 测试 string 切片
 	stringSlice := []string{"a", "b", "c"}
-	result = ConvertToInterfaceSlice(stringSlice)
+	result = convert.AnySliceToInterfaceSlice(stringSlice)
 	assert.Equal(t, []interface{}{"a", "b", "c"}, result)
 
 	// 测试数组
 	intArray := [3]int{1, 2, 3}
-	result = ConvertToInterfaceSlice(intArray)
+	result = convert.AnySliceToInterfaceSlice(intArray)
 	assert.Equal(t, []interface{}{1, 2, 3}, result)
 
-	// 测试非切片类型
-	assert.Nil(t, ConvertToInterfaceSlice(42))
-	assert.Nil(t, ConvertToInterfaceSlice("string"))
-	assert.Nil(t, ConvertToInterfaceSlice(map[string]int{"key": 1}))
+	// 测试非切片类型 - go-toolbox 返回空切片而不是 nil
+	result = convert.AnySliceToInterfaceSlice(42)
+	assert.NotNil(t, result)
+	assert.Len(t, result, 0)
+
+	result = convert.AnySliceToInterfaceSlice("string")
+	assert.NotNil(t, result)
+	assert.Len(t, result, 0)
+
+	result = convert.AnySliceToInterfaceSlice(map[string]int{"key": 1})
+	assert.NotNil(t, result)
+	assert.Len(t, result, 0)
 }
 
 // TestGetDeletedWithNilQuery 测试 GetDeleted 传入 nil query
@@ -942,31 +938,6 @@ func TestGetDeletedError(t *testing.T) {
 	assert.NoError(t, err) // 正常情况下不应该出错
 }
 
-// TestReflectionEdgeCases 测试反射相关的边界情况
-func TestReflectionEdgeCases(t *testing.T) {
-	// 测试不同类型的反射
-
-	// 测试指针类型
-	intPtr := new(int)
-	assert.False(t, IsSliceType(intPtr))
-
-	// 测试interface{}类型
-	var emptyInterface interface{} = []int{1, 2, 3}
-	assert.True(t, IsSliceType(emptyInterface))
-
-	// 测试channel类型
-	ch := make(chan int)
-	assert.False(t, IsSliceType(ch))
-
-	// 测试function类型
-	fn := func() {}
-	assert.False(t, IsSliceType(fn))
-
-	// 测试map类型
-	m := map[string]int{"key": 1}
-	assert.False(t, IsSliceType(m))
-}
-
 // TestConvertToInterfaceSliceComplexTypes 测试复杂类型的切片转换
 func TestConvertToInterfaceSliceComplexTypes(t *testing.T) {
 	// 测试结构体切片
@@ -980,7 +951,7 @@ func TestConvertToInterfaceSliceComplexTypes(t *testing.T) {
 		{Name: "Bob", Age: 30},
 	}
 
-	result := ConvertToInterfaceSlice(people)
+	result := convert.AnySliceToInterfaceSlice(people)
 	assert.Equal(t, 2, len(result))
 	assert.Equal(t, Person{Name: "Alice", Age: 25}, result[0])
 	assert.Equal(t, Person{Name: "Bob", Age: 30}, result[1])
@@ -990,42 +961,10 @@ func TestConvertToInterfaceSliceComplexTypes(t *testing.T) {
 	p2 := &Person{Name: "David", Age: 40}
 	ptrSlice := []*Person{p1, p2}
 
-	result2 := ConvertToInterfaceSlice(ptrSlice)
+	result2 := convert.AnySliceToInterfaceSlice(ptrSlice)
 	assert.Equal(t, 2, len(result2))
 	assert.Equal(t, p1, result2[0])
 	assert.Equal(t, p2, result2[1])
-}
-
-// TestValueValidation 测试值验证
-func TestValueValidation(t *testing.T) {
-	// 测试不同的值类型
-	testCases := []struct {
-		name     string
-		value    interface{}
-		expected bool
-	}{
-		{"nil", nil, false},
-		{"empty slice", []int{}, false},
-		{"non-empty slice", []int{1}, true},
-		{"string", "test", false},
-		{"int", 42, false},
-		{"bool", true, false},
-		{"float", 3.14, false},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			result := IsSliceType(tc.value)
-			if tc.expected {
-				assert.True(t, result, "Expected %v to be slice type", tc.value)
-			} else {
-				// 对于非切片类型或 nil，应该返回 false
-				if tc.value == nil || reflect.ValueOf(tc.value).Kind() != reflect.Slice {
-					assert.False(t, result, "Expected %v to not be slice type", tc.value)
-				}
-			}
-		})
-	}
 }
 
 // TestQueryBuilderChaining 测试查询构建器的链式调用
