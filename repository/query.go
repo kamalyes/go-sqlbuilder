@@ -12,10 +12,12 @@ package repository
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 	"time"
 
 	"github.com/kamalyes/go-sqlbuilder/constants"
+	"github.com/kamalyes/go-toolbox/pkg/validator"
 )
 
 type QueryCondition struct {
@@ -301,6 +303,107 @@ func (q *Query) AddInFilterIfNotEmpty(field string, values interface{}) *Query {
 	return q
 }
 
+// AddEqFilterIfNotEmpty 添加等于过滤条件（仅当值不为空时）
+func (q *Query) AddEqFilterIfNotEmpty(field string, value interface{}) *Query {
+	return q.AddFilterIfNotEmpty(field, value)
+}
+
+// AddNeqFilterIfNotEmpty 添加不等于过滤条件（仅当值不为空时）
+func (q *Query) AddNeqFilterIfNotEmpty(field string, value interface{}) *Query {
+	if !validator.IsEmptyValue(reflect.ValueOf(value)) {
+		q.AddFilter(NewNeqFilter(field, value))
+	}
+	return q
+}
+
+// AddGtFilterIfNotEmpty 添加大于过滤条件（仅当值不为空时）
+func (q *Query) AddGtFilterIfNotEmpty(field string, value interface{}) *Query {
+	if !validator.IsEmptyValue(reflect.ValueOf(value)) {
+		q.AddFilter(NewGtFilter(field, value))
+	}
+	return q
+}
+
+// AddGteFilterIfNotEmpty 添加大于等于过滤条件（仅当值不为空时）
+func (q *Query) AddGteFilterIfNotEmpty(field string, value interface{}) *Query {
+	if !validator.IsEmptyValue(reflect.ValueOf(value)) {
+		q.AddFilter(NewGteFilter(field, value))
+	}
+	return q
+}
+
+// AddLtFilterIfNotEmpty 添加小于过滤条件（仅当值不为空时）
+func (q *Query) AddLtFilterIfNotEmpty(field string, value interface{}) *Query {
+	if !validator.IsEmptyValue(reflect.ValueOf(value)) {
+		q.AddFilter(NewLtFilter(field, value))
+	}
+	return q
+}
+
+// AddLteFilterIfNotEmpty 添加小于等于过滤条件（仅当值不为空时）
+func (q *Query) AddLteFilterIfNotEmpty(field string, value interface{}) *Query {
+	if !validator.IsEmptyValue(reflect.ValueOf(value)) {
+		q.AddFilter(NewLteFilter(field, value))
+	}
+	return q
+}
+
+// AddNotInFilterIfNotEmpty 添加 NOT IN 过滤条件（仅当切片不为空时）
+func (q *Query) AddNotInFilterIfNotEmpty(field string, values interface{}) *Query {
+	if values == nil {
+		return q
+	}
+	if slice := ConvertToInterfaceSlice(values); len(slice) > 0 {
+		q.AddFilter(NewNotInFilterSlice(field, slice))
+	}
+	return q
+}
+
+// AddBetweenFilterIfNotEmpty 添加 BETWEEN 过滤条件（仅当最小值和最大值都不为空时）
+func (q *Query) AddBetweenFilterIfNotEmpty(field string, min, max interface{}) *Query {
+	if !validator.IsEmptyValue(reflect.ValueOf(min)) && !validator.IsEmptyValue(reflect.ValueOf(max)) {
+		q.AddFilter(NewBetweenFilter(field, min, max))
+	}
+	return q
+}
+
+// AddStartsWithFilterIfNotEmpty 添加前缀匹配过滤条件（仅当值不为空时）
+func (q *Query) AddStartsWithFilterIfNotEmpty(field, value string) *Query {
+	if !validator.IsEmptyValue(reflect.ValueOf(value)) {
+		q.AddFilter(NewStartsWithFilter(field, value))
+	}
+	return q
+}
+
+// AddEndsWithFilterIfNotEmpty 添加后缀匹配过滤条件（仅当值不为空时）
+func (q *Query) AddEndsWithFilterIfNotEmpty(field, value string) *Query {
+	if !validator.IsEmptyValue(reflect.ValueOf(value)) {
+		q.AddFilter(NewEndsWithFilter(field, value))
+	}
+	return q
+}
+
+// AddContainsFilterIfNotEmpty 添加包含匹配过滤条件（仅当值不为空时）
+func (q *Query) AddContainsFilterIfNotEmpty(field, value string) *Query {
+	return q.AddLikeFilterIfNotEmpty(field, value)
+}
+
+// AddNotLikeFilterIfNotEmpty 添加 NOT LIKE 过滤条件（仅当值不为空时）
+func (q *Query) AddNotLikeFilterIfNotEmpty(field, value string) *Query {
+	if !validator.IsEmptyValue(reflect.ValueOf(value)) {
+		q.AddFilter(NewNotLikeFilter(field, value))
+	}
+	return q
+}
+
+// AddFindInSetFilterIfNotEmpty 添加 FIND_IN_SET 过滤条件（仅当值不为空时，MySQL特定）
+func (q *Query) AddFindInSetFilterIfNotEmpty(field string, value interface{}) *Query {
+	if !validator.IsEmptyValue(reflect.ValueOf(value)) {
+		q.AddFilter(NewFindInSetFilter(field, value))
+	}
+	return q
+}
+
 // AddSafeOrder 安全地添加排序条件
 // 参数:
 //   - sortBy: 排序字段(可选,为空时使用defaultField)
@@ -311,51 +414,35 @@ func (q *Query) AddInFilterIfNotEmpty(field string, values interface{}) *Query {
 //
 // 示例:
 //
-//	query.AddSafeOrder(filter.SortBy, filter.SortOrder, "created_at", constants.Desc, []string{"created_at", "updated_at", "id"})
+//	query.AddSafeOrder(filter.SortBy, filter.SortOrder, "created_at", "DESC", []string{"created_at", "updated_at", "id"})
 func (q *Query) AddSafeOrder(sortBy, sortOrder, defaultField, defaultDirection string, allowedFields ...[]string) *Query {
-	// 1. 处理排序字段
+	// 1. 确定排序字段
 	field := defaultField
-	fieldValid := false // 标记字段是否有效
-
-	if sortBy != "" {
-		// 如果提供了白名单,检查字段是否在白名单中
-		if len(allowedFields) > 0 && len(allowedFields[0]) > 0 {
-			for _, allowedField := range allowedFields[0] {
-				if sortBy == allowedField {
-					field = sortBy
-					fieldValid = true
-					break
-				}
-			}
-		} else {
-			// 没有白名单,但要验证字段名是否安全(仅允许字母、数字、下划线)
-			if isSafeFieldName(sortBy) {
-				field = sortBy
-				fieldValid = true
-			}
-		}
+	if sortBy != "" && isAllowedField(sortBy, allowedFields...) {
+		field = sortBy
 	}
 
-	// 2. 处理排序方向(标准化为大写)
-	direction := defaultDirection
-	// 只有当字段有效时,才处理自定义的排序方向
-	if fieldValid && sortOrder != "" {
-		upperOrder := ""
-		for _, ch := range sortOrder {
-			if ch >= 'a' && ch <= 'z' {
-				upperOrder += string(ch - 32)
-			} else if ch >= 'A' && ch <= 'Z' {
-				upperOrder += string(ch)
-			}
-		}
-		if upperOrder == "ASC" || upperOrder == "DESC" {
-			direction = upperOrder
-		}
-	}
+	// 2. 确定排序方向（标准化为大写）
+	direction := normalizeDirection(sortOrder, defaultDirection)
 
 	// 3. 添加排序
 	q.AddOrder(field, direction)
 	return q
+}
+
+// isAllowedField 检查字段是否允许排序
+func isAllowedField(field string, allowedFields ...[]string) bool {
+	// 如果提供了白名单，检查字段是否在白名单中
+	if len(allowedFields) > 0 && len(allowedFields[0]) > 0 {
+		for _, allowedField := range allowedFields[0] {
+			if field == allowedField {
+				return true
+			}
+		}
+		return false
+	}
+	// 没有白名单，验证字段名是否安全
+	return isSafeFieldName(field)
 }
 
 // isSafeFieldName 检查字段名是否安全(仅包含字母、数字、下划线、点号)
@@ -370,6 +457,20 @@ func isSafeFieldName(field string) bool {
 		}
 	}
 	return true
+}
+
+// normalizeDirection 标准化排序方向为大写的 ASC 或 DESC
+func normalizeDirection(direction, defaultDirection string) string {
+	if direction == "" {
+		return defaultDirection
+	}
+	// 转换为大写
+	upper := strings.ToUpper(direction)
+	// 验证是否为有效的排序方向
+	if upper == "ASC" || upper == "DESC" {
+		return upper
+	}
+	return defaultDirection
 }
 
 // AddEqual 添加等于条件
