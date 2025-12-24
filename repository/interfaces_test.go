@@ -192,16 +192,6 @@ func TestNewEndsWithFilter(t *testing.T) {
 	assert.Equal(t, "%@example.com", filter.Value, "值应为 '%@example.com'")
 }
 
-// TestNewContainsFilter 测试包含匹配过滤器创建
-func TestNewContainsFilter(t *testing.T) {
-	filter := NewContainsFilter("description", "keyword")
-
-	assert.NotNil(t, filter, "过滤器不应为空")
-	assert.Equal(t, "description", filter.Field, "字段名应为 'description'")
-	assert.Equal(t, constants.OP_LIKE, filter.Operator, "操作符应为 constants.OP_LIKE")
-	assert.Equal(t, "%keyword%", filter.Value, "值应为 '%keyword%'")
-}
-
 // TestNewNotLikeFilter 测试NOT LIKE过滤器创建
 func TestNewNotLikeFilter(t *testing.T) {
 	filter := NewNotLikeFilter("content", "spam")
@@ -433,13 +423,9 @@ func TestQueryWithDistinct(t *testing.T) {
 	query := NewQuery()
 
 	// 设置去重
-	result := query.WithDistinct(true)
+	result := query.WithDistinct()
 	assert.Same(t, query, result, "应返回自身以支持链式调用")
 	assert.True(t, query.Distinct, "去重标记应为 true")
-
-	// 取消去重
-	query.WithDistinct(false)
-	assert.False(t, query.Distinct, "去重标记应为 false")
 }
 
 // TestQueryAddGroupBy 测试查询添加分组字段
@@ -773,7 +759,7 @@ func TestApplyQueryWithComplexConditions(t *testing.T) {
 	query.Offset(offset)
 
 	// 添加去重
-	query.WithDistinct(true)
+	query.WithDistinct()
 
 	// 添加分组
 	query.AddGroupBy("status", "age")
@@ -973,7 +959,7 @@ func TestQueryBuilderChaining(t *testing.T) {
 		AddFilter(NewGtFilter("age", 18)).
 		AddOrder("name", "ASC").
 		WithPaging(1, 10).
-		WithDistinct(true).
+		WithDistinct().
 		AddGroupBy("status").
 		AddHaving(NewGtFilter("COUNT(*)", 0))
 

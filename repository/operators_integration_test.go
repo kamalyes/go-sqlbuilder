@@ -11,9 +11,10 @@
 package repository
 
 import (
+	"testing"
+
 	"github.com/kamalyes/go-sqlbuilder/constants"
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 // TestNewOperatorsIntegration 测试新增操作符的集成
@@ -29,12 +30,6 @@ func TestNewOperatorsIntegration(t *testing.T) {
 	assert.Equal(t, "email", filter.Field)
 	assert.Equal(t, constants.OP_LIKE, filter.Operator)
 	assert.Equal(t, "%@example.com", filter.Value)
-
-	// 测试 NewContainsFilter
-	filter = NewContainsFilter("description", "keyword")
-	assert.Equal(t, "description", filter.Field)
-	assert.Equal(t, constants.OP_LIKE, filter.Operator)
-	assert.Equal(t, "%keyword%", filter.Value)
 }
 
 // TestBuildFilterConditionWithNewOperators 测试构建过滤条件的新操作符

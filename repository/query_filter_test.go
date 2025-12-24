@@ -702,25 +702,11 @@ func TestAddTimeRangeValidFilter(t *testing.T) {
 	t.Log("测试完成！")
 }
 
-func TestSetPagination(t *testing.T) {
-	query := NewQuery()
-
-	// 测试正常分页
-	result := query.SetPagination(2, 20)
-
-	assert.NotNil(t, result.Pagination)
-	assert.Equal(t, int32(2), result.Pagination.Page)
-	assert.Equal(t, int32(20), result.Pagination.PageSize)
-
-	// 测试链式调用
-	assert.Equal(t, query, result, "SetPagination should return the same Query instance for chaining")
-}
-
-func TestSetPaginationDefaultValues(t *testing.T) {
+func TestWithPagingDefaultValues(t *testing.T) {
 	query := NewQuery()
 
 	// 测试零值或负值的处理
-	query.SetPagination(0, 0)
+	query.WithPaging(0, 0)
 
 	assert.NotNil(t, query.Pagination)
 	assert.Equal(t, int32(1), query.Pagination.Page, "Page should default to 1 when <= 0")
@@ -728,7 +714,7 @@ func TestSetPaginationDefaultValues(t *testing.T) {
 
 	// 测试负值
 	query2 := NewQuery()
-	query2.SetPagination(-5, -10)
+	query2.WithPaging(-5, -10)
 
 	assert.Equal(t, int32(1), query2.Pagination.Page, "Page should default to 1 when negative")
 	assert.Equal(t, int32(10), query2.Pagination.PageSize, "PageSize should default to 10 when negative")
@@ -780,13 +766,13 @@ func TestAddRawOrderMultipleOrders(t *testing.T) {
 	assert.Equal(t, "ASC", query.Orders[2].Direction)
 }
 
-func TestSetPaginationIntegrationWithOtherMethods(t *testing.T) {
+func TestWithPaginationIntegrationWithOtherMethods(t *testing.T) {
 	query := NewQuery()
 
 	// 测试与其他方法的集成
 	result := query.
 		AddFilter(NewEqFilter("status", "active")).
-		SetPagination(3, 25).
+		WithPaging(3, 25).
 		AddRawOrder("created_at DESC").
 		AddOrder("name", "ASC")
 
@@ -1001,25 +987,6 @@ func TestSpecialOperators(t *testing.T) {
 	})
 }
 
-// TestQueryAddEqFilterIfNotEmpty 测试 AddEqFilterIfNotEmpty 方法
-func TestQueryAddEqFilterIfNotEmpty(t *testing.T) {
-	t.Run("非空值", func(t *testing.T) {
-		query := NewQuery().AddEqFilterIfNotEmpty("name", "John")
-		assert.Equal(t, 1, len(query.Filters))
-		assert.Equal(t, constants.OP_EQ, query.Filters[0].Operator)
-	})
-
-	t.Run("空字符串", func(t *testing.T) {
-		query := NewQuery().AddEqFilterIfNotEmpty("name", "")
-		assert.Equal(t, 0, len(query.Filters))
-	})
-
-	t.Run("nil值", func(t *testing.T) {
-		query := NewQuery().AddEqFilterIfNotEmpty("name", nil)
-		assert.Equal(t, 0, len(query.Filters))
-	})
-}
-
 // TestQueryAddNeqFilterIfNotEmpty 测试 AddNeqFilterIfNotEmpty 方法
 func TestQueryAddNeqFilterIfNotEmpty(t *testing.T) {
 	t.Run("非空值", func(t *testing.T) {
@@ -1153,20 +1120,6 @@ func TestQueryAddEndsWithFilterIfNotEmpty(t *testing.T) {
 
 	t.Run("空字符串", func(t *testing.T) {
 		query := NewQuery().AddEndsWithFilterIfNotEmpty("email", "")
-		assert.Equal(t, 0, len(query.Filters))
-	})
-}
-
-// TestQueryAddContainsFilterIfNotEmpty 测试 AddContainsFilterIfNotEmpty 方法
-func TestQueryAddContainsFilterIfNotEmpty(t *testing.T) {
-	t.Run("非空值", func(t *testing.T) {
-		query := NewQuery().AddContainsFilterIfNotEmpty("description", "test")
-		assert.Equal(t, 1, len(query.Filters))
-		assert.Equal(t, constants.OP_CONTAINS, query.Filters[0].Operator)
-	})
-
-	t.Run("空字符串", func(t *testing.T) {
-		query := NewQuery().AddContainsFilterIfNotEmpty("description", "")
 		assert.Equal(t, 0, len(query.Filters))
 	})
 }
@@ -1318,13 +1271,6 @@ func TestFilterGroupHelperMethods(t *testing.T) {
 		group.AddEndsWithFilterIfNotEmpty("email", "@example.com")
 		assert.Equal(t, 1, len(group.Filters))
 		assert.Equal(t, constants.OP_ENDS_WITH, group.Filters[0].Operator)
-	})
-
-	t.Run("AddContainsFilterIfNotEmpty", func(t *testing.T) {
-		group := NewFilterGroup(constants.LOGIC_AND)
-		group.AddContainsFilterIfNotEmpty("description", "test")
-		assert.Equal(t, 1, len(group.Filters))
-		assert.Equal(t, constants.OP_CONTAINS, group.Filters[0].Operator)
 	})
 
 	t.Run("AddNotLikeFilterIfNotEmpty", func(t *testing.T) {

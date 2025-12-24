@@ -2117,7 +2117,7 @@ func TestBaseRepositoryListAdvanced(t *testing.T) {
 	}
 
 	// 测试带去重的查询
-	query := NewQuery().WithDistinct(true)
+	query := NewQuery().WithDistinct()
 	query.AddFilter(&Filter{Field: "status", Operator: constants.OP_EQ, Value: "active"})
 	results, err := repo.List(context.Background(), query)
 	assert.NoError(t, err)
@@ -3408,14 +3408,6 @@ func TestExtractColumnName(t *testing.T) {
 	}
 }
 
-// TestSelectOnlyMethod 测试SelectOnly便捷方法
-func TestSelectOnlyMethod(t *testing.T) {
-	query := NewQuery().SelectOnly("id")
-
-	assert.Equal(t, 1, len(query.SelectFields), "应只有1个字段")
-	assert.Equal(t, "id", query.SelectFields[0], "字段应为id")
-}
-
 // TestCoverageBooster 提升覆盖率的综合测试
 func TestCoverageBooster(t *testing.T) {
 	gormDB, err := setupTestDB()
@@ -3441,7 +3433,7 @@ func TestCoverageBooster(t *testing.T) {
 	}{
 		{
 			"Select单字段",
-			NewQuery().SelectOnly("name"),
+			NewQuery().Select("name"),
 		},
 		{
 			"Select多字段",
@@ -7290,4 +7282,984 @@ func TestBaseRepositoryDeleteByFiltersWithCountNoFilters(t *testing.T) {
 	count, err := repo.DeleteByFiltersWithCount(ctx)
 	assert.Error(t, err, "无过滤条件应返回错误")
 	assert.Equal(t, int64(0), count)
+}
+
+// ========== buildFiltersFromArgs 测试 ==========
+
+// TestBuildFiltersFromArgsDefaultMode 测试默认等于操作符模式
+func TestBuildFiltersFromArgsDefaultMode(t *testing.T) {
+	gormDB, err := setupTestDB()
+	require.NoError(t, err)
+
+	dbHandler := newTestDBHandler(gormDB)
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+
+	tests := []struct {
+		name      string
+		args      []interface{}
+		wantLen   int
+		wantErr   bool
+		checkFunc func(*testing.T, []*Filter)
+	}{
+		{
+			name:    "空参数",
+			args:    []interface{}{},
+			wantLen: 0,
+			wantErr: false,
+		},
+		{
+			name:    "单个字段值对",
+			args:    []interface{}{"name", "Alice"},
+			wantLen: 1,
+			wantErr: false,
+			checkFunc: func(t *testing.T, filters []*Filter) {
+				assert.Equal(t, "name", filters[0].Field)
+				assert.Equal(t, constants.OP_EQ, filters[0].Operator)
+				assert.Equal(t, "Alice", filters[0].Value)
+			},
+		},
+		{
+			name:    "多个字段值对",
+			args:    []interface{}{"name", "Bob", "age", 25, "status", "active"},
+			wantLen: 3,
+			wantErr: false,
+			checkFunc: func(t *testing.T, filters []*Filter) {
+				assert.Equal(t, "name", filters[0].Field)
+				assert.Equal(t, constants.OP_EQ, filters[0].Operator)
+				assert.Equal(t, "Bob", filters[0].Value)
+
+				assert.Equal(t, "age", filters[1].Field)
+				assert.Equal(t, constants.OP_EQ, filters[1].Operator)
+				assert.Equal(t, 25, filters[1].Value)
+
+				assert.Equal(t, "status", filters[2].Field)
+				assert.Equal(t, constants.OP_EQ, filters[2].Operator)
+				assert.Equal(t, "active", filters[2].Value)
+			},
+		},
+		{
+			name:    "参数数量不是2的倍数",
+			args:    []interface{}{"name", "Alice", "age"},
+			wantLen: 0,
+			wantErr: true,
+		},
+		{
+			name:    "字段名不是字符串",
+			args:    []interface{}{123, "value"},
+			wantLen: 0,
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			filters, err := repo.buildFiltersFromArgs(tt.args, false)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+
+			assert.NoError(t, err)
+			assert.Equal(t, tt.wantLen, len(filters))
+
+			if tt.checkFunc != nil {
+				tt.checkFunc(t, filters)
+			}
+		})
+	}
+}
+
+// TestBuildFiltersFromArgsOperatorMode 测试自定义操作符模式
+func TestBuildFiltersFromArgsOperatorMode(t *testing.T) {
+	gormDB, err := setupTestDB()
+	require.NoError(t, err)
+
+	dbHandler := newTestDBHandler(gormDB)
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+
+	tests := []struct {
+		name      string
+		args      []interface{}
+		wantLen   int
+		wantErr   bool
+		checkFunc func(*testing.T, []*Filter)
+	}{
+		{
+			name:    "空参数",
+			args:    []interface{}{},
+			wantLen: 0,
+			wantErr: false,
+		},
+		{
+			name:    "单个字段-操作符-值组",
+			args:    []interface{}{"age", constants.OP_GT, 18},
+			wantLen: 1,
+			wantErr: false,
+			checkFunc: func(t *testing.T, filters []*Filter) {
+				assert.Equal(t, "age", filters[0].Field)
+				assert.Equal(t, constants.OP_GT, filters[0].Operator)
+				assert.Equal(t, 18, filters[0].Value)
+			},
+		},
+		{
+			name: "多个字段-操作符-值组",
+			args: []interface{}{
+				"age", constants.OP_GTE, 20,
+				"status", constants.OP_EQ, "active",
+				"name", constants.OP_LIKE, "%Alice%",
+			},
+			wantLen: 3,
+			wantErr: false,
+			checkFunc: func(t *testing.T, filters []*Filter) {
+				assert.Equal(t, "age", filters[0].Field)
+				assert.Equal(t, constants.OP_GTE, filters[0].Operator)
+				assert.Equal(t, 20, filters[0].Value)
+
+				assert.Equal(t, "status", filters[1].Field)
+				assert.Equal(t, constants.OP_EQ, filters[1].Operator)
+				assert.Equal(t, "active", filters[1].Value)
+
+				assert.Equal(t, "name", filters[2].Field)
+				assert.Equal(t, constants.OP_LIKE, filters[2].Operator)
+				assert.Equal(t, "%Alice%", filters[2].Value)
+			},
+		},
+		{
+			name:    "参数数量不是3的倍数",
+			args:    []interface{}{"age", constants.OP_GT},
+			wantLen: 0,
+			wantErr: true,
+		},
+		{
+			name:    "字段名不是字符串",
+			args:    []interface{}{123, constants.OP_EQ, "value"},
+			wantLen: 0,
+			wantErr: true,
+		},
+		{
+			name:    "操作符不是Operator类型",
+			args:    []interface{}{"age", "not_operator", 18},
+			wantLen: 0,
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			filters, err := repo.buildFiltersFromArgs(tt.args, true)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+
+			assert.NoError(t, err)
+			assert.Equal(t, tt.wantLen, len(filters))
+
+			if tt.checkFunc != nil {
+				tt.checkFunc(t, filters)
+			}
+		})
+	}
+}
+
+// ========== FindWhere / FindWhereOp 测试 ==========
+
+// TestFindWhere 测试简化条件查询
+func TestFindWhere(t *testing.T) {
+	gormDB, err := setupTestDB()
+	require.NoError(t, err)
+
+	dbHandler := newTestDBHandler(gormDB)
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	ctx := context.Background()
+
+	// 准备测试数据
+	users := []*TestUser{
+		{Name: "Alice", Email: "alice@test.com", Age: 25, Status: "active"},
+		{Name: "Bob", Email: "bob@test.com", Age: 30, Status: "active"},
+		{Name: "Charlie", Email: "charlie@test.com", Age: 35, Status: "inactive"},
+	}
+	err = repo.CreateBatch(ctx, users...)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name      string
+		args      []interface{}
+		wantCount int
+		wantErr   bool
+	}{
+		{
+			name:      "单个条件查询",
+			args:      []interface{}{"status", "active"},
+			wantCount: 2,
+			wantErr:   false,
+		},
+		{
+			name:      "多个条件查询",
+			args:      []interface{}{"status", "active", "age", 25},
+			wantCount: 1,
+			wantErr:   false,
+		},
+		{
+			name:      "查询不存在的记录",
+			args:      []interface{}{"status", "deleted"},
+			wantCount: 0,
+			wantErr:   false,
+		},
+		{
+			name:      "参数数量错误",
+			args:      []interface{}{"status"},
+			wantCount: 0,
+			wantErr:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			results, err := repo.FindWhere(ctx, tt.args...)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+
+			assert.NoError(t, err)
+			assert.Equal(t, tt.wantCount, len(results))
+		})
+	}
+}
+
+// TestFindWhereOp 测试带操作符的条件查询
+func TestFindWhereOp(t *testing.T) {
+	gormDB, err := setupTestDB()
+	require.NoError(t, err)
+
+	dbHandler := newTestDBHandler(gormDB)
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	ctx := context.Background()
+
+	// 准备测试数据
+	users := []*TestUser{
+		{Name: "Alice", Email: "alice@test.com", Age: 20, Status: "active"},
+		{Name: "Bob", Email: "bob@test.com", Age: 25, Status: "active"},
+		{Name: "Charlie", Email: "charlie@test.com", Age: 30, Status: "inactive"},
+		{Name: "David", Email: "david@test.com", Age: 35, Status: "active"},
+	}
+	err = repo.CreateBatch(ctx, users...)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name      string
+		args      []interface{}
+		wantCount int
+		wantErr   bool
+	}{
+		{
+			name:      "大于操作符",
+			args:      []interface{}{"age", constants.OP_GT, 25},
+			wantCount: 2,
+			wantErr:   false,
+		},
+		{
+			name:      "大于等于操作符",
+			args:      []interface{}{"age", constants.OP_GTE, 25},
+			wantCount: 3,
+			wantErr:   false,
+		},
+		{
+			name:      "小于操作符",
+			args:      []interface{}{"age", constants.OP_LT, 30},
+			wantCount: 2,
+			wantErr:   false,
+		},
+		{
+			name: "多个操作符组合",
+			args: []interface{}{
+				"age", constants.OP_GTE, 25,
+				"status", constants.OP_EQ, "active",
+			},
+			wantCount: 2,
+			wantErr:   false,
+		},
+		{
+			name:      "参数数量错误",
+			args:      []interface{}{"age", constants.OP_GT},
+			wantCount: 0,
+			wantErr:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			results, err := repo.FindWhereOp(ctx, tt.args...)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+
+			assert.NoError(t, err)
+			assert.Equal(t, tt.wantCount, len(results))
+		})
+	}
+}
+
+// ========== FindOneWhere / FindOneWhereOp 测试 ==========
+
+// TestFindOneWhere 测试简化单条查询
+func TestFindOneWhere(t *testing.T) {
+	gormDB, err := setupTestDB()
+	require.NoError(t, err)
+
+	dbHandler := newTestDBHandler(gormDB)
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	ctx := context.Background()
+
+	// 准备测试数据
+	user := &TestUser{Name: "Alice", Email: "alice@test.com", Age: 25, Status: "active"}
+	_, err = repo.Create(ctx, user)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name     string
+		args     []interface{}
+		wantName string
+		wantErr  bool
+	}{
+		{
+			name:     "通过email查询",
+			args:     []interface{}{"email", "alice@test.com"},
+			wantName: "Alice",
+			wantErr:  false,
+		},
+		{
+			name:     "通过多个字段查询",
+			args:     []interface{}{"name", "Alice", "status", "active"},
+			wantName: "Alice",
+			wantErr:  false,
+		},
+		{
+			name:     "查询不存在的记录",
+			args:     []interface{}{"email", "notexist@test.com"},
+			wantName: "",
+			wantErr:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := repo.FindOneWhere(ctx, tt.args...)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+
+			assert.NoError(t, err)
+			assert.NotNil(t, result)
+			assert.Equal(t, tt.wantName, result.Name)
+		})
+	}
+}
+
+// TestFindOneWhereOp 测试带操作符的单条查询
+func TestFindOneWhereOp(t *testing.T) {
+	gormDB, err := setupTestDB()
+	require.NoError(t, err)
+
+	dbHandler := newTestDBHandler(gormDB)
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	ctx := context.Background()
+
+	// 准备测试数据
+	users := []*TestUser{
+		{Name: "Alice", Email: "alice@test.com", Age: 20, Status: "active"},
+		{Name: "Bob", Email: "bob@test.com", Age: 30, Status: "active"},
+	}
+	err = repo.CreateBatch(ctx, users...)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name    string
+		args    []interface{}
+		wantAge int
+		wantErr bool
+	}{
+		{
+			name:    "大于操作符",
+			args:    []interface{}{"age", constants.OP_GT, 25},
+			wantAge: 30,
+			wantErr: false,
+		},
+		{
+			name: "多个操作符组合",
+			args: []interface{}{
+				"age", constants.OP_LT, 25,
+				"status", constants.OP_EQ, "active",
+			},
+			wantAge: 20,
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := repo.FindOneWhereOp(ctx, tt.args...)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+
+			assert.NoError(t, err)
+			assert.NotNil(t, result)
+			assert.Equal(t, tt.wantAge, result.Age)
+		})
+	}
+}
+
+// ========== Paginate / PaginateOp 测试 ==========
+
+// TestPaginate 测试简化分页查询
+func TestPaginate(t *testing.T) {
+	gormDB, err := setupTestDB()
+	require.NoError(t, err)
+
+	dbHandler := newTestDBHandler(gormDB)
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	ctx := context.Background()
+
+	// 准备测试数据 (10条记录)
+	users := make([]*TestUser, 10)
+	for i := 0; i < 10; i++ {
+		users[i] = &TestUser{
+			Name:   fmt.Sprintf("User%d", i+1),
+			Email:  fmt.Sprintf("user%d@test.com", i+1),
+			Age:    20 + i,
+			Status: "active",
+		}
+	}
+	err = repo.CreateBatch(ctx, users...)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name         string
+		page         int32
+		pageSize     int32
+		args         []interface{}
+		wantCount    int
+		wantTotal    int64
+		wantPageSize int32
+	}{
+		{
+			name:         "第1页，每页5条",
+			page:         1,
+			pageSize:     5,
+			args:         []interface{}{"status", "active"},
+			wantCount:    5,
+			wantTotal:    10,
+			wantPageSize: 5,
+		},
+		{
+			name:         "第2页，每页5条",
+			page:         2,
+			pageSize:     5,
+			args:         []interface{}{"status", "active"},
+			wantCount:    5,
+			wantTotal:    10,
+			wantPageSize: 5,
+		},
+		{
+			name:         "第3页，每页5条(超出范围)",
+			page:         3,
+			pageSize:     5,
+			args:         []interface{}{"status", "active"},
+			wantCount:    0,
+			wantTotal:    10,
+			wantPageSize: 5,
+		},
+		{
+			name:         "全部数据",
+			page:         1,
+			pageSize:     20,
+			args:         []interface{}{"status", "active"},
+			wantCount:    10,
+			wantTotal:    10,
+			wantPageSize: 20,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			results, pagination, err := repo.Paginate(ctx, tt.page, tt.pageSize, tt.args...)
+
+			assert.NoError(t, err)
+			assert.Equal(t, tt.wantCount, len(results))
+			assert.Equal(t, tt.wantTotal, pagination.Total)
+			assert.Equal(t, tt.wantPageSize, pagination.PageSize)
+		})
+	}
+}
+
+// TestPaginateOp 测试带操作符的分页查询
+func TestPaginateOp(t *testing.T) {
+	gormDB, err := setupTestDB()
+	require.NoError(t, err)
+
+	dbHandler := newTestDBHandler(gormDB)
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	ctx := context.Background()
+
+	// 准备测试数据
+	users := make([]*TestUser, 10)
+	for i := 0; i < 10; i++ {
+		users[i] = &TestUser{
+			Name:   fmt.Sprintf("User%d", i+1),
+			Email:  fmt.Sprintf("user%d@test.com", i+1),
+			Age:    20 + i,
+			Status: "active",
+		}
+	}
+	err = repo.CreateBatch(ctx, users...)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name      string
+		page      int32
+		pageSize  int32
+		args      []interface{}
+		wantCount int
+		wantTotal int64
+	}{
+		{
+			name:      "年龄大于25",
+			page:      1,
+			pageSize:  5,
+			args:      []interface{}{"age", constants.OP_GT, 25},
+			wantCount: 4,
+			wantTotal: 4,
+		},
+		{
+			name:     "年龄范围查询",
+			page:     1,
+			pageSize: 10,
+			args: []interface{}{
+				"age", constants.OP_GTE, 22,
+				"age", constants.OP_LTE, 26,
+			},
+			wantCount: 5,
+			wantTotal: 5,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			results, pagination, err := repo.PaginateOp(ctx, tt.page, tt.pageSize, tt.args...)
+
+			assert.NoError(t, err)
+			assert.Equal(t, tt.wantCount, len(results))
+			assert.Equal(t, tt.wantTotal, pagination.Total)
+		})
+	}
+}
+
+// ========== CountWhere / CountWhereOp / ExistsWhere 测试 ==========
+
+// TestCountWhere 测试简化条件计数
+func TestCountWhere(t *testing.T) {
+	gormDB, err := setupTestDB()
+	require.NoError(t, err)
+
+	dbHandler := newTestDBHandler(gormDB)
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	ctx := context.Background()
+
+	// 准备测试数据
+	users := []*TestUser{
+		{Name: "Alice", Email: "alice@test.com", Age: 25, Status: "active"},
+		{Name: "Bob", Email: "bob@test.com", Age: 30, Status: "active"},
+		{Name: "Charlie", Email: "charlie@test.com", Age: 35, Status: "inactive"},
+	}
+	err = repo.CreateBatch(ctx, users...)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name      string
+		args      []interface{}
+		wantCount int64
+		wantErr   bool
+	}{
+		{
+			name:      "统计活跃用户",
+			args:      []interface{}{"status", "active"},
+			wantCount: 2,
+			wantErr:   false,
+		},
+		{
+			name:      "统计非活跃用户",
+			args:      []interface{}{"status", "inactive"},
+			wantCount: 1,
+			wantErr:   false,
+		},
+		{
+			name:      "多条件统计",
+			args:      []interface{}{"status", "active", "age", 25},
+			wantCount: 1,
+			wantErr:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			count, err := repo.CountWhere(ctx, tt.args...)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+
+			assert.NoError(t, err)
+			assert.Equal(t, tt.wantCount, count)
+		})
+	}
+}
+
+// TestCountWhereOp 测试带操作符的条件计数
+func TestCountWhereOp(t *testing.T) {
+	gormDB, err := setupTestDB()
+	require.NoError(t, err)
+
+	dbHandler := newTestDBHandler(gormDB)
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	ctx := context.Background()
+
+	// 准备测试数据
+	users := []*TestUser{
+		{Name: "Alice", Email: "alice@test.com", Age: 20, Status: "active"},
+		{Name: "Bob", Email: "bob@test.com", Age: 25, Status: "active"},
+		{Name: "Charlie", Email: "charlie@test.com", Age: 30, Status: "inactive"},
+		{Name: "David", Email: "david@test.com", Age: 35, Status: "active"},
+	}
+	err = repo.CreateBatch(ctx, users...)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name      string
+		args      []interface{}
+		wantCount int64
+		wantErr   bool
+	}{
+		{
+			name:      "年龄大于25",
+			args:      []interface{}{"age", constants.OP_GT, 25},
+			wantCount: 2,
+			wantErr:   false,
+		},
+		{
+			name:      "年龄大于等于25",
+			args:      []interface{}{"age", constants.OP_GTE, 25},
+			wantCount: 3,
+			wantErr:   false,
+		},
+		{
+			name: "组合条件",
+			args: []interface{}{
+				"age", constants.OP_GTE, 25,
+				"status", constants.OP_EQ, "active",
+			},
+			wantCount: 2,
+			wantErr:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			count, err := repo.CountWhereOp(ctx, tt.args...)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+
+			assert.NoError(t, err)
+			assert.Equal(t, tt.wantCount, count)
+		})
+	}
+}
+
+// TestExistsWhere 测试简化存在性检查
+func TestExistsWhere(t *testing.T) {
+	gormDB, err := setupTestDB()
+	require.NoError(t, err)
+
+	dbHandler := newTestDBHandler(gormDB)
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	ctx := context.Background()
+
+	// 准备测试数据
+	user := &TestUser{Name: "Alice", Email: "alice@test.com", Age: 25, Status: "active"}
+	_, err = repo.Create(ctx, user)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name       string
+		args       []interface{}
+		wantExists bool
+		wantErr    bool
+	}{
+		{
+			name:       "存在的记录",
+			args:       []interface{}{"email", "alice@test.com"},
+			wantExists: true,
+			wantErr:    false,
+		},
+		{
+			name:       "不存在的记录",
+			args:       []interface{}{"email", "notexist@test.com"},
+			wantExists: false,
+			wantErr:    false,
+		},
+		{
+			name:       "多条件存在性检查",
+			args:       []interface{}{"name", "Alice", "status", "active"},
+			wantExists: true,
+			wantErr:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			exists, err := repo.ExistsWhere(ctx, tt.args...)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+
+			assert.NoError(t, err)
+			assert.Equal(t, tt.wantExists, exists)
+		})
+	}
+}
+
+// ========== DeleteWhere / DeleteWhereOp 测试 ==========
+
+// TestDeleteWhere 测试简化条件删除
+func TestDeleteWhere(t *testing.T) {
+	gormDB, err := setupTestDB()
+	require.NoError(t, err)
+
+	dbHandler := newTestDBHandler(gormDB)
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	ctx := context.Background()
+
+	// 准备测试数据
+	users := []*TestUser{
+		{Name: "Alice", Email: "alice@test.com", Age: 25, Status: "active"},
+		{Name: "Bob", Email: "bob@test.com", Age: 30, Status: "active"},
+		{Name: "Charlie", Email: "charlie@test.com", Age: 35, Status: "inactive"},
+	}
+	err = repo.CreateBatch(ctx, users...)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name          string
+		args          []interface{}
+		wantRemaining int64
+		wantErr       bool
+	}{
+		{
+			name:          "删除非活跃用户",
+			args:          []interface{}{"status", "inactive"},
+			wantRemaining: 2,
+			wantErr:       false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := repo.DeleteWhere(ctx, tt.args...)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+
+			assert.NoError(t, err)
+
+			// 验证剩余记录
+			count, err := repo.Count(ctx)
+			assert.NoError(t, err)
+			assert.Equal(t, tt.wantRemaining, count)
+		})
+	}
+}
+
+// TestDeleteWhereOp 测试带操作符的条件删除
+func TestDeleteWhereOp(t *testing.T) {
+	gormDB, err := setupTestDB()
+	require.NoError(t, err)
+
+	dbHandler := newTestDBHandler(gormDB)
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	ctx := context.Background()
+
+	// 准备测试数据
+	users := []*TestUser{
+		{Name: "Alice", Email: "alice@test.com", Age: 20, Status: "active"},
+		{Name: "Bob", Email: "bob@test.com", Age: 25, Status: "active"},
+		{Name: "Charlie", Email: "charlie@test.com", Age: 30, Status: "active"},
+		{Name: "David", Email: "david@test.com", Age: 35, Status: "active"},
+	}
+	err = repo.CreateBatch(ctx, users...)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name          string
+		args          []interface{}
+		wantRemaining int64
+		wantErr       bool
+	}{
+		{
+			name:          "删除年龄小于25的用户",
+			args:          []interface{}{"age", constants.OP_LT, 25},
+			wantRemaining: 3,
+			wantErr:       false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := repo.DeleteWhereOp(ctx, tt.args...)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+
+			assert.NoError(t, err)
+
+			// 验证剩余记录
+			count, err := repo.Count(ctx)
+			assert.NoError(t, err)
+			assert.Equal(t, tt.wantRemaining, count)
+		})
+	}
+}
+
+// ========== UpdateWhere / UpdateWhereOp 测试 ==========
+
+// TestUpdateWhere 测试简化条件更新
+func TestUpdateWhere(t *testing.T) {
+	gormDB, err := setupTestDB()
+	require.NoError(t, err)
+
+	dbHandler := newTestDBHandler(gormDB)
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	ctx := context.Background()
+
+	// 准备测试数据
+	users := []*TestUser{
+		{Name: "Alice", Email: "alice@test.com", Age: 25, Status: "active"},
+		{Name: "Bob", Email: "bob@test.com", Age: 30, Status: "active"},
+		{Name: "Charlie", Email: "charlie@test.com", Age: 35, Status: "inactive"},
+	}
+	err = repo.CreateBatch(ctx, users...)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name    string
+		updates map[string]interface{}
+		args    []interface{}
+		wantErr bool
+		verify  func(*testing.T, *BaseRepository[TestUser])
+	}{
+		{
+			name:    "更新活跃用户状态",
+			updates: map[string]interface{}{"status": "pending"},
+			args:    []interface{}{"status", "active"},
+			wantErr: false,
+			verify: func(t *testing.T, repo *BaseRepository[TestUser]) {
+				count, err := repo.CountWhere(ctx, "status", "pending")
+				assert.NoError(t, err)
+				assert.Equal(t, int64(2), count)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := repo.UpdateWhere(ctx, tt.updates, tt.args...)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+
+			assert.NoError(t, err)
+
+			if tt.verify != nil {
+				tt.verify(t, repo)
+			}
+		})
+	}
+}
+
+// TestUpdateWhereOp 测试带操作符的条件更新
+func TestUpdateWhereOp(t *testing.T) {
+	gormDB, err := setupTestDB()
+	require.NoError(t, err)
+
+	dbHandler := newTestDBHandler(gormDB)
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	ctx := context.Background()
+
+	// 准备测试数据
+	users := []*TestUser{
+		{Name: "Alice", Email: "alice@test.com", Age: 20, Status: "active"},
+		{Name: "Bob", Email: "bob@test.com", Age: 25, Status: "active"},
+		{Name: "Charlie", Email: "charlie@test.com", Age: 30, Status: "active"},
+		{Name: "David", Email: "david@test.com", Age: 35, Status: "active"},
+	}
+	err = repo.CreateBatch(ctx, users...)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name    string
+		updates map[string]interface{}
+		args    []interface{}
+		wantErr bool
+		verify  func(*testing.T, *BaseRepository[TestUser])
+	}{
+		{
+			name:    "更新年龄大于25的用户状态",
+			updates: map[string]interface{}{"status": "senior"},
+			args:    []interface{}{"age", constants.OP_GT, 25},
+			wantErr: false,
+			verify: func(t *testing.T, repo *BaseRepository[TestUser]) {
+				count, err := repo.CountWhere(ctx, "status", "senior")
+				assert.NoError(t, err)
+				assert.Equal(t, int64(2), count)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := repo.UpdateWhereOp(ctx, tt.updates, tt.args...)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+
+			assert.NoError(t, err)
+
+			if tt.verify != nil {
+				tt.verify(t, repo)
+			}
+		})
+	}
 }

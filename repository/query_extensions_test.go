@@ -11,10 +11,11 @@
 package repository
 
 import (
-	"github.com/kamalyes/go-sqlbuilder/constants"
-	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
+
+	"github.com/kamalyes/go-sqlbuilder/constants"
+	"github.com/stretchr/testify/assert"
 )
 
 // =============== 基础条件构建方法测试 ===============
@@ -418,19 +419,19 @@ func TestAddThisYear(t *testing.T) {
 
 // =============== 简化方法测试 ===============
 
-// TestSetDistinct 测试设置去重
-func TestSetDistinct(t *testing.T) {
+// TestWithDistinct 测试设置去重
+func TestWithDistinct(t *testing.T) {
 	query := NewQuery()
-	result := query.SetDistinct()
+	result := query.WithDistinct()
 
 	assert.Equal(t, query, result, "应该返回同一个查询对象")
 	assert.True(t, query.Distinct, "应该设置为去重")
 }
 
-// TestPage 测试设置分页
-func TestPage(t *testing.T) {
+// TestWithPaging 测试设置分页
+func TestWithPaging(t *testing.T) {
 	query := NewQuery()
-	result := query.Page(2, 20)
+	result := query.WithPaging(2, 20)
 
 	assert.Equal(t, query, result, "应该返回同一个查询对象")
 	assert.NotNil(t, query.Pagination)
@@ -439,25 +440,25 @@ func TestPage(t *testing.T) {
 
 	// 测试边界情况
 	query = NewQuery()
-	query.Page(0, -5) // 无效值应该被修正
+	query.WithPaging(0, -5) // 无效值应该被修正
 	assert.Equal(t, int32(1), query.Pagination.Page)
 	assert.Equal(t, int32(10), query.Pagination.PageSize)
 }
 
-// TestTake 测试设置限制数量
-func TestTake(t *testing.T) {
+// TestLimit 测试设置限制数量
+func TestLimit(t *testing.T) {
 	query := NewQuery()
-	result := query.Take(10)
+	result := query.Limit(10)
 
 	assert.Equal(t, query, result, "应该返回同一个查询对象")
 	assert.NotNil(t, query.LimitValue)
 	assert.Equal(t, 10, *query.LimitValue)
 }
 
-// TestSkip 测试设置跳过数量
-func TestSkip(t *testing.T) {
+// TestOffset 测试设置跳过数量
+func TestOffset(t *testing.T) {
 	query := NewQuery()
-	result := query.Skip(20)
+	result := query.Offset(20)
 
 	assert.Equal(t, query, result, "应该返回同一个查询对象")
 	assert.NotNil(t, query.OffsetValue)
@@ -511,10 +512,10 @@ func TestChainedCalls_SortingAndPaging(t *testing.T) {
 		AddEqual("status", 1).
 		AddOrderAsc("name").
 		AddOrderDesc("created_at").
-		SetDistinct().
-		Page(1, 20).
-		Take(100).
-		Skip(50)
+		WithDistinct().
+		WithPaging(1, 20).
+		Limit(100).
+		Offset(50)
 
 	assert.Equal(t, 1, len(query.Filters))
 	assert.Equal(t, 2, len(query.Orders))
@@ -540,7 +541,7 @@ func TestChainedCalls_ComplexQuery(t *testing.T) {
 		AddIsNotNull("email").
 		AddOrderDesc("created_at").
 		AddOrderAsc("amount").
-		Page(1, 50)
+		WithPaging(1, 50)
 
 	assert.Equal(t, 7, len(query.Filters), "应该添加7个过滤条件")
 	assert.Equal(t, 2, len(query.Orders), "应该添加2个排序条件")
@@ -616,10 +617,10 @@ func TestMethodReturnValues(t *testing.T) {
 	assert.Equal(t, query, query.AddThisWeek("u"))
 	assert.Equal(t, query, query.AddThisMonth("v"))
 	assert.Equal(t, query, query.AddThisYear("w"))
-	assert.Equal(t, query, query.SetDistinct())
-	assert.Equal(t, query, query.Page(1, 10))
-	assert.Equal(t, query, query.Take(50))
-	assert.Equal(t, query, query.Skip(100))
+	assert.Equal(t, query, query.WithDistinct())
+	assert.Equal(t, query, query.WithPaging(1, 10))
+	assert.Equal(t, query, query.Limit(50))
+	assert.Equal(t, query, query.Offset(100))
 }
 
 // =============== 性能测试 ===============
@@ -663,7 +664,7 @@ func TestRealWorldScenario(t *testing.T) {
 		AddNotIn("payment_method", "cash_on_delivery", "check"). // 排除支付方式
 		AddOrderDesc("created_at").                              // 按创建时间降序
 		AddOrderAsc("amount").                                   // 按金额升序
-		Page(1, 20)                                              // 分页
+		WithPaging(1, 20)                                        // 分页
 
 	// 验证查询条件数量
 	expectedFilters := 10 // AddTimeBetween 添加2个条件，其他8个方法各1个：8+2=10

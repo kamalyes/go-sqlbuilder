@@ -11,10 +11,11 @@
 package repository
 
 import (
-	"github.com/kamalyes/go-sqlbuilder/constants"
-	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
+
+	"github.com/kamalyes/go-sqlbuilder/constants"
+	"github.com/stretchr/testify/assert"
 )
 
 // TestPagination_GetOffset 测试 Pagination GetOffset 方法
@@ -58,23 +59,23 @@ func TestPagination_GetLimit(t *testing.T) {
 func TestPagination_GetTotalPages(t *testing.T) {
 	// 测试正常分页
 	page1 := &Pagination{Total: 100, PageSize: 10}
-	assert.Equal(t, int64(10), page1.GetTotalPages())
+	assert.Equal(t, int32(10), page1.GetTotalPages())
 
 	page2 := &Pagination{Total: 95, PageSize: 10}
-	assert.Equal(t, int64(10), page2.GetTotalPages()) // 向上取整
+	assert.Equal(t, int32(10), page2.GetTotalPages()) // 向上取整
 
 	page3 := &Pagination{Total: 91, PageSize: 10}
-	assert.Equal(t, int64(10), page3.GetTotalPages())
+	assert.Equal(t, int32(10), page3.GetTotalPages())
 
 	page4 := &Pagination{Total: 0, PageSize: 10}
-	assert.Equal(t, int64(0), page4.GetTotalPages())
+	assert.Equal(t, int32(0), page4.GetTotalPages())
 
 	// 测试边界情况
 	pageZero := &Pagination{Total: 100, PageSize: 0}
-	assert.Equal(t, int64(0), pageZero.GetTotalPages()) // PageSize<=0 返回 0
+	assert.Equal(t, int32(0), pageZero.GetTotalPages()) // PageSize<=0 返回 0
 
 	pageNegative := &Pagination{Total: 100, PageSize: -10}
-	assert.Equal(t, int64(0), pageNegative.GetTotalPages()) // PageSize<=0 返回 0
+	assert.Equal(t, int32(0), pageNegative.GetTotalPages()) // PageSize<=0 返回 0
 }
 
 func TestGetOffset(t *testing.T) {
@@ -108,10 +109,10 @@ func TestGetLimit(t *testing.T) {
 
 func TestGetTotalPages(t *testing.T) {
 	p := &Pagination{Total: 100, PageSize: 10}
-	assert.Equal(t, int64(10), p.GetTotalPages())
+	assert.Equal(t, int32(10), p.GetTotalPages())
 
 	p.PageSize = 0
-	assert.Equal(t, int64(0), p.GetTotalPages()) // PageSize <= 0 应返回 0
+	assert.Equal(t, int32(0), p.GetTotalPages()) // PageSize <= 0 应返回 0
 }
 
 func TestHasNextPage(t *testing.T) {

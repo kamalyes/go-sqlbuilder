@@ -22,6 +22,8 @@ import (
 	"github.com/kamalyes/go-sqlbuilder/db"
 	"github.com/kamalyes/go-sqlbuilder/errors"
 	"github.com/kamalyes/go-toolbox/pkg/errorx"
+	"github.com/kamalyes/go-toolbox/pkg/mathx"
+	"github.com/kamalyes/go-toolbox/pkg/types"
 	"gorm.io/gorm"
 )
 
@@ -261,7 +263,237 @@ func (r *BaseRepository[T]) resetAutoUpdateTime(entity *T) {
 	}
 }
 
+// buildFiltersFromArgs 从可变参数构建过滤器
+// 支持两种格式：
+// 1. 默认等于操作符："field1", value1, "field2", value2
+// 2. 自定义操作符："field1", operator1, value1, "field2", operator2, value2
+// 参数 useOperator 为 true 时启用自定义操作符模式（每3个参数为一组）
+func (r *BaseRepository[T]) buildFiltersFromArgs(args []interface{}, useOperator bool) ([]*Filter, error) {
+	// 根据模式确定参数步长
+	step := mathx.IF(useOperator, 3, 2)
+
+	// 检查参数数量
+	if len(args)%step != 0 {
+		return nil, errorx.NewError(errors.ErrorCodeInvalidInput)
+	}
+
+	// 初始化过滤器列表
+	filters := make([]*Filter, 0, len(args)/step)
+
+	// 统一循环处理参数
+	for i := 0; i < len(args); i += step {
+		// 提取字段名
+		field, ok := args[i].(string)
+		if !ok {
+			return nil, errorx.NewError(errors.ErrorCodeInvalidInput)
+		}
+
+		// 提取操作符和值
+		var operator constants.Operator
+		var value interface{}
+
+		if useOperator {
+			op, ok := args[i+1].(constants.Operator)
+			if !ok {
+				return nil, errorx.NewError(errors.ErrorCodeInvalidInput)
+			}
+			operator = op
+			value = args[i+2]
+		} else {
+			operator = constants.OP_EQ
+			value = args[i+1]
+		}
+
+		// 统一创建过滤器
+		filters = append(filters, NewFilter(field, operator, value))
+	}
+
+	return filters, nil
+}
+
 // ========== CRUD 操作 ==========
+
+// Save 智能保存：自动判断是创建还是更新
+// 如果实体有主键值则更新，否则创建
+func (r *BaseRepository[T]) Save(ctx context.Context, entity *T) (*T, error) {
+	if err := r.checkReadOnly(); err != nil {
+		return nil, err
+	}
+	if err := r.checkEntity(entity); err != nil {
+		return nil, err
+	}
+
+	// 检查主键是否有值
+	entityValue := reflect.ValueOf(entity).Elem()
+	hasID := false
+
+	for _, idx := range r.primaryKeyIndexes {
+		pkField := entityValue.Field(idx)
+		if !pkField.IsZero() {
+			hasID = true
+			break
+		}
+	}
+
+	// 有主键值则更新，否则创建
+	if hasID {
+		return r.Update(ctx, entity)
+	}
+	return r.Create(ctx, entity)
+}
+
+// FindWhere 简化的条件查询（接受字段名和值）
+// 示例: FindWhere(ctx, "status", "active", "age", 18)
+func (r *BaseRepository[T]) FindWhere(ctx context.Context, args ...interface{}) ([]*T, error) {
+	filters, err := r.buildFiltersFromArgs(args, false)
+	if err != nil {
+		return nil, err
+	}
+	query := NewQuery().AddFilters(filters...)
+	return r.List(ctx, query)
+}
+
+// FindWhereOp 带操作符的条件查询
+// 示例: FindWhereOp(ctx, "age", constants.OP_GT, 18, "status", constants.OP_EQ, "active")
+func (r *BaseRepository[T]) FindWhereOp(ctx context.Context, args ...interface{}) ([]*T, error) {
+	filters, err := r.buildFiltersFromArgs(args, true)
+	if err != nil {
+		return nil, err
+	}
+	query := NewQuery().AddFilters(filters...)
+	return r.List(ctx, query)
+}
+
+// FindOneWhere 简化的单条查询
+// 示例: FindOneWhere(ctx, "email", "user@example.com")
+func (r *BaseRepository[T]) FindOneWhere(ctx context.Context, args ...interface{}) (*T, error) {
+	filters, err := r.buildFiltersFromArgs(args, false)
+	if err != nil {
+		return nil, err
+	}
+	return r.GetByFilters(ctx, filters...)
+}
+
+// FindOneWhereOp 带操作符的单条查询
+// 示例: FindOneWhereOp(ctx, "age", constants.OP_GT, 18)
+func (r *BaseRepository[T]) FindOneWhereOp(ctx context.Context, args ...interface{}) (*T, error) {
+	filters, err := r.buildFiltersFromArgs(args, true)
+	if err != nil {
+		return nil, err
+	}
+	return r.GetByFilters(ctx, filters...)
+}
+
+// Paginate 简化的分页查询（只需传页码和每页数量）
+// 示例: Paginate(ctx, 1, 20, "status", "active")
+func (r *BaseRepository[T]) Paginate(ctx context.Context, page, pageSize int32, args ...interface{}) ([]*T, *Pagination, error) {
+	filters, err := r.buildFiltersFromArgs(args, false)
+	if err != nil {
+		return nil, nil, err
+	}
+	query := NewQuery().AddFilters(filters...)
+	pagination := &Pagination{
+		Page:     page,
+		PageSize: pageSize,
+	}
+	return r.ListWithPagination(ctx, query, pagination)
+}
+
+// PaginateOp 带操作符的分页查询
+// 示例: PaginateOp(ctx, 1, 20, "age", constants.OP_GT, 18)
+func (r *BaseRepository[T]) PaginateOp(ctx context.Context, page, pageSize int32, args ...interface{}) ([]*T, *Pagination, error) {
+	filters, err := r.buildFiltersFromArgs(args, true)
+	if err != nil {
+		return nil, nil, err
+	}
+	query := NewQuery().AddFilters(filters...)
+	pagination := &Pagination{
+		Page:     page,
+		PageSize: pageSize,
+	}
+	return r.ListWithPagination(ctx, query, pagination)
+}
+
+// DeleteWhere 简化的条件删除
+// 示例: DeleteWhere(ctx, "status", "inactive")
+func (r *BaseRepository[T]) DeleteWhere(ctx context.Context, args ...interface{}) error {
+	if err := r.checkReadOnly(); err != nil {
+		return err
+	}
+	filters, err := r.buildFiltersFromArgs(args, false)
+	if err != nil {
+		return err
+	}
+	return r.DeleteByFilters(ctx, filters...)
+}
+
+// DeleteWhereOp 带操作符的条件删除
+// 示例: DeleteWhereOp(ctx, "age", constants.OP_LT, 18)
+func (r *BaseRepository[T]) DeleteWhereOp(ctx context.Context, args ...interface{}) error {
+	if err := r.checkReadOnly(); err != nil {
+		return err
+	}
+	filters, err := r.buildFiltersFromArgs(args, true)
+	if err != nil {
+		return err
+	}
+	return r.DeleteByFilters(ctx, filters...)
+}
+
+// UpdateWhere 简化的条件更新
+// 示例: UpdateWhere(ctx, map[string]interface{}{"status": "active"}, "id", 1)
+func (r *BaseRepository[T]) UpdateWhere(ctx context.Context, updates map[string]interface{}, args ...interface{}) error {
+	if err := r.checkReadOnly(); err != nil {
+		return err
+	}
+	filters, err := r.buildFiltersFromArgs(args, false)
+	if err != nil {
+		return err
+	}
+	return r.UpdateFieldsByFilters(ctx, updates, filters...)
+}
+
+// UpdateWhereOp 带操作符的条件更新
+// 示例: UpdateWhereOp(ctx, map[string]interface{}{"status": "active"}, "age", constants.OP_GT, 18)
+func (r *BaseRepository[T]) UpdateWhereOp(ctx context.Context, updates map[string]interface{}, args ...interface{}) error {
+	if err := r.checkReadOnly(); err != nil {
+		return err
+	}
+	filters, err := r.buildFiltersFromArgs(args, true)
+	if err != nil {
+		return err
+	}
+	return r.UpdateFieldsByFilters(ctx, updates, filters...)
+}
+
+// CountWhere 简化的条件计数
+// 示例: CountWhere(ctx, "status", "active")
+func (r *BaseRepository[T]) CountWhere(ctx context.Context, args ...interface{}) (int64, error) {
+	filters, err := r.buildFiltersFromArgs(args, false)
+	if err != nil {
+		return 0, err
+	}
+	return r.Count(ctx, filters...)
+}
+
+// CountWhereOp 带操作符的条件计数
+// 示例: CountWhereOp(ctx, "age", constants.OP_GT, 18)
+func (r *BaseRepository[T]) CountWhereOp(ctx context.Context, args ...interface{}) (int64, error) {
+	filters, err := r.buildFiltersFromArgs(args, true)
+	if err != nil {
+		return 0, err
+	}
+	return r.Count(ctx, filters...)
+}
+
+// ExistsWhere 简化的存在性检查
+// 示例: ExistsWhere(ctx, "email", "user@example.com")
+func (r *BaseRepository[T]) ExistsWhere(ctx context.Context, args ...interface{}) (bool, error) {
+	count, err := r.CountWhere(ctx, args...)
+	return count > 0, err
+}
+
+// ========== 原有 CRUD 方法 ==========
 
 // Create 创建单个记录
 func (r *BaseRepository[T]) Create(ctx context.Context, entity *T) (*T, error) {
@@ -539,32 +771,22 @@ func (r *BaseRepository[T]) ListWithPreloads(ctx context.Context, query *Query, 
 	return entities, nil
 }
 
-// ListWithPagination 分页列表查询
-func (r *BaseRepository[T]) ListWithPagination(ctx context.Context, query *Query, page *Pagination) ([]*T, *Pagination, error) {
+// ListWithPagination 分页列表查询（泛型版本，支持任意整数类型的分页参数）
+func ListWithPaginationT[T any, P types.Integer](r *BaseRepository[T], ctx context.Context, query *Query, page *PaginationT[P]) ([]*T, *PaginationT[P], error) {
 	if query == nil {
 		query = NewQuery()
 	}
 
 	if page == nil {
-		page = &Pagination{
-			Page:     constants.DefaultPage,
-			PageSize: constants.DefaultPageSize,
+		page = &PaginationT[P]{
+			Page:     P(constants.DefaultPage),
+			PageSize: P(constants.DefaultPageSize),
 		}
 	}
 
-	// 参数校验和安全限制
-	if page.Page <= 0 {
-		page.Page = constants.DefaultPage
-	}
-	if page.PageSize <= 0 {
-		page.PageSize = constants.DefaultPageSize
-	}
-	if page.PageSize < constants.MinPageSize {
-		page.PageSize = constants.MinPageSize
-	}
-	if page.PageSize > constants.MaxPageSize {
-		page.PageSize = constants.MaxPageSize
-	}
+	// 参数校验和安全限制 - 使用泛型方法
+	page.Page = mathx.IF(page.Page <= 0, P(constants.DefaultPage), page.Page)
+	page.PageSize = mathx.IfDefaultAndClamp(page.PageSize, P(constants.DefaultPageSize), P(constants.MinPageSize), P(constants.MaxPageSize))
 
 	var entities []*T
 	db := r.db.GetDB().WithContext(ctx).Table(r.table)
@@ -598,6 +820,16 @@ func (r *BaseRepository[T]) ListWithPagination(ctx context.Context, query *Query
 	}
 
 	return entities, page, nil
+}
+
+// ListWithPagination 分页列表查询
+func (r *BaseRepository[T]) ListWithPagination(ctx context.Context, query *Query, page *Pagination) ([]*T, *Pagination, error) {
+	return ListWithPaginationT(r, ctx, query, page)
+}
+
+// ListWithPagination64 分页列表查询（int64 版本，用于需要大数值的场景）
+func (r *BaseRepository[T]) ListWithPagination64(ctx context.Context, query *Query, page *Pagination64) ([]*T, *Pagination64, error) {
+	return ListWithPaginationT(r, ctx, query, page)
 }
 
 // Find 通用查询方法，兼容旧的API调用方式

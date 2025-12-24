@@ -18,6 +18,7 @@ import (
 
 	"github.com/kamalyes/go-sqlbuilder/constants"
 	"github.com/kamalyes/go-toolbox/pkg/convert"
+	"github.com/kamalyes/go-toolbox/pkg/mathx"
 	"github.com/kamalyes/go-toolbox/pkg/stringx"
 	"github.com/kamalyes/go-toolbox/pkg/validator"
 )
@@ -91,23 +92,12 @@ func (q *Query) AddOrder(field, direction string) *Query {
 }
 
 // WithPaging 设置分页条件
-func (q *Query) WithPaging(page, pageSize int) *Query {
-	if page <= 0 {
-		page = 1
-	}
-	if pageSize <= 0 {
-		pageSize = 10
-	}
+func (q *Query) WithPaging(page, pageSize int32) *Query {
 	q.Pagination = &Pagination{
-		Page:     int32(page),
-		PageSize: int32(pageSize),
+		Page:     mathx.IF(page <= 0, constants.DefaultPage, page),
+		PageSize: mathx.IF(pageSize <= 0, constants.DefaultPageSize, pageSize),
 	}
 	return q
-}
-
-// SetPagination 设置分页条件 - WithPaging 的别名，提供更直观的API
-func (q *Query) SetPagination(page, pageSize int) *Query {
-	return q.WithPaging(page, pageSize)
 }
 
 // Limit 设置查询限制数量
@@ -129,8 +119,8 @@ func (q *Query) WithFilterGroup(group *FilterGroup) *Query {
 }
 
 // WithDistinct 设置去重查询
-func (q *Query) WithDistinct(distinct bool) *Query {
-	q.Distinct = distinct
+func (q *Query) WithDistinct() *Query {
+	q.Distinct = true
 	return q
 }
 
@@ -278,11 +268,6 @@ func (q *Query) AddInFilterIfNotEmpty(field string, values interface{}) *Query {
 	return q
 }
 
-// AddEqFilterIfNotEmpty 添加等于过滤条件（仅当值不为空时）
-func (q *Query) AddEqFilterIfNotEmpty(field string, value interface{}) *Query {
-	return q.AddFilterIfNotEmpty(field, value)
-}
-
 // AddNeqFilterIfNotEmpty 添加不等于过滤条件（仅当值不为空时）
 func (q *Query) AddNeqFilterIfNotEmpty(field string, value interface{}) *Query {
 	if !validator.IsEmptyValue(reflect.ValueOf(value)) {
@@ -358,11 +343,6 @@ func (q *Query) AddEndsWithFilterIfNotEmpty(field, value string) *Query {
 	return q
 }
 
-// AddContainsFilterIfNotEmpty 添加包含匹配过滤条件（仅当值不为空时）
-func (q *Query) AddContainsFilterIfNotEmpty(field, value string) *Query {
-	return q.AddLikeFilterIfNotEmpty(field, value)
-}
-
 // AddNotLikeFilterIfNotEmpty 添加 NOT LIKE 过滤条件（仅当值不为空时）
 func (q *Query) AddNotLikeFilterIfNotEmpty(field, value string) *Query {
 	if !validator.IsEmptyValue(reflect.ValueOf(value)) {
@@ -417,7 +397,7 @@ func (q *Query) AddNotEqual(field string, value interface{}) *Query {
 // AddLike 添加LIKE条件（包含匹配）
 func (q *Query) AddLike(field, keyword string) *Query {
 	if keyword != "" {
-		return q.AddFilter(NewContainsFilter(field, keyword))
+		return q.AddFilter(NewLikeFilter(field, keyword))
 	}
 	return q
 }
@@ -575,26 +555,6 @@ func (q *Query) AddThisYear(field string) *Query {
 	return q.AddBetween(field, start, end)
 }
 
-// SetDistinct 设置去重（简化版）
-func (q *Query) SetDistinct() *Query {
-	return q.WithDistinct(true)
-}
-
-// Page 设置分页（简化版）
-func (q *Query) Page(page, pageSize int) *Query {
-	return q.WithPaging(page, pageSize)
-}
-
-// Take 设置限制数量（简化版，相当于Limit）
-func (q *Query) Take(limit int) *Query {
-	return q.Limit(limit)
-}
-
-// Skip 设置跳过数量（简化版，相当于Offset）
-func (q *Query) Skip(offset int) *Query {
-	return q.Offset(offset)
-}
-
 // Select 指定要查询的字段
 // 示例: query.Select("id", "name", "email")
 func (q *Query) Select(fields ...string) *Query {
@@ -611,11 +571,6 @@ func (q *Query) Omit(fields ...string) *Query {
 		q.OmitFields = fields
 	}
 	return q
-}
-
-// SelectOnly 只查询指定的单个字段（便捷方法）
-func (q *Query) SelectOnly(field string) *Query {
-	return q.Select(field)
 }
 
 // OmitSensitive 排除敏感字段的便捷方法

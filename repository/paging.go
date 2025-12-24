@@ -14,58 +14,52 @@ import (
 	"time"
 
 	"github.com/kamalyes/go-sqlbuilder/constants"
+	"github.com/kamalyes/go-toolbox/pkg/mathx"
+	"github.com/kamalyes/go-toolbox/pkg/types"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-// Pagination 分页元数据
-type Pagination struct {
-	Page     int32 `json:"page"`      // 当前页码（从1开始）
-	PageSize int32 `json:"page_size"` // 每页记录数
-	Offset   int32 `json:"offset"`    // 数据库偏移量
-	Limit    int32 `json:"limit"`     // 查询限制数
-	Total    int64 `json:"total"`     // 总记录数
+// PaginationT 泛型分页元数据
+type PaginationT[T types.Integer] struct {
+	Page     T     `json:"page"`      // 当前页码（从1开始）
+	PageSize T     `json:"page_size"` // 每页记录数
+	Total    int64 `json:"total"`     // 总记录数（固定 int64 以支持大数据量）
 }
 
+// Pagination 默认分页类型
+type Pagination = PaginationT[int32]
+
+// Pagination64 int64 版本的分页类型（用于需要大数值的场景）
+type Pagination64 = PaginationT[int64]
+
 // GetOffset 计算数据库偏移量
-func (p *Pagination) GetOffset() int {
-	if p.Page <= 0 {
-		p.Page = constants.DefaultPage
-	}
+func (p *PaginationT[T]) GetOffset() int {
+	p.Page = mathx.IF(p.Page <= 0, T(constants.DefaultPage), p.Page)
 	return int((p.Page - 1) * p.PageSize)
 }
 
 // GetLimit 获取查询限制数（自动应用默认值和最大值限制）
-func (p *Pagination) GetLimit() int {
-	// 应用默认值
-	if p.PageSize <= 0 {
-		p.PageSize = constants.DefaultPageSize
-	}
-	// 应用最小值限制
-	if p.PageSize < constants.MinPageSize {
-		p.PageSize = constants.MinPageSize
-	}
-	// 应用最大值限制
-	if p.PageSize > constants.MaxPageSize {
-		p.PageSize = constants.MaxPageSize
-	}
+func (p *PaginationT[T]) GetLimit() int {
+	// 应用默认值和范围限制
+	p.PageSize = mathx.IfDefaultAndClamp(p.PageSize, T(constants.DefaultPageSize), T(constants.MinPageSize), T(constants.MaxPageSize))
 	return int(p.PageSize)
 }
 
 // GetTotalPages 计算总页数
-func (p *Pagination) GetTotalPages() int64 {
+func (p *PaginationT[T]) GetTotalPages() T {
 	if p.PageSize <= 0 {
 		return 0
 	}
-	return (p.Total + int64(p.PageSize) - 1) / int64(p.PageSize)
+	return T((p.Total + int64(p.PageSize) - 1) / int64(p.PageSize))
 }
 
 // HasNextPage 是否有下一页
-func (p *Pagination) HasNextPage() bool {
-	return p.Page < int32(p.GetTotalPages())
+func (p *PaginationT[T]) HasNextPage() bool {
+	return p.Page < p.GetTotalPages()
 }
 
 // HasPrevPage 是否有上一页
-func (p *Pagination) HasPrevPage() bool {
+func (p *PaginationT[T]) HasPrevPage() bool {
 	return p.Page > 1
 }
 
