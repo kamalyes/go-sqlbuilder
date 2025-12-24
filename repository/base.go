@@ -700,6 +700,32 @@ func (r *BaseRepository[T]) DeleteByFilters(ctx context.Context, filters ...*Fil
 	return ApplyFilters(r.newDB(ctx), filters).Delete(new(T)).Error
 }
 
+// DeleteByFiltersWithCount 按过滤条件删除记录并返回删除数量
+// 这是一个高效的方法，先COUNT再DELETE，避免查询所有记录
+func (r *BaseRepository[T]) DeleteByFiltersWithCount(ctx context.Context, filters ...*Filter) (int64, error) {
+	if len(filters) == 0 {
+		return 0, errorx.NewError(errors.ErrorCodeInvalidInput)
+	}
+
+	// 先计数
+	count, err := r.Count(ctx, filters...)
+	if err != nil {
+		return 0, r.handleErrorWithContext(ctx, err, "count before delete")
+	}
+
+	// 如果没有记录，直接返回
+	if count == 0 {
+		return 0, nil
+	}
+
+	// 执行删除
+	if err := ApplyFilters(r.newDB(ctx), filters).Delete(new(T)).Error; err != nil {
+		return 0, r.handleErrorWithContext(ctx, err, "delete with count")
+	}
+
+	return count, nil
+}
+
 // Transaction 事务支持
 func (r *BaseRepository[T]) Transaction(ctx context.Context, fn func(tx Transaction[T]) error) error {
 	return r.db.GetDB().WithContext(ctx).Transaction(func(tx *gorm.DB) error {

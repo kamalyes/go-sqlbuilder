@@ -7198,3 +7198,96 @@ func BenchmarkRefactoredFilterMethods(b *testing.B) {
 		}
 	})
 }
+
+// TestBaseRepositoryDeleteByFiltersWithCount 测试按过滤条件删除并返回数量
+func TestBaseRepositoryDeleteByFiltersWithCount(t *testing.T) {
+	gormDB, err := setupTestDB()
+	assert.NoError(t, err)
+
+	dbHandler := newTestDBHandler(gormDB)
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+
+	ctx := context.Background()
+
+	// 创建用户
+	users := []*TestUser{
+		{Name: "User1", Email: "user1@example.com", Age: 25, Status: "active"},
+		{Name: "User2", Email: "user2@example.com", Age: 30, Status: "active"},
+		{Name: "User3", Email: "user3@example.com", Age: 35, Status: "inactive"},
+	}
+	err = repo.CreateBatch(ctx, users...)
+	assert.NoError(t, err)
+
+	// 按过滤器删除所有活跃用户并返回数量
+	count, err := repo.DeleteByFiltersWithCount(ctx, NewEqFilter("status", "active"))
+	assert.NoError(t, err, "按过滤器删除不应出错")
+	assert.Equal(t, int64(2), count, "应删除 2 个活跃用户")
+
+	// 验证删除
+	remaining, err := repo.GetAll(ctx)
+	assert.NoError(t, err)
+	assert.Len(t, remaining, 1, "应保留 1 个用户")
+	assert.Equal(t, "inactive", remaining[0].Status, "应保留非活跃用户")
+}
+
+// TestBaseRepositoryDeleteByFiltersWithCountNoMatch 测试删除不存在的记录
+func TestBaseRepositoryDeleteByFiltersWithCountNoMatch(t *testing.T) {
+	gormDB, err := setupTestDB()
+	assert.NoError(t, err)
+
+	dbHandler := newTestDBHandler(gormDB)
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+
+	ctx := context.Background()
+
+	// 删除不存在的记录
+	count, err := repo.DeleteByFiltersWithCount(ctx, NewEqFilter("status", "nonexistent"))
+	assert.NoError(t, err, "删除不存在记录不应出错")
+	assert.Equal(t, int64(0), count, "不存在的记录应返回 0")
+}
+
+// TestBaseRepositoryDeleteByFiltersWithCountMultiple 测试多条件删除
+func TestBaseRepositoryDeleteByFiltersWithCountMultiple(t *testing.T) {
+	gormDB, err := setupTestDB()
+	assert.NoError(t, err)
+
+	dbHandler := newTestDBHandler(gormDB)
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+
+	ctx := context.Background()
+
+	// 创建用户
+	users := []*TestUser{
+		{Name: "User1", Email: "user1@example.com", Age: 20, Status: "active"},
+		{Name: "User2", Email: "user2@example.com", Age: 25, Status: "active"},
+		{Name: "User3", Email: "user3@example.com", Age: 30, Status: "inactive"},
+	}
+	err = repo.CreateBatch(ctx, users...)
+	assert.NoError(t, err)
+
+	// 删除 status=active 且 age>=20 的记录
+	count, err := repo.DeleteByFiltersWithCount(ctx, NewEqFilter("status", "active"), NewGteFilter("age", 20))
+	assert.NoError(t, err)
+	assert.Equal(t, int64(2), count, "应删除 2 个用户")
+
+	// 验证剩余记录
+	remaining, err := repo.Count(ctx, NewEqFilter("status", "active"))
+	assert.NoError(t, err)
+	assert.Equal(t, int64(0), remaining, "活跃用户应为 0")
+}
+
+// TestBaseRepositoryDeleteByFiltersWithCountNoFilters 测试无过滤条件应返回错误
+func TestBaseRepositoryDeleteByFiltersWithCountNoFilters(t *testing.T) {
+	gormDB, err := setupTestDB()
+	assert.NoError(t, err)
+
+	dbHandler := newTestDBHandler(gormDB)
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+
+	ctx := context.Background()
+
+	// 无过滤条件删除应返回错误
+	count, err := repo.DeleteByFiltersWithCount(ctx)
+	assert.Error(t, err, "无过滤条件应返回错误")
+	assert.Equal(t, int64(0), count)
+}
