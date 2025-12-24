@@ -80,9 +80,150 @@ mainGroup := repository.NewFilterGroup(constants.AND_AND).
     AddFilter(repository.NewEqFilter("status", "active"))
 ```
 
+### 动态条件构建方法 🔥
+
+#### AddFilterIfNotEmpty - 值非空时添加
+
+仅当值不为零值时才添加过滤条件，避免添加无效筛选
+
+```go
+group := repository.NewFilterGroup(constants.AND_AND).
+    AddFilterIfNotEmpty("name", constants.OP_EQ, name).
+    AddFilterIfNotEmpty("status", constants.OP_LIKE, keyword)
+```
+
+#### IfNotEmpty 系列便捷方法
+
+```go
+group := repository.NewFilterGroup(constants.AND_AND).
+    AddEqFilterIfNotEmpty("status", status).              // 等于
+    AddNeqFilterIfNotEmpty("type", excludeType).          // 不等于
+    AddGtFilterIfNotEmpty("age", minAge).                 // 大于
+    AddGteFilterIfNotEmpty("score", minScore).            // 大于等于
+    AddLtFilterIfNotEmpty("price", maxPrice).             // 小于
+    AddLteFilterIfNotEmpty("quantity", maxQty).           // 小于等于
+    AddLikeFilterIfNotEmpty("name", keyword).             // 模糊匹配
+    AddInFilterIfNotEmpty("category", categories).        // IN 查询
+    AddNotInFilterIfNotEmpty("tag", excludeTags).         // NOT IN
+    AddBetweenFilterIfNotEmpty("created_at", start, end). // 范围
+    AddStartsWithFilterIfNotEmpty("code", prefix).        // 前缀
+    AddEndsWithFilterIfNotEmpty("email", domain).         // 后缀
+    AddNotLikeFilterIfNotEmpty("desc", excludeWord).      // NOT LIKE
+    AddFindInSetFilterIfNotEmpty("tags", tag)             // FIND_IN_SET
+```
+
+**使用示例：**
+
+```go
+// 动态搜索表单 - 只添加用户填写的字段
+func buildSearchFilters(params SearchParams) *repository.FilterGroup {
+    group := repository.NewFilterGroup(constants.AND_AND)
+    
+    group.AddEqFilterIfNotEmpty("category", params.Category).
+          AddLikeFilterIfNotEmpty("name", params.Keyword).
+          AddBetweenFilterIfNotEmpty("price", params.MinPrice, params.MaxPrice).
+          AddInFilterIfNotEmpty("status", params.StatusList)
+    
+    return group
+}
+```
+
+### 条件控制方法
+
+#### AddFilterIf - 条件为真时添加
+
+根据布尔条件决定是否添加过滤器
+
+```go
+isVIP := user.VIPLevel > 0
+showPrivate := user.HasPermission("view_private")
+
+group := repository.NewFilterGroup(constants.AND_AND).
+    AddFilterIf(isVIP, repository.NewGteFilter("discount", 0.8)).
+    AddFilterIf(showPrivate, repository.NewEqFilter("visibility", "private"))
+```
+
+#### AddGroupIf - 条件为真时添加子组
+
+```go
+hasAdvancedFilter := len(advancedFilters) > 0
+
+mainGroup := repository.NewFilterGroup(constants.AND_AND).
+    AddFilter(repository.NewEqFilter("status", "active")).
+    AddGroupIf(hasAdvancedFilter, advancedGroup)
+```
+
+#### AddGroupIfNotEmpty - 子组非空时添加
+
+仅当子组包含过滤条件时才添加
+
+```go
+statusGroup := buildStatusFilters(params)
+timeGroup := buildTimeFilters(params)
+
+mainGroup := repository.NewFilterGroup(constants.AND_AND).
+    AddGroupIfNotEmpty(statusGroup).  // 只有 statusGroup 有条件时才添加
+    AddGroupIfNotEmpty(timeGroup)     // 只有 timeGroup 有条件时才添加
+```
+
+### 工具方法
+
+#### IsEmpty - 检查是否为空
+
+```go
+group := repository.NewFilterGroup(constants.AND_AND)
+
+if group.IsEmpty() {
+    // 没有任何条件，可能需要返回全部数据或设置默认条件
+    return repo.GetAll(ctx)
+}
+```
+
+#### Count - 统计条件总数
+
+递归统计所有过滤条件（包括嵌套子组）
+
+```go
+group := repository.NewFilterGroup(constants.AND_AND).
+    AddFilter(repository.NewEqFilter("status", "active")).
+    AddGroup(subGroup)
+
+total := group.Count()
+fmt.Printf("总共 %d 个过滤条件（包括嵌套）\n", total)
+```
+
+#### Clear - 清空所有条件
+
+```go
+group := repository.NewFilterGroup(constants.AND_AND).
+    AddFilter(repository.NewEqFilter("status", "active")).
+    AddFilter(repository.NewGtFilter("age", 18))
+
+// 清空重新构建
+group.Clear().
+    AddFilter(repository.NewEqFilter("status", "inactive"))
+```
+
+#### Clone - 深拷贝条件组
+
+创建完全独立的副本，用于复用查询模板
+
+```go
+// 创建查询模板
+template := repository.NewFilterGroup(constants.AND_AND).
+    AddEqFilter("status", "active").
+    AddIsNotNullFilter("email").
+    AddGteFilter("created_at", baseTime)
+
+// 复用模板，添加不同条件
+userQuery := template.Clone().AddEqFilter("role", "user")
+adminQuery := template.Clone().AddEqFilter("role", "admin")
+vipQuery := template.Clone().AddGtFilter("vip_level", 0)
+```
+
 ### Apply
 
-FilterGroup 应用GORM 查询
+FilterGroup 应用到 GORM 查询
 
 ```go
 db := handler.GetDB()
@@ -351,7 +492,7 @@ mainGroup := repository.NewFilterGroup(constants.AND_AND).
 
 1. **索引优化**：确保过滤字段有索引
 2. **避免过深嵌套**：通常 3 层以内最
-3. **优先过滤数据量大的条*：将选择性高的条件放在前
+3. **优先过滤数据量大的条**：将选择性高的条件放在前
 4. **合理使用 OR**：OR 可能导致索引失效，考虑使用 UNION
 
 ## 调试技

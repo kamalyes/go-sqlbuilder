@@ -12,9 +12,9 @@
 |:-----|:-----|:----:|
 | 🚀 **仓储模式** | 泛型 BaseRepository 和 EnhancedRepository，类型安全的 CRUD | [📘 快速开始](docs/QUICKSTART.md) |
 | 🔍 **高级查询** | FilterGroup 支持复杂 AND/OR 条件组合和无限嵌套 | [📙 高级查询](docs/ADVANCED-QUERIES.md) |
-| 🎯 **类型安全** | 完全的泛型支持，编译时类型检查 | [📗 Repository 基础](docs/REPOSITORY-BASICS.md) |
+| 🎯 **类型安全** | 完全的泛型支持，编译时类型检查 | [📗 CRUD 操作](docs/CRUD-OPERATIONS.md) |
 | ⚡ **自动字段选择** | 基于 struct tags 自动生成查询字段，避免 SELECT * | [⚡ 自动字段选择](docs/AUTO-FIELD-SELECTION.md) |
-| 🔗 **链式查询** | 便捷方法支持链式调用构建查询条件 | [🔥 便捷查询示例](docs/QUERY-EXAMPLES.md) |
+| 🔗 **便捷查询** | 简化的查询 API，支持链式调用 | [🔥 便捷查询方法](docs/CONVENIENCE-METHODS.md) |
 | 📊 **性能优化** | 批量操作、游标分页、原子字段更新、字段缓存 | [📓 EnhancedRepository](docs/ENHANCED-REPOSITORY.md) |
 | 🔐 **错误处理** | 集成 go-toolbox/errorx 的结构化错误管理 | [📒 错误处理](docs/ERROR-HANDLING.md) |
 | 📝 **审计追踪** | 内置审计字段（created_by, updated_by） | [📔 模型定义](docs/MODELS.md) |
@@ -22,6 +22,8 @@
 | 🔄 **上下文支持** | 超时控制、日志追踪、请求隔离 | [🔄 Context 使用指南](docs/CONTEXT-USAGE.md) |
 | 🎛️ **复杂条件** | FilterGroup 支持无限嵌套的条件组合 | [📕 FilterGroup 指南](docs/FILTERGROUP.md) |
 | 🚄 **并发统计** | 多表并发查询、时间分组统计、条件聚合 | [🚄 并发统计查询](docs/CONCURRENT-STATS.md) |
+
+> 📖 **完整文档**：查看 [文档中心](docs/README.md) 了解所有功能和学习路径
 
 ## 📦 安装
 
@@ -32,166 +34,45 @@ go get github.com/kamalyes/go-sqlbuilder
 ## 🚀 快速开始
 
 ```go
-package main
-
 import (
-    "context"
-    "log"
-    
     "github.com/kamalyes/go-sqlbuilder/db"
     "github.com/kamalyes/go-sqlbuilder/repository"
-    "github.com/kamalyes/go-logger"
-    "gorm.io/driver/mysql"
-    "gorm.io/gorm"
 )
 
+// 1. 定义模型
 type User struct {
     repository.BaseModel
-    Name   string ``gorm:"type:varchar(100)"``
-    Email  string ``gorm:"type:varchar(100);uniqueIndex"``
-    Age    int    ``gorm:"type:int"``
-    Status string ``gorm:"type:varchar(20)"``
+    Name  string `gorm:"type:varchar(100)"`
+    Email string `gorm:"type:varchar(100);uniqueIndex"`
 }
 
-func main() {
-    // 1. 连接数据库
-    dsn := "user:password@tcp(127.0.0.1:3306)/testdb?charset=utf8mb4&parseTime=True"
-    gormDB, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
-    if err != nil {
-        log.Fatal(err)
-    }
-    
-    // 2. 创建 Handler
-    handler, err := db.NewGormHandler(gormDB)
-    if err != nil {
-        log.Fatal(err)
-    }
-    
-    // 3. 创建 Repository
-    logger := logger.NewLogger(nil)
-    repo := repository.NewBaseRepository[User](handler, logger, "users")
-    
-    ctx := context.Background()
-    
-    // 4. 使用 Repository
-    user := &User{Name: "张三", Email: "zhangsan@example.com", Age: 25}
-    created, err := repo.Create(ctx, user)
-    user, err = repo.Get(ctx, 1)
-    user.Age = 26
-    updated, err := repo.Update(ctx, user)
-    err = repo.Delete(ctx, 1)
-}
-```
+// 2. 创建 Repository
+handler, _ := db.NewGormHandler(gormDB)
+repo := repository.NewBaseRepository[User](handler, logger, "users")
 
-## 📚 核心功能速览
-
-<details>
-<summary><b>🔧 BaseRepository - 完整 CRUD</b></summary>
-
-```go
-repo := repository.NewBaseRepository[User](handler, logger, "users",
-    repository.WithAutoFields[User](),  // 🔥 自动字段选择
-)
-
-// 创建
-user, err := repo.Create(ctx, &User{Name: "Alice"})
-err = repo.CreateBatch(ctx, users...)
-
-// 查询
-user, err := repo.Get(ctx, 1)
-users, paging, err := repo.ListWithPagination(ctx, query, paging)
-
-// 更新
-user, err := repo.Update(ctx, user)
-err = repo.UpdateFields(ctx, 1, map[string]interface{}{"age": 30})
-
-// 删除
+// 3. CRUD 操作
+user, err := repo.Create(ctx, &User{Name: "张三"})
+user, err = repo.Get(ctx, 1)
+user, err = repo.Update(ctx, user)
 err = repo.Delete(ctx, 1)
-err = repo.SoftDelete(ctx, 1, "deleted_at", time.Now())
 ```
 
-</details>
+> 💡 **详细教程**：查看 [📘 快速入门文档](docs/QUICKSTART.md) 了解完整的安装和使用步骤
 
-<details>
-<summary><b>🔗 链式查询构建</b></summary>
-
-```go
-query := repository.NewQuery().
-    AddEqual("status", 1).
-    AddLike("name", "test").
-    AddBetween("age", 18, 65).
-    AddOrderDesc("created_at").
-    Page(1, 20)
-
-users, err := repo.List(ctx, query)
-```
-
-| 传统方式 | 便捷方法 |
-|---------|----------|
-| ``AddFilter(NewEqFilter(...))`` | ``AddEqual("field", value)`` |
-| ``AddFilter(NewLikeFilter(...))`` | ``AddLike("field", "test")`` |
-| ``AddOrder("field", "DESC")`` | ``AddOrderDesc("field")`` |
-
-</details>
-
-<details>
-<summary><b>⚡ EnhancedRepository - 便利方法</b></summary>
+## 🏗️ 核心特性
 
 ```go
-enhanced := repository.NewEnhancedRepository[User](handler, logger, "users")
+// 内置模型：BaseModel、AuditModel
+type User struct { repository.BaseModel; Name string }
 
-users, err := enhanced.FindByField(ctx, "status", "active")
-err = enhanced.IncrementField(ctx, 1, "points", 10)  // 原子 +10
-err = enhanced.ToggleField(ctx, 1, "is_active")      // 切换布尔
-```
-
-</details>
-
-<details>
-<summary><b>🎛️ FilterGroup - 复杂查询</b></summary>
-
-```go
-// (status = 'active' OR status = 'trial') AND age > 18
-statusGroup := repository.NewFilterGroup(constants.AND_OR).
-    AddFilter(repository.NewEqFilter("status", "active")).
-    AddFilter(repository.NewEqFilter("status", "trial"))
-
-mainGroup := repository.NewFilterGroup(constants.AND_AND).
-    AddGroup(statusGroup).
-    AddFilter(repository.NewGtFilter("age", 18))
-
-query := repository.NewQuery().SetFilterGroup(mainGroup)
-```
-
-</details>
-
-## 🏗️ 内置模型
-
-```go
-// BaseModel - ID, CreatedAt, UpdatedAt, DeletedAt
-type User struct {
-    repository.BaseModel
-    Name string
-}
-
-// AuditModel - BaseModel + CreatedBy, UpdatedBy
-type Article struct {
-    repository.AuditModel
-    Title string
-}
-```
-
-## ⚙️ 配置选项
-
-```go
+// 配置选项：自动字段、批处理、超时、预加载等
 repo := repository.NewBaseRepository[User](handler, logger, "users",
-    repository.WithAutoFields[User](),                // 自动字段选择
-    repository.WithBatchSize[User](200),              // 批处理大小
-    repository.WithTimeout[User](60),                 // 超时时间
-    repository.WithDefaultPreloads[User]("Profile"),  // 默认预加载
-    repository.WithDefaultOrder[User]("id DESC"),     // 默认排序
+    repository.WithAutoFields[User](),
+    repository.WithBatchSize[User](200),
 )
 ```
+
+> 📖 **详细说明**：查看 [📔 模型定义](docs/MODELS.md) 和 [📘 快速入门](docs/QUICKSTART.md) 了解更多配置
 
 ## 🧪 测试
 
@@ -200,6 +81,13 @@ go test ./... -v                    # 运行所有测试
 go test ./... -cover                # 测试覆盖率
 go test -v -run TestBaseRepository  # 运行特定测试
 ```
+
+## 📚 相关资源
+
+- 📖 [完整文档中心](docs/README.md) - 所有功能文档和学习路径
+- 🐛 [问题反馈](https://github.com/kamalyes/go-sqlbuilder/issues) - 报告 bug 或提出建议
+- 📝 [更新日志](CHANGELOG.md) - 版本更新记录
+- 💬 [讨论区](https://github.com/kamalyes/go-sqlbuilder/discussions) - 技术交流
 
 ## 📦 依赖
 

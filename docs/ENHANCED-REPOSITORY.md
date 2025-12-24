@@ -409,6 +409,7 @@ enhanced.IncrementField(ctx, userID, "points", 10)
 
 ## 📚 相关文档
 
-- 📖 [Repository 基础](./REPOSITORY-BASICS.md) - BaseRepository 完整功能
+- 📖 [CRUD 操作](./CRUD-OPERATIONS.md) - BaseRepository 基础 CRUD 功能
+- 🚀 [便捷查询方法](./CONVENIENCE-METHODS.md) - 简化的查询方法
 - 🔍 [高级查询](./ADVANCED-QUERIES.md) - 复杂查询构建
 - 🎯 [FilterGroup](./FILTERGROUP.md) - 复杂条件组合

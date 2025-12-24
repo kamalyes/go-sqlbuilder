@@ -99,72 +99,12 @@ filter := repository.NewEqFilter("status", "active")
 activeUsers, err := repo.List(ctx, repository.NewQuery().AddFilter(filter))
 
 // 按条件查询（便捷方式） 🔥 推荐
-activeUsers, err := repo.List(ctx, 
-    repository.NewQuery().AddEqual("status", "active"))
-
-// 复合查询（便捷链式调用）
-query := repository.NewQuery().
-    AddEqual("status", "active").
-    AddGreaterThan("age", 18).
-    AddLike("name", "张").
-    AddOrderDesc("created_at").
-    Take(10)
-    
-users, err := repo.List(ctx, query)
-
-// 分页查询
-query := repository.NewQuery().
-    AddEqual("status", "active").
-    AddThisMonth("created_at").  // 本月注册的用户
-    AddOrderDesc("created_at").
-    Page(1, 20)  // 第1页，每页20条
-    
-users, pagination, err := repo.ListWithPagination(ctx, query, nil)
-
-// 时间范围查询
-lastWeek := time.Now().AddDate(0, 0, -7)
-recentUsers, err := repo.List(ctx, 
-    repository.NewQuery().
-        AddTimeAfter("created_at", lastWeek).
-        AddIn("status", "active", "pending"))
+activeUsers, err := repo.FindWhere(ctx, "status", "active")
 ```
 
-### 4. 便捷查询方法速览
+## 下一步
 
-```go
-// 基础条件
-query.AddEqual("field", value)           // field = value
-query.AddNotEqual("field", value)        // field != value
-query.AddLike("field", "keyword")        // field LIKE '%keyword%'
-query.AddStartsWith("field", "prefix")   // field LIKE 'prefix%'
-query.AddEndsWith("field", "suffix")     // field LIKE '%suffix'
-
-// 范围条件
-query.AddIn("field", 1, 2, 3)           // field IN (1,2,3)
-query.AddNotIn("field", 1, 2)           // field NOT IN (1,2)
-query.AddBetween("field", 1, 100)       // field BETWEEN 1 AND 100
-query.AddGreaterThan("field", 10)       // field > 10
-query.AddLessEqual("field", 50)         // field <= 50
-
-// 时间条件
-query.AddTimeAfter("date", time)        // date > time
-query.AddTimeBefore("date", time)       // date < time
-query.AddToday("date")                  // 今天
-query.AddThisWeek("date")               // 本周
-query.AddThisMonth("date")              // 本月
-
-// 排序分页
-query.AddOrderAsc("field")              // ORDER BY field ASC
-query.AddOrderDesc("field")             // ORDER BY field DESC
-query.Page(1, 20)                      // 分页
-query.Take(10)                          // LIMIT 10
-query.Skip(20)                          // OFFSET 20
-```
-
-## 📚 相关文档
-
-- 📖 [基础操作指南](./REPOSITORY-BASICS.md) - 学习所有CRUD 方法
-- 🔍 [高级查询](./ADVANCED-QUERIES.md) - 复杂查询和过滤
-- 🎯 [FilterGroup 使用](./FILTERGROUP.md) - 构建复杂 WHERE 条件
-- 🏗️ [模型定义](./MODELS.md) - 使用内置模型
-
+- 📖 [CRUD 操作](./CRUD-OPERATIONS.md) - 完整的创建、读取、更新、删除方法
+- 🚀 [便捷查询方法](./CONVENIENCE-METHODS.md) - 简化的查询 API
+- 🔍 [过滤条件](./FILTERS.md) - 构建复杂查询条件
+- 📊 [排序和分页](./SORTING-AND-PAGINATION.md) - 数据排序和分页

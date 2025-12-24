@@ -2,6 +2,8 @@
 
 本文档介绍如何使用 Query、Filter 和 FilterGroup 构建复杂查询。
 
+> 💡 **提示**：如果您是初学者，建议先阅读 [CRUD 操作](./CRUD-OPERATIONS.md) 和 [便捷查询方法](./CONVENIENCE-METHODS.md) 了解基础用法。本文档专注于复杂查询场景。
+
 ## Query 对象
 
 Query 是查询条件的容器，支持过滤、排序、分页等功能。
@@ -282,6 +284,157 @@ reports, err := repo.List(ctx, query)
 - 字符串匹配方法会自动忽略空字符串
 - IN/NOT IN 方法会自动忽略空切片
 - 所有方法都返回同一个 Query 对象，支持链式调用
+
+**实战示例 - API 动态搜索：**
+
+```go
+type ProductSearchParams struct {
+    Keyword    string   `json:"keyword"`
+    Category   int64    `json:"category"`
+    MinPrice   float64  `json:"min_price"`
+    MaxPrice   float64  `json:"max_price"`
+    Status     string   `json:"status"`
+    Tags       []int64  `json:"tags"`
+}
+
+func (s *ProductService) Search(ctx context.Context, params ProductSearchParams) ([]*Product, error) {
+    query := repository.NewQuery().
+        AddLikeFilterIfNotEmpty("name", params.Keyword).
+        AddEqFilterIfNotEmpty("category_id", params.Category).
+        AddGteFilterIfNotEmpty("price", params.MinPrice).
+        AddLteFilterIfNotEmpty("price", params.MaxPrice).
+        AddEqFilterIfNotEmpty("status", params.Status).
+        AddInFilterIfNotEmpty("tag_id", params.Tags).
+        AddOrderDesc("created_at")
+    
+    return s.repo.List(ctx, query)
+}
+```
+
+### AddSafeOrder - 安全排序（防 SQL 注入）
+
+使用白名单机制防止恶意排序字段
+
+```go
+// 定义允许排序的字段白名单
+allowedFields := []string{"id", "created_at", "price", "sales"}
+
+query := repository.NewQuery().
+    AddSafeOrder(userInputField, userInputDirection, allowedFields)
+
+// 如果 userInputField 不在白名单中，会被忽略
+```
+
+**实战示例 - API 动态排序：**
+
+```go
+func (s *ProductService) ListProducts(ctx context.Context, sortField, sortDir string) ([]*Product, error) {
+    // 白名单防止 SQL 注入
+    allowedSorts := []string{"id", "name", "price", "created_at", "sales", "rating"}
+    
+    query := repository.NewQuery().
+        AddEqFilter("status", "active").
+        AddSafeOrder(sortField, sortDir, allowedSorts).
+        Limit(20)
+    
+    return s.repo.List(ctx, query)
+}
+```
+
+### 字段选择辅助方法
+
+#### OmitSensitive - 排除敏感字段
+
+```go
+// 排除密码、令牌等敏感信息
+query := repository.NewQuery().OmitSensitive()
+
+// 实际调用: query.Omit([]string{"password", "token", "secret_key", "api_key"})
+```
+
+#### OmitLargeFields - 排除大字段
+
+```go
+// 排除大文本、二进制等大字段，提升查询性能
+query := repository.NewQuery().OmitLargeFields()
+
+// 实际调用: query.Omit([]string{"content", "description", "data", "blob"})
+```
+
+**实战示例 - 列表 API：**
+
+```go
+func (s *UserService) GetUserList(ctx context.Context) ([]*User, error) {
+    query := repository.NewQuery().
+        OmitSensitive().        // 排除密码等敏感字段
+        OmitLargeFields().      // 排除简介等大字段
+        AddEqFilter("status", "active").
+        AddOrderDesc("created_at").
+        Limit(50)
+    
+    return s.repo.List(ctx, query)
+}
+```
+
+### 完整动态查询示例
+
+```go
+type UserSearchRequest struct {
+    Keyword       string    `json:"keyword"`
+    Status        string    `json:"status"`
+    Role          string    `json:"role"`
+    MinAge        int       `json:"min_age"`
+    MaxAge        int       `json:"max_age"`
+    RegisterStart time.Time `json:"register_start"`
+    RegisterEnd   time.Time `json:"register_end"`
+    Tags          []int64   `json:"tags"`
+    ExcludeTags   []int64   `json:"exclude_tags"`
+    SortField     string    `json:"sort_field"`
+    SortDir       string    `json:"sort_dir"`
+    Page          int       `json:"page"`
+    PageSize      int       `json:"page_size"`
+}
+
+func (s *UserService) DynamicSearch(ctx context.Context, req UserSearchRequest) ([]*User, int64, error) {
+    // 构建动态查询
+    query := repository.NewQuery().
+        AddLikeFilterIfNotEmpty("name", req.Keyword).
+        AddEqFilterIfNotEmpty("status", req.Status).
+        AddEqFilterIfNotEmpty("role", req.Role).
+        AddGteFilterIfNotEmpty("age", req.MinAge).
+        AddLteFilterIfNotEmpty("age", req.MaxAge).
+        AddBetweenFilterIfNotEmpty("created_at", req.RegisterStart, req.RegisterEnd).
+        AddInFilterIfNotEmpty("tag_id", req.Tags).
+        AddNotInFilterIfNotEmpty("tag_id", req.ExcludeTags).
+        OmitSensitive().  // 排除敏感字段
+        OmitLargeFields() // 排除大字段
+    
+    // 安全排序
+    allowedSorts := []string{"id", "name", "created_at", "age", "status"}
+    query.AddSafeOrder(req.SortField, req.SortDir, allowedSorts)
+    
+    // 分页
+    if req.PageSize > 0 {
+        query.Limit(req.PageSize).Offset((req.Page - 1) * req.PageSize)
+    }
+    
+    // 查询
+    users, err := s.repo.List(ctx, query)
+    if err != nil {
+        return nil, 0, err
+    }
+    
+    // 统计总数
+    total, err := s.repo.Count(ctx, query)
+    if err != nil {
+        return nil, 0, err
+    }
+    
+    return users, total, nil
+}
+```
+
+## 其他高级过滤器
 
 ```go
 // NOT LIKE

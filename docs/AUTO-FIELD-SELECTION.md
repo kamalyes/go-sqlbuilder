@@ -156,7 +156,7 @@ type Product struct {
 
 以下是字段选择逻辑本身的性能开销（不包括数据库查询时间）：
 
-```
+```bash
 BenchmarkFieldSelection_Overhead/GetStructFields-8                      1190356        1905 ns/op       400 B/op      13 allocs/op
 BenchmarkFieldSelection_Overhead/GetStructFields_Cached-8            1000000000       0.34 ns/op         0 B/op       0 allocs/op
 BenchmarkFieldSelection_Overhead/BuildSelectClause_NoOmit-8            2906066         835 ns/op       560 B/op      13 allocs/op
@@ -173,6 +173,7 @@ BenchmarkFieldSelection_Overhead/EnableDisable_AutoFields-8       1000000000    
 ```
 
 **关键指标**：
+
 - ✅ **字段缓存极快**：缓存命中仅 0.34 纳秒，零内存分配
 - ✅ **自动字段开销很小**：仅 48 纳秒/次操作，24 字节内存
 - ✅ **启用/禁用无开销**：1.36 纳秒，可动态切换
@@ -186,6 +187,7 @@ SELECT * FROM users WHERE status = 'active';
 ```
 
 **问题**：
+
 - 查询不需要的大字段（content, description 等）
 - 浪费网络带宽
 - 增加内存占用
@@ -204,6 +206,7 @@ SELECT id, name, email, created_at, updated_at FROM users WHERE status = 'active
 ```
 
 **优势**：
+
 - 减少数据传输量
 - 降低内存占用
 - 提升查询性能
