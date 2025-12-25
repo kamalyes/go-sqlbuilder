@@ -440,6 +440,19 @@ func (r *BaseRepository[T]) DeleteWhereOp(ctx context.Context, args ...interface
 	return r.DeleteByFilters(ctx, filters...)
 }
 
+// DeleteWhereOpWithCount 带操作符的条件删除并返回删除数量
+// 示例: DeleteWhereOpWithCount(ctx, "age", constants.OP_LT, 18)
+func (r *BaseRepository[T]) DeleteWhereOpWithCount(ctx context.Context, args ...interface{}) (int64, error) {
+	if err := r.checkReadOnly(); err != nil {
+		return 0, err
+	}
+	filters, err := r.buildFiltersFromArgs(args, true)
+	if err != nil {
+		return 0, err
+	}
+	return r.DeleteByFiltersWithCount(ctx, filters...)
+}
+
 // UpdateWhere 简化的条件更新
 // 示例: UpdateWhere(ctx, map[string]interface{}{"status": "active"}, "id", 1)
 func (r *BaseRepository[T]) UpdateWhere(ctx context.Context, updates map[string]interface{}, args ...interface{}) error {

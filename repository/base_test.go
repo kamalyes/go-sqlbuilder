@@ -8149,6 +8149,65 @@ func TestDeleteWhereOp(t *testing.T) {
 	}
 }
 
+func TestDeleteWhereOpWithCount(t *testing.T) {
+	gormDB, err := setupTestDB()
+	require.NoError(t, err)
+
+	dbHandler := newTestDBHandler(gormDB)
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	ctx := context.Background()
+
+	// 准备测试数据
+	users := []*TestUser{
+		{Name: "Alice", Email: "alice@test.com", Age: 20, Status: "active"},
+		{Name: "Bob", Email: "bob@test.com", Age: 25, Status: "active"},
+		{Name: "Charlie", Email: "charlie@test.com", Age: 30, Status: "active"},
+		{Name: "David", Email: "david@test.com", Age: 35, Status: "active"},
+	}
+	err = repo.CreateBatch(ctx, users...)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name        string
+		args        []interface{}
+		wantDeleted int64
+		wantErr     bool
+	}{
+		{
+			name:        "删除年龄小于25的用户",
+			args:        []interface{}{"age", constants.OP_LT, 25},
+			wantDeleted: 1,
+			wantErr:     false,
+		},
+		{
+			name:        "删除年龄大于等于30的用户",
+			args:        []interface{}{"age", constants.OP_GTE, 30},
+			wantDeleted: 2,
+			wantErr:     false,
+		},
+		{
+			name:        "删除不存在的记录",
+			args:        []interface{}{"age", constants.OP_GT, 100},
+			wantDeleted: 0,
+			wantErr:     false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deleted, err := repo.DeleteWhereOpWithCount(ctx, tt.args...)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+
+			assert.NoError(t, err)
+			assert.Equal(t, tt.wantDeleted, deleted)
+		})
+	}
+}
+
 // ========== UpdateWhere / UpdateWhereOp 测试 ==========
 
 // TestUpdateWhere 测试简化条件更新
