@@ -709,15 +709,15 @@ func TestWithPagingDefaultValues(t *testing.T) {
 	query.WithPaging(0, 0)
 
 	assert.NotNil(t, query.Pagination)
-	assert.Equal(t, int32(1), query.Pagination.Page, "Page should default to 1 when <= 0")
-	assert.Equal(t, int32(10), query.Pagination.PageSize, "PageSize should default to 10 when <= 0")
+	assert.Equal(t, constants.DefaultPage, query.Pagination.Page, "Page should default to 1 when <= 0")
+	assert.Equal(t, constants.DefaultPageSize, query.Pagination.PageSize, "PageSize should default to 10 when <= 0")
 
 	// 测试负值
 	query2 := NewQuery()
 	query2.WithPaging(-5, -10)
 
-	assert.Equal(t, int32(1), query2.Pagination.Page, "Page should default to 1 when negative")
-	assert.Equal(t, int32(10), query2.Pagination.PageSize, "PageSize should default to 10 when negative")
+	assert.Equal(t, constants.DefaultPage, query2.Pagination.Page, "Page should default to 1 when negative")
+	assert.Equal(t, constants.DefaultPageSize, query2.Pagination.PageSize, "PageSize should default to 10 when negative")
 }
 
 func TestAddRawOrder(t *testing.T) {
@@ -782,8 +782,8 @@ func TestWithPaginationIntegrationWithOtherMethods(t *testing.T) {
 
 	// 验证分页
 	assert.NotNil(t, result.Pagination)
-	assert.Equal(t, int32(3), result.Pagination.Page)
-	assert.Equal(t, int32(25), result.Pagination.PageSize)
+	assert.Equal(t, 3, result.Pagination.Page)
+	assert.Equal(t, 25, result.Pagination.PageSize)
 
 	// 验证排序
 	assert.Len(t, result.Orders, 2)
@@ -1594,8 +1594,7 @@ func TestNewNotInFilterVariadic(t *testing.T) {
 
 	t.Run("无参数", func(t *testing.T) {
 		filter := NewNotInFilter("status")
-		values := filter.Value.([]interface{})
-		assert.Equal(t, 0, len(values))
+		assert.Nil(t, filter.Value)
 	})
 }
 

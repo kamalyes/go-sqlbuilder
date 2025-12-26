@@ -386,7 +386,7 @@ func (r *BaseRepository[T]) FindOneWhereOp(ctx context.Context, args ...interfac
 
 // Paginate 简化的分页查询（只需传页码和每页数量）
 // 示例: Paginate(ctx, 1, 20, "status", "active")
-func (r *BaseRepository[T]) Paginate(ctx context.Context, page, pageSize int32, args ...interface{}) ([]*T, *Pagination, error) {
+func (r *BaseRepository[T]) Paginate(ctx context.Context, page, pageSize int, args ...interface{}) ([]*T, *Pagination, error) {
 	filters, err := r.buildFiltersFromArgs(args, false)
 	if err != nil {
 		return nil, nil, err
@@ -401,7 +401,7 @@ func (r *BaseRepository[T]) Paginate(ctx context.Context, page, pageSize int32, 
 
 // PaginateOp 带操作符的分页查询
 // 示例: PaginateOp(ctx, 1, 20, "age", constants.OP_GT, 18)
-func (r *BaseRepository[T]) PaginateOp(ctx context.Context, page, pageSize int32, args ...interface{}) ([]*T, *Pagination, error) {
+func (r *BaseRepository[T]) PaginateOp(ctx context.Context, page, pageSize int, args ...interface{}) ([]*T, *Pagination, error) {
 	filters, err := r.buildFiltersFromArgs(args, true)
 	if err != nil {
 		return nil, nil, err
@@ -691,52 +691,11 @@ func (r *BaseRepository[T]) GetByFilters(ctx context.Context, filters ...*Filter
 
 // List 列表查询
 func (r *BaseRepository[T]) List(ctx context.Context, query *Query) ([]*T, error) {
-	if query == nil {
-		query = NewQuery()
-	}
-
 	var entities []*T
-
 	db := r.db.GetDB().WithContext(ctx).Table(r.table)
 
-	// 应用字段选择
-	db = ApplyFieldSelection(db, query.SelectFields, query.OmitFields, r.modelFields, r.autoFields)
-
-	// 应用默认预加载
-	for _, preload := range r.preloads {
-		db = db.Preload(preload)
-	}
-
-	// 应用去重
-	if query.Distinct {
-		db = db.Distinct()
-	}
-
-	// 应用过滤条件
-	db = r.applyFilters(db, query)
-
-	// 应用分组
-	for _, groupBy := range query.GroupBy {
-		db = db.Group(groupBy)
-	}
-
-	// 应用HAVING条件
-	for _, having := range query.Having {
-		db = ApplyFilter(db, having)
-	}
-
-	// 应用排序
-	db = ApplyOrdering(db, query.Orders, r.defaultOrder)
-
-	// 应用 Limit
-	if query.LimitValue != nil {
-		db = db.Limit(*query.LimitValue)
-	}
-
-	// 应用 Offset
-	if query.OffsetValue != nil {
-		db = db.Offset(*query.OffsetValue)
-	}
+	// 应用所有查询条件
+	db = ApplyQueryConditions(r, db, query)
 
 	result := db.Find(&entities)
 
@@ -749,32 +708,11 @@ func (r *BaseRepository[T]) List(ctx context.Context, query *Query) ([]*T, error
 
 // ListWithPreloads 列表查询并指定预加载关联
 func (r *BaseRepository[T]) ListWithPreloads(ctx context.Context, query *Query, preloads ...string) ([]*T, error) {
-	if query == nil {
-		query = NewQuery()
-	}
-
 	var entities []*T
-
 	db := r.db.GetDB().WithContext(ctx).Table(r.table)
 
-	// 应用字段选择
-	db = ApplyFieldSelection(db, query.SelectFields, query.OmitFields, r.modelFields, r.autoFields)
-
-	// 应用指定的预加载
-	for _, preload := range preloads {
-		db = db.Preload(preload)
-	}
-
-	// 应用过滤条件和其他操作
-	db = r.applyFilters(db, query)
-	db = ApplyOrdering(db, query.Orders, r.defaultOrder)
-
-	if query.LimitValue != nil {
-		db = db.Limit(*query.LimitValue)
-	}
-	if query.OffsetValue != nil {
-		db = db.Offset(*query.OffsetValue)
-	}
+	// 应用所有查询条件（使用指定的预加载）
+	db = ApplyQueryConditions(r, db, query, preloads...)
 
 	result := db.Find(&entities)
 	if result.Error != nil {
@@ -1163,6 +1101,21 @@ func ApplyFilter(dbQuery *gorm.DB, filter *Filter) *gorm.DB {
 		constants.OP_LT, constants.OP_LTE, constants.OP_IN, constants.OP_NOT_IN,
 		constants.OP_LIKE, constants.OP_NOT_LIKE:
 		return dbQuery.Where(fmt.Sprintf("%s %s ?", filter.Field, string(filter.Operator)), filter.Value)
+	case constants.OP_STARTS_WITH:
+		// 前缀匹配: value%
+		if valueStr, ok := filter.Value.(string); ok {
+			return dbQuery.Where(fmt.Sprintf("%s LIKE ?", filter.Field), valueStr+"%")
+		}
+	case constants.OP_ENDS_WITH:
+		// 后缀匹配: %value
+		if valueStr, ok := filter.Value.(string); ok {
+			return dbQuery.Where(fmt.Sprintf("%s LIKE ?", filter.Field), "%"+valueStr)
+		}
+	case constants.OP_CONTAINS:
+		// 包含匹配: %value%
+		if valueStr, ok := filter.Value.(string); ok {
+			return dbQuery.Where(fmt.Sprintf("%s LIKE ?", filter.Field), "%"+valueStr+"%")
+		}
 	case constants.OP_BETWEEN:
 		values, ok := filter.Value.([]interface{})
 		if ok && len(values) == 2 {
@@ -1281,8 +1234,85 @@ func (t *transactionWrapper[T]) DeleteBatch(ctx context.Context, entities ...*T)
 	return nil
 }
 
-// applyFilters 应用过滤条件到查询
-func (r *BaseRepository[T]) applyFilters(db *gorm.DB, query *Query) *gorm.DB {
+// ApplyQueryConditions 统一应用所有查询条件（字段选择、预加载、过滤、分组、排序、分页等）
+// 参数：
+//   - repo: BaseRepository 实例（用于获取默认配置）
+//   - db: GORM 数据库实例
+//   - query: 查询条件对象
+//   - preloads: 预加载关联（可选，为空则使用 repository 默认预加载）
+func ApplyQueryConditions[T any](repo *BaseRepository[T], db *gorm.DB, query *Query, preloads ...string) *gorm.DB {
+	if query == nil {
+		query = NewQuery()
+	}
+
+	// 1. 应用字段选择
+	db = ApplyFieldSelection(db, query.SelectFields, query.OmitFields, repo.modelFields, repo.autoFields)
+
+	// 2. 应用预加载
+	if len(preloads) > 0 {
+		// 使用指定的预加载
+		for _, preload := range preloads {
+			db = db.Preload(preload)
+		}
+	} else {
+		// 使用默认预加载
+		for _, preload := range repo.preloads {
+			db = db.Preload(preload)
+		}
+	}
+
+	// 3. 应用去重
+	if query.Distinct {
+		db = db.Distinct()
+	}
+
+	// 4. 应用过滤条件
+	db = ApplyQueryFilters(db, query)
+
+	// 5. 应用分组
+	for _, groupBy := range query.GroupBy {
+		db = db.Group(groupBy)
+	}
+
+	// 6. 应用 HAVING 条件
+	for _, having := range query.Having {
+		db = ApplyFilter(db, having)
+	}
+
+	// 7. 应用排序
+	db = ApplyOrdering(db, query.Orders, repo.defaultOrder)
+
+	// 8. 应用分页或限制条件
+	db = ApplyPaginationOrLimit(db, query)
+
+	return db
+}
+
+// ApplyPaginationOrLimit 统一应用分页或限制条件
+// 优先使用 query.Pagination，其次使用 LimitValue/OffsetValue
+func ApplyPaginationOrLimit(db *gorm.DB, query *Query) *gorm.DB {
+	// 优先使用 Pagination 自动计算 Limit/Offset
+	if query.Pagination != nil {
+		pageSize := query.Pagination.PageSize
+		offset := (query.Pagination.Page - 1) * query.Pagination.PageSize
+		return db.Limit(pageSize).Offset(offset)
+	}
+
+	// 应用 Limit
+	if query.LimitValue != nil {
+		db = db.Limit(*query.LimitValue)
+	}
+
+	// 应用 Offset
+	if query.OffsetValue != nil {
+		db = db.Offset(*query.OffsetValue)
+	}
+
+	return db
+}
+
+// ApplyQueryFilters 应用过滤条件到查询
+func ApplyQueryFilters(db *gorm.DB, query *Query) *gorm.DB {
 	// 应用简单过滤条件
 	for _, filter := range query.Filters {
 		db = ApplyFilter(db, filter)
@@ -1290,26 +1320,26 @@ func (r *BaseRepository[T]) applyFilters(db *gorm.DB, query *Query) *gorm.DB {
 
 	// 应用复合过滤条件组
 	if query.FilterGroup != nil {
-		db = r.applyFilterGroup(db, query.FilterGroup)
+		db = ApplyFilterGroup(db, query.FilterGroup)
 	}
 
 	return db
 }
 
-// applyFilterGroup 应用过滤条件组
-func (r *BaseRepository[T]) applyFilterGroup(db *gorm.DB, group *FilterGroup) *gorm.DB {
+// ApplyFilterGroup 应用过滤条件组
+func ApplyFilterGroup(db *gorm.DB, group *FilterGroup) *gorm.DB {
 	if group == nil || group.IsEmpty() {
 		return db
 	}
 
 	if group.LogicOp == constants.LOGIC_OR {
-		return r.applyOrFilterGroup(db, group)
+		return ApplyOrFilterGroup(db, group)
 	}
-	return r.applyAndFilterGroup(db, group)
+	return ApplyAndFilterGroup(db, group)
 }
 
-// applyOrFilterGroup 应用 OR 逻辑的过滤组
-func (r *BaseRepository[T]) applyOrFilterGroup(db *gorm.DB, group *FilterGroup) *gorm.DB {
+// ApplyOrFilterGroup 应用 OR 逻辑的过滤组
+func ApplyOrFilterGroup(db *gorm.DB, group *FilterGroup) *gorm.DB {
 	var conditions []string
 	var args []interface{}
 
@@ -1325,9 +1355,9 @@ func (r *BaseRepository[T]) applyOrFilterGroup(db *gorm.DB, group *FilterGroup) 
 	return db.Where(combinedCondition, args...)
 }
 
-// applyAndFilterGroup 应用 AND 逻辑的过滤组
-func (r *BaseRepository[T]) applyAndFilterGroup(db *gorm.DB, group *FilterGroup) *gorm.DB {
-	// AND 逻辑：逐个应用过滤条件
+// ApplyAndFilterGroup 应用 AND 逻辑的过滤组
+func ApplyAndFilterGroup(db *gorm.DB, group *FilterGroup) *gorm.DB {
+	// AND 逻辑:逐个应用过滤条件
 	for _, filter := range group.Filters {
 		if filter != nil {
 			db = ApplyFilter(db, filter)
@@ -1337,7 +1367,7 @@ func (r *BaseRepository[T]) applyAndFilterGroup(db *gorm.DB, group *FilterGroup)
 	// 递归处理子组
 	for _, subGroup := range group.Groups {
 		if subGroup != nil {
-			db = r.applyFilterGroup(db, subGroup)
+			db = ApplyFilterGroup(db, subGroup)
 		}
 	}
 
@@ -1394,6 +1424,8 @@ func buildFilterCondition(filter *Filter) (string, interface{}) {
 		return buildLikeCondition(filter, true, true) // 包含匹配
 	case constants.OP_FIND_IN_SET:
 		return buildFindInSetCondition(filter)
+	case constants.OP_REGEX, constants.OP_NOT_REGEX:
+		return buildRegexpCondition(filter)
 	}
 
 	// 通用处理：使用 map 查找模板
@@ -1450,6 +1482,16 @@ func buildFindInSetCondition(filter *Filter) (string, interface{}) {
 		return "", nil
 	}
 	return fmt.Sprintf(template, filter.Field) + " > 0", filter.Value
+}
+
+// buildRegexpCondition 构建正则匹配条件
+// MySQL: REGEXP, PostgreSQL: ~, SQL Server: 不直接支持
+func buildRegexpCondition(filter *Filter) (string, interface{}) {
+	operatorStr := "REGEXP"
+	if filter.Operator == constants.OP_NOT_REGEX {
+		operatorStr = "NOT REGEXP"
+	}
+	return fmt.Sprintf("%s %s ?", filter.Field, operatorStr), filter.Value
 }
 
 // buildGroupCondition 递归构建过滤组的条件

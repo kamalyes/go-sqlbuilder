@@ -88,9 +88,14 @@ func (fg *FilterGroup) IsEmpty() bool {
 
 // Count 返回条件总数（包括嵌套组）
 func (fg *FilterGroup) Count() int {
+	if fg == nil {
+		return 0
+	}
 	count := len(fg.Filters)
 	for _, group := range fg.Groups {
-		count += group.Count()
+		if group != nil {
+			count += group.Count()
+		}
 	}
 	return count
 }
@@ -103,11 +108,19 @@ func (fg *FilterGroup) AddFilterIf(condition bool, filter *Filter) *FilterGroup 
 	return fg
 }
 
+// AddFilterIfValueNotEmpty 当 filter 的 Value 不为空时添加过滤条件
+func (fg *FilterGroup) AddFilterIfValueNotEmpty(filter *Filter) *FilterGroup {
+	if filter != nil && !validator.IsEmptyValue(reflect.ValueOf(filter.Value)) {
+		fg.AddFilter(filter)
+	}
+	return fg
+}
+
 // AddFilterIfNotEmpty 当值不为空时添加过滤条件
 // 支持 string, slice, map 等类型的空值判断
 func (fg *FilterGroup) AddFilterIfNotEmpty(field string, operator constants.Operator, value interface{}) *FilterGroup {
 	if !validator.IsEmptyValue(reflect.ValueOf(value)) {
-		fg.AddFilter(&Filter{Field: field, Operator: operator, Value: value})
+		fg.AddFilter(NewFilter(field, operator, value))
 	}
 	return fg
 }
@@ -144,66 +157,50 @@ func (fg *FilterGroup) AddLteFilterIfNotEmpty(field string, value interface{}) *
 
 // AddLikeFilterIfNotEmpty 当值不为空时添加 LIKE 过滤条件
 func (fg *FilterGroup) AddLikeFilterIfNotEmpty(field string, value string) *FilterGroup {
-	if !validator.IsEmptyValue(reflect.ValueOf(value)) {
-		fg.AddFilter(&Filter{Field: field, Operator: constants.OP_LIKE, Value: "%" + value + "%"})
-	}
-	return fg
+	return fg.AddFilterIfValueNotEmpty(NewLikeFilter(field, value))
 }
 
 // AddInFilterIfNotEmpty 当切片不为空时添加 IN 过滤条件
 func (fg *FilterGroup) AddInFilterIfNotEmpty(field string, values []interface{}) *FilterGroup {
-	if !validator.IsEmptyValue(reflect.ValueOf(values)) {
-		fg.AddFilter(&Filter{Field: field, Operator: constants.OP_IN, Value: values})
-	}
-	return fg
+	return fg.AddFilterIfValueNotEmpty(NewInFilterSlice(field, values))
 }
 
 // AddNotInFilterIfNotEmpty 当切片不为空时添加 NOT IN 过滤条件
 func (fg *FilterGroup) AddNotInFilterIfNotEmpty(field string, values []interface{}) *FilterGroup {
-	if !validator.IsEmptyValue(reflect.ValueOf(values)) {
-		fg.AddFilter(&Filter{Field: field, Operator: constants.OP_NOT_IN, Value: values})
-	}
-	return fg
+	return fg.AddFilterIfValueNotEmpty(NewNotInFilterSlice(field, values))
 }
 
 // AddBetweenFilterIfNotEmpty 当最小值和最大值都不为空时添加 BETWEEN 过滤条件
 func (fg *FilterGroup) AddBetweenFilterIfNotEmpty(field string, min, max interface{}) *FilterGroup {
 	if !validator.IsEmptyValue(reflect.ValueOf(min)) && !validator.IsEmptyValue(reflect.ValueOf(max)) {
-		fg.AddFilter(&Filter{Field: field, Operator: constants.OP_BETWEEN, Value: []interface{}{min, max}})
+		fg.AddFilter(NewBetweenFilter(field, min, max))
 	}
 	return fg
 }
 
 // AddStartsWithFilterIfNotEmpty 当值不为空时添加前缀匹配过滤条件
 func (fg *FilterGroup) AddStartsWithFilterIfNotEmpty(field string, value string) *FilterGroup {
-	if !validator.IsEmptyValue(reflect.ValueOf(value)) {
-		fg.AddFilter(&Filter{Field: field, Operator: constants.OP_LIKE, Value: value + "%"})
-	}
-	return fg
+	return fg.AddFilterIfValueNotEmpty(NewStartsWithFilter(field, value))
 }
 
 // AddEndsWithFilterIfNotEmpty 当值不为空时添加后缀匹配过滤条件
 func (fg *FilterGroup) AddEndsWithFilterIfNotEmpty(field string, value string) *FilterGroup {
-	if !validator.IsEmptyValue(reflect.ValueOf(value)) {
-		fg.AddFilter(&Filter{Field: field, Operator: constants.OP_LIKE, Value: "%" + value})
-	}
-	return fg
+	return fg.AddFilterIfValueNotEmpty(NewEndsWithFilter(field, value))
+}
+
+// AddRegexpFilterIfNotEmpty  当值不为空时添加正则匹配过滤条件（仅MySQL/PostgreSQL）
+func (fg *FilterGroup) AddRegexpFilterIfNotEmpty(field string, pattern string) *FilterGroup {
+	return fg.AddFilterIfValueNotEmpty(NewRegexpFilter(field, pattern))
 }
 
 // AddNotLikeFilterIfNotEmpty 当值不为空时添加 NOT LIKE 过滤条件
 func (fg *FilterGroup) AddNotLikeFilterIfNotEmpty(field string, value string) *FilterGroup {
-	if !validator.IsEmptyValue(reflect.ValueOf(value)) {
-		fg.AddFilter(&Filter{Field: field, Operator: constants.OP_NOT_LIKE, Value: "%" + value + "%"})
-	}
-	return fg
+	return fg.AddFilterIfValueNotEmpty(NewNotLikeFilter(field, value))
 }
 
 // AddFindInSetFilterIfNotEmpty 当值不为空时添加 FIND_IN_SET 过滤条件（MySQL特定）
 func (fg *FilterGroup) AddFindInSetFilterIfNotEmpty(field string, value interface{}) *FilterGroup {
-	if !validator.IsEmptyValue(reflect.ValueOf(value)) {
-		fg.AddFilter(&Filter{Field: field, Operator: constants.OP_FIND_IN_SET, Value: value})
-	}
-	return fg
+	return fg.AddFilterIfValueNotEmpty(&Filter{Field: field, Operator: constants.OP_FIND_IN_SET, Value: value})
 }
 
 // AddGroupIf 当条件为真时添加嵌套条件组
@@ -299,8 +296,8 @@ func NewLteFilter(field string, value interface{}) *Filter {
 
 // NewInFilter 创建 IN 过滤条件
 func NewInFilter(field string, values ...interface{}) *Filter {
-	if values == nil {
-		values = make([]interface{}, 0)
+	if values == nil || (len(values) == 1 && values[0] == nil) {
+		return &Filter{Field: field, Operator: constants.OP_IN, Value: nil}
 	}
 	return &Filter{Field: field, Operator: constants.OP_IN, Value: values}
 }
@@ -330,8 +327,8 @@ func NewBetweenFilter(field string, min, max interface{}) *Filter {
 
 // NewNotInFilter 创建 NOT IN 过滤条件
 func NewNotInFilter(field string, values ...interface{}) *Filter {
-	if values == nil {
-		values = make([]interface{}, 0)
+	if values == nil || (len(values) == 1 && values[0] == nil) {
+		return &Filter{Field: field, Operator: constants.OP_NOT_IN, Value: nil}
 	}
 	return &Filter{Field: field, Operator: constants.OP_NOT_IN, Value: values}
 }
@@ -356,17 +353,22 @@ func NewIsNotNullFilter(field string) *Filter {
 
 // NewStartsWithFilter 创建前缀匹配过滤条件
 func NewStartsWithFilter(field string, value string) *Filter {
-	return &Filter{Field: field, Operator: constants.OP_LIKE, Value: value + "%"}
+	return &Filter{Field: field, Operator: constants.OP_STARTS_WITH, Value: value}
 }
 
 // NewEndsWithFilter 创建后缀匹配过滤条件
 func NewEndsWithFilter(field string, value string) *Filter {
-	return &Filter{Field: field, Operator: constants.OP_LIKE, Value: "%" + value}
+	return &Filter{Field: field, Operator: constants.OP_ENDS_WITH, Value: value}
 }
 
 // NewNotLikeFilter 创建 NOT LIKE 过滤条件
 func NewNotLikeFilter(field string, value string) *Filter {
 	return &Filter{Field: field, Operator: constants.OP_NOT_LIKE, Value: "%" + value + "%"}
+}
+
+// NewRegexpFilter 创建正则匹配过滤条件（仅MySQL/PostgreSQL）
+func NewRegexpFilter(field string, pattern string) *Filter {
+	return &Filter{Field: field, Operator: constants.OP_REGEX, Value: pattern}
 }
 
 // NewFindInSetFilter 创建 FIND_IN_SET 过滤条件（MySQL特定）

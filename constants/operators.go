@@ -102,7 +102,9 @@ const (
 	OP_IS_NOT_NULL    = OpIsNotNull
 	OP_FIND_IN_SET    = OpFindInSet
 	OP_REGEX          = OpRegex
+	OP_REGEXP         = OpRegex
 	OP_NOT_REGEX      = OpNotRegex
+	OP_NOT_REGEXP     = OpNotRegex
 	OP_ILIKE          = OpILike
 	OP_NOT_ILIKE      = OpNotILike
 	OP_SIMILAR_TO     = OpSimilarTo

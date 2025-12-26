@@ -1290,9 +1290,9 @@ func TestBaseRepositoryListWithPagination(t *testing.T) {
 
 	// 验证分页信息
 	assert.Equal(t, int64(5), resultPaging.Total, "总记录数应为5")
-	assert.Equal(t, int32(1), resultPaging.Page, "当前页数应为1")
-	assert.Equal(t, int32(3), resultPaging.PageSize, "每页大小应为3")
-	assert.Equal(t, int64(2), resultPaging.GetTotalPages(), "总页数应为2")
+	assert.Equal(t, pagination.Page, resultPaging.Page, "当前页数应为1")
+	assert.Equal(t, pagination.PageSize, resultPaging.PageSize, "每页大小应为3")
+	assert.Equal(t, 2, resultPaging.GetTotalPages(), "总页数应为2")
 	assert.True(t, resultPaging.HasNextPage(), "应有下一页")
 	assert.False(t, resultPaging.HasPrevPage(), "不应有上一页")
 }
@@ -2476,6 +2476,10 @@ func TestBuildFilterCondition(t *testing.T) {
 		{&Filter{Field: "deleted_at", Operator: constants.OP_IS_NULL}, true},
 		{&Filter{Field: "name", Operator: constants.OP_IS_NOT_NULL}, true},
 		{&Filter{Field: "status", Operator: constants.OP_NEQ, Value: "deleted"}, true},
+		{&Filter{Field: "email", Operator: constants.OP_REGEX, Value: "^[a-z]+@"}, true},   // 测试正则匹配
+		{&Filter{Field: "email", Operator: constants.OP_REGEXP, Value: "^[a-z]+@"}, true},  // 测试 REGEXP 别名
+		{&Filter{Field: "name", Operator: constants.OP_NOT_REGEX, Value: "^admin"}, true},  // 测试正则不匹配
+		{&Filter{Field: "name", Operator: constants.OP_NOT_REGEXP, Value: "^admin"}, true}, // 测试 NOT REGEXP 别名
 		{nil, false}, // nil过滤器
 		{&Filter{Field: "age", Operator: constants.OP_BETWEEN, Value: "invalid"}, true}, // 无效BETWEEN值
 	}
@@ -4063,8 +4067,8 @@ func TestAutoFieldsWithPagination(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, 5, len(results))
 	assert.Equal(t, int64(20), page.Total)
-	assert.Equal(t, int32(2), page.Page)
-	assert.Equal(t, int32(5), page.PageSize)
+	assert.Equal(t, 2, page.Page)
+	assert.Equal(t, 5, page.PageSize)
 
 	// 验证分页数据正确性
 	assert.Equal(t, 25, results[0].Age) // 第6条记录
@@ -7746,12 +7750,12 @@ func TestPaginate(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		page         int32
-		pageSize     int32
+		page         int
+		pageSize     int
 		args         []interface{}
 		wantCount    int
 		wantTotal    int64
-		wantPageSize int32
+		wantPageSize int
 	}{
 		{
 			name:         "第1页，每页5条",
@@ -7827,8 +7831,8 @@ func TestPaginateOp(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		page      int32
-		pageSize  int32
+		page      int
+		pageSize  int
 		args      []interface{}
 		wantCount int
 		wantTotal int64

@@ -92,7 +92,7 @@ func (q *Query) AddOrder(field, direction string) *Query {
 }
 
 // WithPaging 设置分页条件
-func (q *Query) WithPaging(page, pageSize int32) *Query {
+func (q *Query) WithPaging(page, pageSize int) *Query {
 	q.Pagination = &Pagination{
 		Page:     mathx.IF(page <= 0, constants.DefaultPage, page),
 		PageSize: mathx.IF(pageSize <= 0, constants.DefaultPageSize, pageSize),
@@ -630,7 +630,12 @@ func (q *Query) processFilterGroup(conditions *[]string, args *[]interface{}) {
 	if q.FilterGroup != nil && !q.FilterGroup.IsEmpty() {
 		groupCondition, groupArgs := q.buildGroupCondition(q.FilterGroup)
 		if groupCondition != "" {
-			*conditions = append(*conditions, "("+groupCondition+")")
+			// 如果组内只有一个条件，不加括号
+			if q.FilterGroup.Count() == 1 {
+				*conditions = append(*conditions, groupCondition)
+			} else {
+				*conditions = append(*conditions, "("+groupCondition+")")
+			}
 			*args = append(*args, groupArgs...)
 		}
 	}
@@ -754,7 +759,14 @@ func (q *Query) buildGroupCondition(group *FilterGroup) (string, []interface{}) 
 	}
 
 	// 根据逻辑操作符连接条件
-	return strings.Join(conditions, fmt.Sprintf(" %s ", group.LogicOp.String())), args
+	result := strings.Join(conditions, fmt.Sprintf(" %s ", group.LogicOp.String()))
+
+	// 如果只有一个条件，直接返回，不加括号
+	if len(conditions) == 1 {
+		return result, args
+	}
+
+	return result, args
 }
 
 // processGroupFilters 处理组内的过滤条件
@@ -776,7 +788,12 @@ func (q *Query) processSubGroups(group *FilterGroup, conditions *[]string, args 
 		if subGroup != nil && !subGroup.IsEmpty() {
 			subCondition, subArgs := q.buildGroupCondition(subGroup)
 			if subCondition != "" {
-				*conditions = append(*conditions, "("+subCondition+")")
+				// 如果子组只有一个条件，不加括号
+				if subGroup.Count() == 1 {
+					*conditions = append(*conditions, subCondition)
+				} else {
+					*conditions = append(*conditions, "("+subCondition+")")
+				}
 				*args = append(*args, subArgs...)
 			}
 		}

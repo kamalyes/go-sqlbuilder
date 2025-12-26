@@ -68,8 +68,8 @@ func TestAddStartsWith(t *testing.T) {
 
 	assert.Equal(t, 1, len(query.Filters))
 	assert.Equal(t, "username", query.Filters[0].Field)
-	assert.Equal(t, constants.OP_LIKE, query.Filters[0].Operator)
-	assert.Equal(t, "admin%", query.Filters[0].Value)
+	assert.Equal(t, constants.OP_STARTS_WITH, query.Filters[0].Operator)
+	assert.Equal(t, "admin", query.Filters[0].Value)
 
 	// 空前缀 - 不应添加过滤条件
 	query = NewQuery()
@@ -85,8 +85,8 @@ func TestAddEndsWith(t *testing.T) {
 
 	assert.Equal(t, 1, len(query.Filters))
 	assert.Equal(t, "email", query.Filters[0].Field)
-	assert.Equal(t, constants.OP_LIKE, query.Filters[0].Operator)
-	assert.Equal(t, "%@example.com", query.Filters[0].Value)
+	assert.Equal(t, constants.OP_ENDS_WITH, query.Filters[0].Operator)
+	assert.Equal(t, "@example.com", query.Filters[0].Value)
 
 	// 空后缀 - 不应添加过滤条件
 	query = NewQuery()
@@ -435,14 +435,14 @@ func TestWithPaging(t *testing.T) {
 
 	assert.Equal(t, query, result, "应该返回同一个查询对象")
 	assert.NotNil(t, query.Pagination)
-	assert.Equal(t, int32(2), query.Pagination.Page)
-	assert.Equal(t, int32(20), query.Pagination.PageSize)
+	assert.Equal(t, 2, query.Pagination.Page)
+	assert.Equal(t, 20, query.Pagination.PageSize)
 
 	// 测试边界情况
 	query = NewQuery()
 	query.WithPaging(0, -5) // 无效值应该被修正
-	assert.Equal(t, int32(1), query.Pagination.Page)
-	assert.Equal(t, int32(10), query.Pagination.PageSize)
+	assert.Equal(t, 1, query.Pagination.Page)
+	assert.Equal(t, constants.DefaultPageSize, query.Pagination.PageSize)
 }
 
 // TestLimit 测试设置限制数量
@@ -679,6 +679,6 @@ func TestRealWorldScenario(t *testing.T) {
 
 	// 验证分页
 	assert.NotNil(t, query.Pagination)
-	assert.Equal(t, int32(1), query.Pagination.Page)
-	assert.Equal(t, int32(20), query.Pagination.PageSize)
+	assert.Equal(t, constants.DefaultPage, query.Pagination.Page)
+	assert.Equal(t, constants.DefaultPageSize, query.Pagination.PageSize)
 }

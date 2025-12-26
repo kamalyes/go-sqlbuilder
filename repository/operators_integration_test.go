@@ -22,14 +22,14 @@ func TestNewOperatorsIntegration(t *testing.T) {
 	// 测试 NewStartsWithFilter
 	filter := NewStartsWithFilter("name", "user")
 	assert.Equal(t, "name", filter.Field)
-	assert.Equal(t, constants.OP_LIKE, filter.Operator)
-	assert.Equal(t, "user%", filter.Value)
+	assert.Equal(t, constants.OP_STARTS_WITH, filter.Operator)
+	assert.Equal(t, "user", filter.Value)
 
 	// 测试 NewEndsWithFilter
 	filter = NewEndsWithFilter("email", "@example.com")
 	assert.Equal(t, "email", filter.Field)
-	assert.Equal(t, constants.OP_LIKE, filter.Operator)
-	assert.Equal(t, "%@example.com", filter.Value)
+	assert.Equal(t, constants.OP_ENDS_WITH, filter.Operator)
+	assert.Equal(t, "@example.com", filter.Value)
 }
 
 // TestBuildFilterConditionWithNewOperators 测试构建过滤条件的新操作符

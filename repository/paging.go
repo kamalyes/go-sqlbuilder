@@ -27,7 +27,10 @@ type PaginationT[T types.Integer] struct {
 }
 
 // Pagination 默认分页类型
-type Pagination = PaginationT[int32]
+type Pagination = PaginationT[int]
+
+// Pagination32 int32 版本的分页类型（用于一般场景）
+type Pagination32 = PaginationT[int32]
 
 // Pagination64 int64 版本的分页类型（用于需要大数值的场景）
 type Pagination64 = PaginationT[int64]
@@ -105,12 +108,11 @@ func IsTodayRange(startTime, endTime *time.Time) bool {
 		return true
 	}
 
-	// 如果时间范围跨越今天
-	if startTime != nil && endTime != nil && startTime.Before(todayStart) && endTime.After(todayEnd) {
-		return true
-	}
-
-	return false
+	// 检查时间范围是否跨越今天
+	// nil 视为无限制:startTime 为 nil 表示无限远过去,endTime 为 nil 表示无限远未来
+	// 只要范围的开始不在今天之后,且结束不在今天之前,就包含今天
+	return (startTime == nil || startTime.Before(todayEnd)) &&
+		(endTime == nil || endTime.After(todayStart))
 }
 
 // IsTimeInTodayRange 判断时间是否在今天范围内

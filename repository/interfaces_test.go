@@ -97,9 +97,8 @@ func TestNewInFilterEmpty(t *testing.T) {
 	assert.Equal(t, "status", filter.Field, "字段名应为 'status'")
 	assert.Equal(t, constants.OP_IN, filter.Operator, "操作符应为 constants.OP_IN")
 
-	values, ok := filter.Value.([]interface{})
-	assert.True(t, ok, "值应为 []interface{} 类型")
-	assert.Len(t, values, 0, "值列表应为空")
+	// 无参数时应该返回 nil
+	assert.Nil(t, filter.Value, "值应该为 nil")
 }
 
 // TestNewLikeFilter 测试LIKE过滤器创建
@@ -178,8 +177,8 @@ func TestNewStartsWithFilter(t *testing.T) {
 
 	assert.NotNil(t, filter, "过滤器不应为空")
 	assert.Equal(t, "name", filter.Field, "字段名应为 'name'")
-	assert.Equal(t, constants.OP_LIKE, filter.Operator, "操作符应为 constants.OP_LIKE")
-	assert.Equal(t, "user%", filter.Value, "值应为 'user%'")
+	assert.Equal(t, constants.OP_STARTS_WITH, filter.Operator, "操作符应为 constants.OP_STARTS_WITH")
+	assert.Equal(t, "user", filter.Value, "值应为 'user'")
 }
 
 // TestNewEndsWithFilter 测试后缀匹配过滤器创建
@@ -188,8 +187,8 @@ func TestNewEndsWithFilter(t *testing.T) {
 
 	assert.NotNil(t, filter, "过滤器不应为空")
 	assert.Equal(t, "email", filter.Field, "字段名应为 'email'")
-	assert.Equal(t, constants.OP_LIKE, filter.Operator, "操作符应为 constants.OP_LIKE")
-	assert.Equal(t, "%@example.com", filter.Value, "值应为 '%@example.com'")
+	assert.Equal(t, constants.OP_ENDS_WITH, filter.Operator, "操作符应为 constants.OP_ENDS_WITH")
+	assert.Equal(t, "@example.com", filter.Value, "值应为 '@example.com'")
 }
 
 // TestNewNotLikeFilter 测试NOT LIKE过滤器创建
@@ -210,6 +209,255 @@ func TestNewFindInSetFilter(t *testing.T) {
 	assert.Equal(t, "tags", filter.Field, "字段名应为 'tags'")
 	assert.Equal(t, constants.OP_FIND_IN_SET, filter.Operator, "操作符应为 constants.OP_FIND_IN_SET")
 	assert.Equal(t, "important", filter.Value, "值应为 'important'")
+}
+
+// TestNewRegexpFilter 测试REGEXP过滤器创建
+func TestNewRegexpFilter(t *testing.T) {
+	filter := NewRegexpFilter("email", "^[a-zA-Z0-9]+@[a-zA-Z0-9]+\\.[a-zA-Z]+$")
+
+	assert.NotNil(t, filter, "过滤器不应为空")
+	assert.Equal(t, "email", filter.Field, "字段名应为 'email'")
+	assert.Equal(t, constants.OP_REGEX, filter.Operator, "操作符应为 constants.OP_REGEX")
+	assert.Equal(t, "^[a-zA-Z0-9]+@[a-zA-Z0-9]+\\.[a-zA-Z]+$", filter.Value, "值应为正则表达式")
+}
+
+// TestFilterGroupAddRegexpFilterIfNotEmpty 测试 FilterGroup.AddRegexpFilterIfNotEmpty
+func TestFilterGroupAddRegexpFilterIfNotEmpty(t *testing.T) {
+	// 测试非空模式
+	group := NewFilterGroup(constants.LOGIC_AND)
+	group.AddRegexpFilterIfNotEmpty("username", "^[a-z]{3,10}$")
+
+	assert.Equal(t, 1, len(group.Filters), "应添加1个过滤条件")
+	assert.Equal(t, "username", group.Filters[0].Field)
+	assert.Equal(t, constants.OP_REGEX, group.Filters[0].Operator)
+	assert.Equal(t, "^[a-z]{3,10}$", group.Filters[0].Value)
+
+	// 测试空模式 - 不应添加过滤条件
+	group2 := NewFilterGroup(constants.LOGIC_AND)
+	group2.AddRegexpFilterIfNotEmpty("field", "")
+	assert.Equal(t, 0, len(group2.Filters), "空模式不应添加过滤条件")
+}
+
+// TestNewRegexpFilterBasic 测试基本正则过滤器创建
+func TestNewRegexpFilterBasic(t *testing.T) {
+	tests := []struct {
+		name     string
+		field    string
+		pattern  string
+		expected string
+	}{
+		{
+			name:     "邮箱正则",
+			field:    "email",
+			pattern:  "^[a-zA-Z0-9]+@[a-zA-Z0-9]+\\.[a-zA-Z]+$",
+			expected: "^[a-zA-Z0-9]+@[a-zA-Z0-9]+\\.[a-zA-Z]+$",
+		},
+		{
+			name:     "用户名正则",
+			field:    "username",
+			pattern:  "^[a-z]{3,10}$",
+			expected: "^[a-z]{3,10}$",
+		},
+		{
+			name:     "手机号正则",
+			field:    "phone",
+			pattern:  "^1[3-9]\\d{9}$",
+			expected: "^1[3-9]\\d{9}$",
+		},
+		{
+			name:     "IP地址正则",
+			field:    "ip_address",
+			pattern:  "^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$",
+			expected: "^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			filter := NewRegexpFilter(tt.field, tt.pattern)
+
+			assert.NotNil(t, filter, "过滤器不应为空")
+			assert.Equal(t, tt.field, filter.Field, "字段名应匹配")
+			assert.Equal(t, constants.OP_REGEX, filter.Operator, "操作符应为 OP_REGEX")
+			assert.Equal(t, tt.expected, filter.Value, "正则表达式应匹配")
+		})
+	}
+}
+
+// TestRegexpOperatorAliases 测试正则操作符别名
+func TestRegexpOperatorAliases(t *testing.T) {
+	// 验证 OP_REGEXP 是 OP_REGEX 的别名
+	assert.Equal(t, constants.OP_REGEX, constants.OP_REGEXP, "OP_REGEXP 应该是 OP_REGEX 的别名")
+
+	// 验证 OP_NOT_REGEXP 是 OP_NOT_REGEX 的别名
+	assert.Equal(t, constants.OP_NOT_REGEX, constants.OP_NOT_REGEXP, "OP_NOT_REGEXP 应该是 OP_NOT_REGEX 的别名")
+}
+
+// TestBuildRegexpCondition 测试正则条件构建
+func TestBuildRegexpCondition(t *testing.T) {
+	tests := []struct {
+		name             string
+		filter           *Filter
+		expectedSQL      string
+		expectedValue    interface{}
+		shouldHaveResult bool
+	}{
+		{
+			name:             "REGEXP条件",
+			filter:           &Filter{Field: "email", Operator: constants.OP_REGEX, Value: "^test@"},
+			expectedSQL:      "email REGEXP ?",
+			expectedValue:    "^test@",
+			shouldHaveResult: true,
+		},
+		{
+			name:             "NOT REGEXP条件",
+			filter:           &Filter{Field: "name", Operator: constants.OP_NOT_REGEX, Value: "^admin"},
+			expectedSQL:      "name NOT REGEXP ?",
+			expectedValue:    "^admin",
+			shouldHaveResult: true,
+		},
+		{
+			name:             "OP_REGEXP别名",
+			filter:           &Filter{Field: "username", Operator: constants.OP_REGEXP, Value: "^[a-z]+$"},
+			expectedSQL:      "username REGEXP ?",
+			expectedValue:    "^[a-z]+$",
+			shouldHaveResult: true,
+		},
+		{
+			name:             "OP_NOT_REGEXP别名",
+			filter:           &Filter{Field: "status", Operator: constants.OP_NOT_REGEXP, Value: "^deleted"},
+			expectedSQL:      "status NOT REGEXP ?",
+			expectedValue:    "^deleted",
+			shouldHaveResult: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sql, value := buildRegexpCondition(tt.filter)
+
+			if tt.shouldHaveResult {
+				assert.NotEmpty(t, sql, "SQL 不应为空")
+				assert.Equal(t, tt.expectedSQL, sql, "SQL 应匹配")
+				assert.Equal(t, tt.expectedValue, value, "值应匹配")
+			} else {
+				assert.Empty(t, sql, "SQL 应为空")
+				assert.Nil(t, value, "值应为 nil")
+			}
+		})
+	}
+}
+
+// TestFilterGroupAddRegexpFilterIfNotEmptyDetails 测试 FilterGroup 添加正则过滤的详细情况
+func TestFilterGroupAddRegexpFilterIfNotEmptyDetails(t *testing.T) {
+	tests := []struct {
+		name          string
+		pattern       string
+		shouldAdd     bool
+		expectedCount int
+	}{
+		{
+			name:          "有效的正则模式",
+			pattern:       "^[a-z]{3,10}$",
+			shouldAdd:     true,
+			expectedCount: 1,
+		},
+		{
+			name:          "空字符串",
+			pattern:       "",
+			shouldAdd:     false,
+			expectedCount: 0,
+		},
+		{
+			name:          "复杂的正则模式",
+			pattern:       "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)[a-zA-Z\\d]{8,}$",
+			shouldAdd:     true,
+			expectedCount: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			group := NewFilterGroup(constants.LOGIC_AND)
+			group.AddRegexpFilterIfNotEmpty("field", tt.pattern)
+
+			assert.Equal(t, tt.expectedCount, len(group.Filters), "过滤条件数量应匹配")
+
+			if tt.shouldAdd {
+				assert.Equal(t, "field", group.Filters[0].Field)
+				assert.Equal(t, constants.OP_REGEX, group.Filters[0].Operator)
+				assert.Equal(t, tt.pattern, group.Filters[0].Value)
+			}
+		})
+	}
+}
+
+// TestRegexpFilterWithFilterGroup 测试正则过滤器与过滤组的集成
+func TestRegexpFilterWithFilterGroup(t *testing.T) {
+	// 创建包含多个过滤条件的组
+	group := NewFilterGroup(constants.LOGIC_AND)
+	group.AddEqFilterIfNotEmpty("status", "active")
+	group.AddRegexpFilterIfNotEmpty("email", "^[a-z]+@example\\.com$")
+	group.AddGtFilterIfNotEmpty("age", 18)
+
+	assert.Equal(t, 3, len(group.Filters), "应该有3个过滤条件")
+
+	// 验证每个过滤条件
+	assert.Equal(t, "status", group.Filters[0].Field)
+	assert.Equal(t, constants.OP_EQ, group.Filters[0].Operator)
+
+	assert.Equal(t, "email", group.Filters[1].Field)
+	assert.Equal(t, constants.OP_REGEX, group.Filters[1].Operator)
+	assert.Equal(t, "^[a-z]+@example\\.com$", group.Filters[1].Value)
+
+	assert.Equal(t, "age", group.Filters[2].Field)
+	assert.Equal(t, constants.OP_GT, group.Filters[2].Operator)
+}
+
+// TestRegexpFilterInQuery 测试在 Query 中使用正则过滤器
+func TestRegexpFilterInQuery(t *testing.T) {
+	query := NewQuery()
+
+	// 添加正则过滤条件
+	filter := NewRegexpFilter("email", "^admin@")
+	query.AddFilter(filter)
+
+	assert.Equal(t, 1, len(query.Filters), "应该有1个过滤条件")
+	assert.Equal(t, "email", query.Filters[0].Field)
+	assert.Equal(t, constants.OP_REGEX, query.Filters[0].Operator)
+	assert.Equal(t, "^admin@", query.Filters[0].Value)
+}
+
+// TestRegexpCommonPatterns 测试常用正则模式
+func TestRegexpCommonPatterns(t *testing.T) {
+	patterns := map[string]string{
+		"email":       "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$",
+		"phone_cn":    "^1[3-9]\\d{9}$",
+		"url":         "^https?://[\\w\\-]+(\\.[\\w\\-]+)+[/#?]?.*$",
+		"ipv4":        "^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$",
+		"username":    "^[a-zA-Z][a-zA-Z0-9_]{2,19}$",
+		"password":    "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]{8,}$",
+		"date":        "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$",
+		"time":        "^([01]?[0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$",
+		"hex_color":   "^#?([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$",
+		"credit_card": "^[0-9]{13,19}$",
+	}
+
+	for name, pattern := range patterns {
+		t.Run(name, func(t *testing.T) {
+			filter := NewRegexpFilter(name, pattern)
+
+			assert.NotNil(t, filter)
+			assert.Equal(t, name, filter.Field)
+			assert.Equal(t, constants.OP_REGEX, filter.Operator)
+			assert.Equal(t, pattern, filter.Value)
+
+			// 验证可以构建SQL条件
+			sql, value := buildRegexpCondition(filter)
+			assert.NotEmpty(t, sql)
+			assert.Equal(t, pattern, value)
+		})
+	}
 }
 
 // TestNewFilterGroup 测试过滤器组创建
@@ -370,13 +618,13 @@ func TestQueryWithPaging(t *testing.T) {
 	result := query.WithPaging(2, 20)
 	assert.Same(t, query, result, "应返回自身以支持链式调用")
 	assert.NotNil(t, query.Pagination, "分页信息不应为空")
-	assert.Equal(t, int32(2), query.Pagination.Page, "页码应为 2")
-	assert.Equal(t, int32(20), query.Pagination.PageSize, "页大小应为 20")
+	assert.Equal(t, 2, query.Pagination.Page, "页码应为 2")
+	assert.Equal(t, 20, query.Pagination.PageSize, "页大小应为 20")
 
 	// 设置无效分页（应使用默认值）
 	query.WithPaging(0, -5)
-	assert.Equal(t, int32(1), query.Pagination.Page, "无效页码应默认为 1")
-	assert.Equal(t, int32(10), query.Pagination.PageSize, "无效页大小应默认为 10")
+	assert.Equal(t, constants.DefaultPage, query.Pagination.Page, "无效页码应默认为 1")
+	assert.Equal(t, constants.DefaultPageSize, query.Pagination.PageSize, "无效页大小应默认为 10")
 }
 
 // TestQueryLimit 测试查询限制设置
@@ -533,8 +781,8 @@ func TestMetaPaging(t *testing.T) {
 		Total:    150,
 	}
 
-	assert.Equal(t, int32(2), paging.Page, "页码应为 2")
-	assert.Equal(t, int32(15), paging.PageSize, "页大小应为 15")
+	assert.Equal(t, 2, paging.Page, "页码应为 2")
+	assert.Equal(t, 15, paging.PageSize, "页大小应为 15")
 	assert.Equal(t, int64(150), paging.Total, "总数应为 150")
 }
 

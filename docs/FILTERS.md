@@ -173,6 +173,90 @@ query := repository.NewQuery().
 users, err := repo.List(ctx, query)
 ```
 
+### REGEXP - 正则匹配
+
+正则匹配提供了强大的模式匹配能力，支持 MySQL 的 `REGEXP` 和 PostgreSQL 的正则语法。
+
+**支持的数据库：**
+
+- ✅ MySQL - 使用 `REGEXP` 或 `RLIKE`
+- ✅ PostgreSQL - 使用 `~` 操作符
+- ❌ SQL Server - 不直接支持(需使用 `LIKE` 或自定义函数)
+- ⚠️ SQLite - 需要自定义 REGEXP 函数
+
+```go
+// 邮箱格式验证
+// WHERE email REGEXP '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$'
+emailFilter := repository.NewRegexpFilter("email", "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$")
+query := repository.NewQuery().AddFilter(emailFilter)
+
+// 用户名格式验证(3-10位小写字母)
+usernameFilter := repository.NewRegexpFilter("username", "^[a-z]{3,10}$")
+query := repository.NewQuery().AddFilter(usernameFilter)
+
+// 中国手机号验证
+phoneFilter := repository.NewRegexpFilter("phone", "^1[3-9]\\d{9}$")
+query := repository.NewQuery().AddFilter(phoneFilter)
+
+// 在 FilterGroup 中使用
+group := repository.NewFilterGroup(constants.LOGIC_AND)
+group.AddEqFilterIfNotEmpty("status", "active")
+group.AddRegexpFilterIfNotEmpty("email", "^[a-z]+@example\\.com$")
+query := repository.NewQuery().WithFilterGroup(group)
+```
+
+**常用正则模式：**
+
+```go
+// 邮箱
+"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
+
+// 中国手机号
+"^1[3-9]\\d{9}$"
+
+// 用户名(字母开头,3-20位字母数字下划线)
+"^[a-zA-Z][a-zA-Z0-9_]{2,19}$"
+
+// 强密码(至少8位,包含大小写字母、数字和特殊字符)
+"^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]{8,}$"
+
+// URL
+"^https?://[\\w\\-]+(\\.[\\w\\-]+)+[/#?]?.*$"
+
+// IPv4 地址
+"^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$"
+
+// 日期格式(YYYY-MM-DD)
+"^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$"
+
+// 十六进制颜色码
+"^#?([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$"
+```
+
+### NOT REGEXP - 正则不匹配
+
+```go
+// 排除管理员邮箱
+// WHERE email NOT REGEXP '^admin@'
+filter := repository.NewFilter("email", constants.OP_NOT_REGEX, "^admin@")
+query := repository.NewQuery().AddFilter(filter)
+
+// 排除测试账号
+query := repository.NewQuery().
+    AddFilter(&repository.Filter{
+        Field:    "username",
+        Operator: constants.OP_NOT_REGEX,
+        Value:    "^test",
+    })
+```
+
+**注意事项：**
+
+1. **转义字符** - Go 字符串中的反斜杠需要双写: `\\d` 表示 `\d`
+2. **性能** - 正则匹配无法使用索引,会导致全表扫描,避免在大表上使用
+3. **优先使用 LIKE** - 对于简单的前缀/后缀匹配,`LIKE` 更高效
+4. **SQL注入** - 正则模式作为参数绑定,自动防止 SQL 注入
+
 ---
 
 ## NULL 查询
