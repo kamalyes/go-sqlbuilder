@@ -778,6 +778,11 @@ func (r *BaseRepository[T]) ListWithPagination(ctx context.Context, query *Query
 	return ListWithPaginationT(r, ctx, query, page)
 }
 
+// ListWithPagination32 分页列表查询（int32 版本，用于一般场景）
+func (r *BaseRepository[T]) ListWithPagination32(ctx context.Context, query *Query, page *Pagination32) ([]*T, *Pagination32, error) {
+	return ListWithPaginationT(r, ctx, query, page)
+}
+
 // ListWithPagination64 分页列表查询（int64 版本，用于需要大数值的场景）
 func (r *BaseRepository[T]) ListWithPagination64(ctx context.Context, query *Query, page *Pagination64) ([]*T, *Pagination64, error) {
 	return ListWithPaginationT(r, ctx, query, page)

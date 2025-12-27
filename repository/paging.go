@@ -66,6 +66,33 @@ func (p *PaginationT[T]) HasPrevPage() bool {
 	return p.Page > 1
 }
 
+// ToInt 转换为 Pagination (int 类型)
+func (p *PaginationT[T]) ToInt() *Pagination {
+	return &Pagination{
+		Page:     int(p.Page),
+		PageSize: int(p.PageSize),
+		Total:    p.Total,
+	}
+}
+
+// ToInt32 转换为 Pagination32 (int32 类型)
+func (p *PaginationT[T]) ToInt32() *Pagination32 {
+	return &Pagination32{
+		Page:     int32(p.Page),
+		PageSize: int32(p.PageSize),
+		Total:    p.Total,
+	}
+}
+
+// ToInt64 转换为 Pagination64 (int64 类型)
+func (p *PaginationT[T]) ToInt64() *Pagination64 {
+	return &Pagination64{
+		Page:     int64(p.Page),
+		PageSize: int64(p.PageSize),
+		Total:    p.Total,
+	}
+}
+
 // IsToday 判断时间是否为今天（支持 *time.Time）
 func IsToday(t *time.Time) bool {
 	if t == nil {

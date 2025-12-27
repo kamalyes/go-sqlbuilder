@@ -195,3 +195,134 @@ func TestGetTodayRange(t *testing.T) {
 	assert.Equal(t, end.Minute(), 0)
 	assert.Equal(t, end.Second(), 0)
 }
+
+// TestPaginationT_ToInt 测试转换为 int 类型分页
+func TestPaginationT_ToInt(t *testing.T) {
+	// 测试 int32 转 int
+	p32 := &Pagination32{Page: 5, PageSize: 20, Total: 100}
+	p := p32.ToInt()
+	assert.Equal(t, 5, p.Page)
+	assert.Equal(t, 20, p.PageSize)
+	assert.Equal(t, int64(100), p.Total)
+
+	// 测试 int64 转 int
+	p64 := &Pagination64{Page: 10, PageSize: 50, Total: 500}
+	p = p64.ToInt()
+	assert.Equal(t, 10, p.Page)
+	assert.Equal(t, 50, p.PageSize)
+	assert.Equal(t, int64(500), p.Total)
+
+	// 测试 int 转 int（自身转换）
+	pInt := &Pagination{Page: 3, PageSize: 15, Total: 75}
+	p = pInt.ToInt()
+	assert.Equal(t, 3, p.Page)
+	assert.Equal(t, 15, p.PageSize)
+	assert.Equal(t, int64(75), p.Total)
+}
+
+// TestPaginationT_ToInt32 测试转换为 int32 类型分页
+func TestPaginationT_ToInt32(t *testing.T) {
+	// 测试 int 转 int32
+	p := &Pagination{Page: 7, PageSize: 25, Total: 200}
+	p32 := p.ToInt32()
+	assert.Equal(t, int32(7), p32.Page)
+	assert.Equal(t, int32(25), p32.PageSize)
+	assert.Equal(t, int64(200), p32.Total)
+
+	// 测试 int64 转 int32
+	p64 := &Pagination64{Page: 8, PageSize: 30, Total: 300}
+	p32 = p64.ToInt32()
+	assert.Equal(t, int32(8), p32.Page)
+	assert.Equal(t, int32(30), p32.PageSize)
+	assert.Equal(t, int64(300), p32.Total)
+
+	// 测试 int32 转 int32（自身转换）
+	p32Orig := &Pagination32{Page: 2, PageSize: 10, Total: 50}
+	p32 = p32Orig.ToInt32()
+	assert.Equal(t, int32(2), p32.Page)
+	assert.Equal(t, int32(10), p32.PageSize)
+	assert.Equal(t, int64(50), p32.Total)
+}
+
+// TestPaginationT_ToInt64 测试转换为 int64 类型分页
+func TestPaginationT_ToInt64(t *testing.T) {
+	// 测试 int 转 int64
+	p := &Pagination{Page: 12, PageSize: 40, Total: 600}
+	p64 := p.ToInt64()
+	assert.Equal(t, int64(12), p64.Page)
+	assert.Equal(t, int64(40), p64.PageSize)
+	assert.Equal(t, int64(600), p64.Total)
+
+	// 测试 int32 转 int64
+	p32 := &Pagination32{Page: 15, PageSize: 45, Total: 700}
+	p64 = p32.ToInt64()
+	assert.Equal(t, int64(15), p64.Page)
+	assert.Equal(t, int64(45), p64.PageSize)
+	assert.Equal(t, int64(700), p64.Total)
+
+	// 测试 int64 转 int64（自身转换）
+	p64Orig := &Pagination64{Page: 20, PageSize: 60, Total: 1000}
+	p64 = p64Orig.ToInt64()
+	assert.Equal(t, int64(20), p64.Page)
+	assert.Equal(t, int64(60), p64.PageSize)
+	assert.Equal(t, int64(1000), p64.Total)
+}
+
+// TestPaginationT_Conversion_Chain 测试链式转换
+func TestPaginationT_Conversion_Chain(t *testing.T) {
+	// 测试 int -> int32 -> int64 -> int
+	p := &Pagination{Page: 5, PageSize: 20, Total: 100}
+
+	p32 := p.ToInt32()
+	assert.Equal(t, int32(5), p32.Page)
+
+	p64 := p32.ToInt64()
+	assert.Equal(t, int64(5), p64.Page)
+
+	pFinal := p64.ToInt()
+	assert.Equal(t, 5, pFinal.Page)
+	assert.Equal(t, 20, pFinal.PageSize)
+	assert.Equal(t, int64(100), pFinal.Total)
+}
+
+// TestPaginationT_Conversion_WithZeroValues 测试零值转换
+func TestPaginationT_Conversion_WithZeroValues(t *testing.T) {
+	// 测试零值转换
+	p := &Pagination{Page: 0, PageSize: 0, Total: 0}
+
+	p32 := p.ToInt32()
+	assert.Equal(t, int32(0), p32.Page)
+	assert.Equal(t, int32(0), p32.PageSize)
+	assert.Equal(t, int64(0), p32.Total)
+
+	p64 := p.ToInt64()
+	assert.Equal(t, int64(0), p64.Page)
+	assert.Equal(t, int64(0), p64.PageSize)
+	assert.Equal(t, int64(0), p64.Total)
+}
+
+// TestPaginationT_Conversion_PreserveMethods 测试转换后方法仍然有效
+func TestPaginationT_Conversion_PreserveMethods(t *testing.T) {
+	// 创建一个 int32 分页
+	p32 := &Pagination32{Page: 2, PageSize: 10, Total: 100}
+
+	// 转换为 int64
+	p64 := p32.ToInt64()
+
+	// 验证方法调用正常
+	assert.Equal(t, int(10), p64.GetOffset())
+	assert.Equal(t, 10, p64.GetLimit())
+	assert.Equal(t, int64(10), p64.GetTotalPages())
+	assert.True(t, p64.HasNextPage())
+	assert.True(t, p64.HasPrevPage())
+
+	// 转换为 int
+	p := p64.ToInt()
+
+	// 再次验证方法调用
+	assert.Equal(t, int(10), p.GetOffset())
+	assert.Equal(t, 10, p.GetLimit())
+	assert.Equal(t, 10, p.GetTotalPages())
+	assert.True(t, p.HasNextPage())
+	assert.True(t, p.HasPrevPage())
+}
