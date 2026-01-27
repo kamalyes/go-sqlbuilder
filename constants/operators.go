@@ -70,6 +70,7 @@ const (
 	OpNotILike     Operator = "NOT ILIKE"      // PostgreSQL 不区分大小写不匹配
 	OpSimilarTo    Operator = "SIMILAR TO"     // PostgreSQL SIMILAR TO
 	OpNotSimilarTo Operator = "NOT SIMILAR TO" // PostgreSQL NOT SIMILAR TO
+	OpRaw          Operator = "RAW"            // 原始 SQL 条件（直接使用 Field 作为条件）
 )
 
 // ==================== 逻辑操作符 ====================
@@ -109,6 +110,7 @@ const (
 	OP_NOT_ILIKE      = OpNotILike
 	OP_SIMILAR_TO     = OpSimilarTo
 	OP_NOT_SIMILAR_TO = OpNotSimilarTo
+	OP_RAW            = OpRaw // 原始 SQL 条件
 	OP_ALL            = OpAll
 	OP_ANY            = OpAny
 	OP_SOME           = OpSome

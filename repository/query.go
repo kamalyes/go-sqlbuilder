@@ -213,6 +213,21 @@ func (q *Query) AddFilterIfNotEmpty(field string, value interface{}) *Query {
 	return q
 }
 
+// AddRawFilter 添加原始 SQL 过滤条件（用于复杂条件，如子查询、函数等）
+// 注意：此方法直接将条件添加到 SQL 中，使用时需确保 SQL 注入安全
+// 示例: query.AddRawFilter("to_agent_id IS NOT NULL AND to_agent_id != ”")
+func (q *Query) AddRawFilter(rawCondition string) *Query {
+	if rawCondition != "" {
+		// 创建一个特殊的 Filter，使用 RAW 操作符
+		q.AddFilter(&Filter{
+			Field:    rawCondition,
+			Operator: constants.OP_RAW,
+			Value:    nil,
+		})
+	}
+	return q
+}
+
 // AddLikeFilterIfNotEmpty 添加 LIKE 过滤条件（仅当关键词不为空时）
 func (q *Query) AddLikeFilterIfNotEmpty(field, keyword string) *Query {
 	if keyword != "" {
@@ -657,6 +672,11 @@ func (q *Query) appendFilterArgs(args *[]interface{}, arg interface{}) {
 func (q *Query) buildFilterCondition(filter *Filter) (string, interface{}) {
 	if filter == nil {
 		return "", nil
+	}
+
+	// 处理原始 SQL 条件
+	if filter.Operator == constants.OP_RAW {
+		return filter.Field, nil // 直接返回 Field 作为条件，不需要参数
 	}
 
 	// 处理特殊操作符
