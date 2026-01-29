@@ -6,7 +6,7 @@ require (
 	github.com/go-sql-driver/mysql v1.8.1
 	github.com/kamalyes/go-logger v0.4.5
 	github.com/kamalyes/go-toolbox v0.11.87-0.20260105035322-c22ba1550a26
-	github.com/lib/pq v1.10.9
+	github.com/lib/pq v1.11.0
 	github.com/stretchr/testify v1.11.1
 	google.golang.org/protobuf v1.36.10
 	gorm.io/driver/mysql v1.6.0
