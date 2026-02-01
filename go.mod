@@ -8,7 +8,7 @@ require (
 	github.com/kamalyes/go-toolbox v0.11.87-0.20260105035322-c22ba1550a26
 	github.com/lib/pq v1.10.9
 	github.com/stretchr/testify v1.11.1
-	google.golang.org/protobuf v1.36.10
+	google.golang.org/protobuf v1.36.11
 	gorm.io/driver/mysql v1.6.0
 	gorm.io/driver/sqlite v1.6.0
 	gorm.io/gorm v1.30.0
