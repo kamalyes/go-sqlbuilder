@@ -180,23 +180,35 @@ func (q *Query) AddFilterIfNotEmpty(field string, value interface{}) *Query {
 		return q
 	}
 
+	// 使用反射检查指针类型
+	rv := reflect.ValueOf(value)
+	if rv.Kind() == reflect.Ptr {
+		// 处理所有指针类型
+		if rv.IsNil() {
+			return q // nil 指针，不添加过滤器
+		}
+		// 解引用指针，使用实际值
+		actualValue := rv.Elem().Interface()
+		
+		// 对于字符串指针，检查是否为空字符串
+		if str, ok := actualValue.(string); ok && str == "" {
+			return q
+		}
+		
+		// 使用解引用后的值添加过滤器
+		q.AddFilter(NewEqFilter(field, actualValue))
+		return q
+	}
+
 	switch v := value.(type) {
 	case string:
 		if v != "" {
 			q.AddFilter(NewEqFilter(field, v))
 		}
-	case *string:
-		if v != nil && *v != "" {
-			q.AddFilter(NewEqFilter(field, *v))
-		}
 	case int, int32, int64, uint, uint32, uint64:
 		q.AddFilter(NewEqFilter(field, v))
 	case bool:
 		q.AddFilter(NewEqFilter(field, v))
-	case *bool:
-		if v != nil {
-			q.AddFilter(NewEqFilter(field, *v))
-		}
 	default:
 		// 处理其他切片类型（如枚举切片）或单个值
 		slice := convert.AnySliceToInterfaceSlice(v)
@@ -205,7 +217,6 @@ func (q *Query) AddFilterIfNotEmpty(field string, value interface{}) *Query {
 			q.AddFilter(NewInFilterSlice(field, slice))
 		} else {
 			// 检查是否是切片类型
-			rv := reflect.ValueOf(v)
 			if rv.Kind() == reflect.Slice || rv.Kind() == reflect.Array {
 				// 空切片，不添加任何过滤器
 				return q

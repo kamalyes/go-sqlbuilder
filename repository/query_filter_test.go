@@ -250,6 +250,65 @@ func TestAddFilterIfNotEmptyEnumValue(t *testing.T) {
 	assert.Equal(t, TestStatusActive, query.Filters[0].Value)
 }
 
+// TestAddFilterIfNotEmptyEnumPointer 测试枚举指针过滤
+func TestAddFilterIfNotEmptyEnumPointer(t *testing.T) {
+	// 非 nil 枚举指针
+	status := TestStatusActive
+	query := NewQuery()
+	query.AddFilterIfNotEmpty("status", &status)
+	assert.Equal(t, 1, len(query.Filters))
+	assert.Equal(t, "status", query.Filters[0].Field)
+	assert.Equal(t, constants.OP_EQ, query.Filters[0].Operator)
+	assert.Equal(t, TestStatusActive, query.Filters[0].Value)
+
+	// nil 枚举指针 - 不应添加过滤条件
+	var nilStatus *TestStatus
+	query = NewQuery()
+	query.AddFilterIfNotEmpty("status", nilStatus)
+	assert.Equal(t, 0, len(query.Filters))
+}
+
+// TestAddFilterIfNotEmptyIntPointer 测试整数指针过滤
+func TestAddFilterIfNotEmptyIntPointer(t *testing.T) {
+	// 非 nil int 指针
+	age := 25
+	query := NewQuery()
+	query.AddFilterIfNotEmpty("age", &age)
+	assert.Equal(t, 1, len(query.Filters))
+	assert.Equal(t, "age", query.Filters[0].Field)
+	assert.Equal(t, constants.OP_EQ, query.Filters[0].Operator)
+	assert.Equal(t, 25, query.Filters[0].Value)
+
+	// 零值 int 指针也应该添加（因为0是有效值）
+	zero := 0
+	query = NewQuery()
+	query.AddFilterIfNotEmpty("count", &zero)
+	assert.Equal(t, 1, len(query.Filters))
+	assert.Equal(t, 0, query.Filters[0].Value)
+
+	// nil int 指针 - 不应添加过滤条件
+	var nilInt *int
+	query = NewQuery()
+	query.AddFilterIfNotEmpty("age", nilInt)
+	assert.Equal(t, 0, len(query.Filters))
+}
+
+// TestAddFilterIfNotEmptyInt64Pointer 测试 int64 指针过滤
+func TestAddFilterIfNotEmptyInt64Pointer(t *testing.T) {
+	// 非 nil int64 指针
+	id := int64(12345)
+	query := NewQuery()
+	query.AddFilterIfNotEmpty("id", &id)
+	assert.Equal(t, 1, len(query.Filters))
+	assert.Equal(t, int64(12345), query.Filters[0].Value)
+
+	// nil int64 指针
+	var nilInt64 *int64
+	query = NewQuery()
+	query.AddFilterIfNotEmpty("id", nilInt64)
+	assert.Equal(t, 0, len(query.Filters))
+}
+
 // TestAddFilterIfNotEmptyChainCall 测试链式调用
 func TestAddFilterIfNotEmptyChainCall(t *testing.T) {
 	query := NewQuery()
@@ -330,6 +389,50 @@ func TestAddTimeRangeFilter(t *testing.T) {
 	result := query.AddTimeRangeFilter("updated_at", startTime, endTime)
 	assert.Equal(t, query, result)
 	assert.Equal(t, 2, len(query.Filters))
+}
+
+// TestAddRawFilter 测试原始 SQL 过滤条件
+func TestAddRawFilter(t *testing.T) {
+	// 基本原始 SQL 条件
+	query := NewQuery()
+	query.AddRawFilter("age > 18 AND status = 'active'")
+	assert.Equal(t, 1, len(query.Filters))
+	assert.Equal(t, "age > 18 AND status = 'active'", query.Filters[0].Field)
+	assert.Equal(t, constants.OP_RAW, query.Filters[0].Operator)
+	assert.Nil(t, query.Filters[0].Value)
+
+	// 包含 IS NOT NULL 的条件
+	query = NewQuery()
+	query.AddRawFilter("to_agent_id IS NOT NULL AND to_agent_id != ''")
+	assert.Equal(t, 1, len(query.Filters))
+	assert.Equal(t, "to_agent_id IS NOT NULL AND to_agent_id != ''", query.Filters[0].Field)
+	assert.Equal(t, constants.OP_RAW, query.Filters[0].Operator)
+
+	// 包含子查询的条件
+	query = NewQuery()
+	query.AddRawFilter("user_id IN (SELECT id FROM premium_users)")
+	assert.Equal(t, 1, len(query.Filters))
+	assert.Equal(t, "user_id IN (SELECT id FROM premium_users)", query.Filters[0].Field)
+
+	// 空字符串 - 不应添加过滤条件
+	query = NewQuery()
+	query.AddRawFilter("")
+	assert.Equal(t, 0, len(query.Filters))
+
+	// 组合使用
+	query = NewQuery()
+	query.AddFilter(NewEqFilter("status", "active")).
+		AddRawFilter("age > 18").
+		AddFilter(NewLikeFilter("name", "张三"))
+	assert.Equal(t, 3, len(query.Filters))
+	assert.Equal(t, constants.OP_EQ, query.Filters[0].Operator)
+	assert.Equal(t, constants.OP_RAW, query.Filters[1].Operator)
+	assert.Equal(t, constants.OP_LIKE, query.Filters[2].Operator)
+
+	// 链式调用验证
+	query = NewQuery()
+	result := query.AddRawFilter("created_at > NOW() - INTERVAL 7 DAY")
+	assert.Equal(t, query, result) // 验证返回的是同一个对象
 }
 
 // TestAddTimeRangeFilterTimePointer 测试时间指针

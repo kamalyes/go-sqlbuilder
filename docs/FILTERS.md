@@ -375,6 +375,98 @@ users, err := repo.List(ctx, query)
 - `OP_BETWEEN` - 范围 (BETWEEN)
 - `OP_IS_NULL` - 为空 (IS NULL)
 - `OP_IS_NOT_NULL` - 不为空 (IS NOT NULL)
+- `OP_RAW` - 原始 SQL 条件（需谨慎使用）
+
+---
+
+## 原始 SQL 条件
+
+### AddRawFilter - 添加原始 SQL 条件
+
+⚠️ **安全警告**：此方法直接将 SQL 条件添加到查询中，使用时必须确保输入来源安全，避免 SQL 注入风险。
+
+适用于标准过滤器无法满足的复杂场景，如：
+- 复杂的条件组合
+- 包含 SQL 函数的条件
+- 子查询
+- 数据库特定的 SQL 语法
+
+```go
+// 基本用法
+query := repository.NewQuery().
+    AddRawFilter("age > 18 AND status = 'active'")
+
+// 包含 SQL 函数
+query := repository.NewQuery().
+    AddRawFilter("YEAR(created_at) = 2024")
+
+// 子查询
+query := repository.NewQuery().
+    AddRawFilter("user_id IN (SELECT id FROM premium_users WHERE expires_at > NOW())")
+
+// 复杂的 NULL 检查
+query := repository.NewQuery().
+    AddRawFilter("to_agent_id IS NOT NULL AND to_agent_id != ''")
+
+// 日期时间计算
+query := repository.NewQuery().
+    AddRawFilter("created_at > NOW() - INTERVAL 7 DAY")
+
+// 组合使用
+query := repository.NewQuery().
+    AddEqFilter("department", "sales").
+    AddRawFilter("MONTH(hire_date) = MONTH(NOW())"). // 本月入职
+    AddGteFilter("performance_score", 80)
+```
+
+**最佳实践：**
+
+```go
+// ✅ 正确：静态 SQL，安全
+query.AddRawFilter("status != 'deleted' AND age >= 18")
+
+// ❌ 危险：直接拼接用户输入，可能导致 SQL 注入
+userInput := "admin' OR '1'='1"
+query.AddRawFilter("username = '" + userInput + "'") // 不要这样做！
+
+// ✅ 正确：如果需要动态值，使用参数化查询
+// 或者使用标准过滤方法
+query.AddEqFilter("username", userInput)
+
+// ✅ 正确：用于复杂的内置函数和子查询
+query.AddRawFilter("DATE(created_at) = CURDATE()").
+    AddRawFilter("id IN (SELECT user_id FROM active_sessions)")
+```
+
+**使用场景：**
+
+1. **SQL 函数**
+```go
+// 按日期分组查询
+query.AddRawFilter("DATE(created_at) = '2024-01-01'")
+query.AddRawFilter("YEAR(created_at) = 2024 AND MONTH(created_at) = 1")
+```
+
+2. **复杂条件**
+```go
+// 多字段复杂逻辑
+query.AddRawFilter("(type = 'urgent' AND priority > 5) OR (type = 'normal' AND priority > 8)")
+```
+
+3. **子查询**
+```go
+// 关联子查询
+query.AddRawFilter("exists (SELECT 1 FROM orders WHERE orders.user_id = users.id AND orders.status = 'completed')")
+```
+
+4. **数据库特定功能**
+```go
+// MySQL 全文搜索
+query.AddRawFilter("MATCH(title, content) AGAINST('golang' IN BOOLEAN MODE)")
+
+// PostgreSQL JSON 查询
+query.AddRawFilter("metadata->>'status' = 'active'")
+```
 
 ---
 
