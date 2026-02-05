@@ -193,6 +193,10 @@ func (q *Query) AddFilterIfNotEmpty(field string, value interface{}) *Query {
 		q.AddFilter(NewEqFilter(field, v))
 	case bool:
 		q.AddFilter(NewEqFilter(field, v))
+	case *bool:
+		if v != nil {
+			q.AddFilter(NewEqFilter(field, *v))
+		}
 	default:
 		// 处理其他切片类型（如枚举切片）或单个值
 		slice := convert.AnySliceToInterfaceSlice(v)
