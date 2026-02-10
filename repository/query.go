@@ -40,11 +40,15 @@ type ComparedValue struct {
 	IsRaw bool
 }
 
-// NewQuery 创建查询条件
+// NewQuery 创建查询条件，初始化所有切片字段
 func NewQuery() *Query {
 	return &Query{
-		Filters: make([]*Filter, 0),
-		Orders:  make([]Order, 0),
+		Filters:      make([]*Filter, 0),
+		Orders:       make([]Order, 0),
+		GroupBy:      make([]string, 0),
+		Having:       make([]*Filter, 0),
+		SelectFields: make([]string, 0),
+		OmitFields:   make([]string, 0),
 	}
 }
 
@@ -189,12 +193,12 @@ func (q *Query) AddFilterIfNotEmpty(field string, value interface{}) *Query {
 		}
 		// 解引用指针，使用实际值
 		actualValue := rv.Elem().Interface()
-		
+
 		// 对于字符串指针，检查是否为空字符串
 		if str, ok := actualValue.(string); ok && str == "" {
 			return q
 		}
-		
+
 		// 使用解引用后的值添加过滤器
 		q.AddFilter(NewEqFilter(field, actualValue))
 		return q

@@ -17,6 +17,9 @@ import (
 	"github.com/kamalyes/go-toolbox/pkg/validator"
 )
 
+// MaxFilterGroupDepth 过滤条件组最大嵌套深度，防止无限嵌套导致内存溢出
+const MaxFilterGroupDepth = 20
+
 // SubQuery 子查询结构
 type SubQuery struct {
 	SQL  string        // 子查询 SQL
@@ -73,12 +76,28 @@ func (fg *FilterGroup) AddFilters(filters ...*Filter) *FilterGroup {
 	return fg
 }
 
-// AddGroup 向条件组添加嵌套条件组
+// AddGroup 向条件组添加嵌套条件组（检查嵌套深度限制）
 func (fg *FilterGroup) AddGroup(group *FilterGroup) *FilterGroup {
-	if group != nil {
+	if group != nil && fg.getDepth() < MaxFilterGroupDepth {
 		fg.Groups = append(fg.Groups, group)
 	}
 	return fg
+}
+
+// getDepth 计算条件组的嵌套深度
+func (fg *FilterGroup) getDepth() int {
+	if len(fg.Groups) == 0 {
+		return 1
+	}
+	maxDepth := 1
+	for _, g := range fg.Groups {
+		if g != nil {
+			if d := g.getDepth(); d+1 > maxDepth {
+				maxDepth = d + 1
+			}
+		}
+	}
+	return maxDepth
 }
 
 // IsEmpty 检查条件组是否为空
@@ -226,8 +245,17 @@ func (fg *FilterGroup) Clear() *FilterGroup {
 	return fg
 }
 
-// Clone 克隆条件组（深拷贝）
+// Clone 克隆条件组（深拷贝，检查嵌套深度）
 func (fg *FilterGroup) Clone() *FilterGroup {
+	return fg.cloneWithDepth(0)
+}
+
+// cloneWithDepth 递归克隆条件组，检查嵌套深度
+func (fg *FilterGroup) cloneWithDepth(depth int) *FilterGroup {
+	if depth >= MaxFilterGroupDepth {
+		return NewFilterGroup(fg.LogicOp)
+	}
+
 	newGroup := NewFilterGroup(fg.LogicOp)
 
 	// 克隆过滤条件
@@ -242,7 +270,9 @@ func (fg *FilterGroup) Clone() *FilterGroup {
 
 	// 克隆嵌套条件组
 	for _, g := range fg.Groups {
-		newGroup.Groups = append(newGroup.Groups, g.Clone())
+		if g != nil {
+			newGroup.Groups = append(newGroup.Groups, g.cloneWithDepth(depth+1))
+		}
 	}
 
 	return newGroup

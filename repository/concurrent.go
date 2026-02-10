@@ -13,11 +13,19 @@ package repository
 
 import (
 	"context"
-	"github.com/kamalyes/go-logger"
-	"github.com/kamalyes/go-sqlbuilder/constants"
-	"gorm.io/gorm"
 	"sync"
 	"time"
+
+	"github.com/kamalyes/go-logger"
+	"github.com/kamalyes/go-sqlbuilder/constants"
+	"github.com/kamalyes/go-toolbox/pkg/mathx"
+	"gorm.io/gorm"
+)
+
+// 并发查询限制常量
+const (
+	MaxWorkers       = 1000  // 最大工作协程数
+	MaxTasksPerBatch = 10000 // 单批最大任务数
 )
 
 // ConcurrentQueryTask 泛型查询任务定义
@@ -65,19 +73,52 @@ func (e *ConcurrentQueryExecutor) WithTimeout(timeout time.Duration) *Concurrent
 	return e
 }
 
-// WithWorkers 设置工作协程数（链式调用）
+// WithWorkers 设置工作协程数（链式调用，自动限制在 1-MaxWorkers 范围内）
 func (e *ConcurrentQueryExecutor) WithWorkers(workers int) *ConcurrentQueryExecutor {
-	e.workers = workers
+	e.workers = mathx.IfClamp(workers, 1, MaxWorkers)
 	return e
 }
 
-// ExecuteConcurrentQuery 执行并发查询任务
+// ExecuteConcurrentQuery 执行并发查询任务（支持任务数限制）
 // tasks: 查询任务列表
 // 返回: 所有查询结果和是否有错误发生
 func ExecuteConcurrentQuery[T any](e *ConcurrentQueryExecutor, ctx context.Context, tasks []ConcurrentQueryTask[T]) ([]ConcurrentQueryResult[T], bool) {
 	if len(tasks) == 0 {
 		return []ConcurrentQueryResult[T]{}, false
 	}
+
+	// 检查任务数量限制
+	if len(tasks) > MaxTasksPerBatch {
+		// 分批处理
+		return executeConcurrentQueryInBatches(e, ctx, tasks)
+	}
+
+	return executeConcurrentQueryBatch(e, ctx, tasks)
+}
+
+// executeConcurrentQueryInBatches 分批执行并发查询
+func executeConcurrentQueryInBatches[T any](e *ConcurrentQueryExecutor, ctx context.Context, tasks []ConcurrentQueryTask[T]) ([]ConcurrentQueryResult[T], bool) {
+	allResults := make([]ConcurrentQueryResult[T], 0, len(tasks))
+	hasError := false
+
+	for i := 0; i < len(tasks); i += MaxTasksPerBatch {
+		end := i + MaxTasksPerBatch
+		if end > len(tasks) {
+			end = len(tasks)
+		}
+
+		batchResults, batchHasError := executeConcurrentQueryBatch(e, ctx, tasks[i:end])
+		allResults = append(allResults, batchResults...)
+		if batchHasError {
+			hasError = true
+		}
+	}
+
+	return allResults, hasError
+}
+
+// executeConcurrentQueryBatch 执行单批并发查询
+func executeConcurrentQueryBatch[T any](e *ConcurrentQueryExecutor, ctx context.Context, tasks []ConcurrentQueryTask[T]) ([]ConcurrentQueryResult[T], bool) {
 
 	// 创建带超时的context
 	queryCtx, cancel := context.WithTimeout(ctx, e.timeout)
