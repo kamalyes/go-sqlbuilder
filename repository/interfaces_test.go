@@ -556,8 +556,10 @@ func TestNewQuery(t *testing.T) {
 	assert.Nil(t, query.LimitValue, "限制数量应为空")
 	assert.Nil(t, query.OffsetValue, "偏移量应为空")
 	assert.False(t, query.Distinct, "去重标记应为 false")
-	assert.Nil(t, query.GroupBy, "分组字段应为空")
-	assert.Nil(t, query.Having, "HAVING 条件应为空")
+	assert.NotNil(t, query.GroupBy, "分组字段不应为 nil")
+	assert.Empty(t, query.GroupBy, "分组字段应为空切片")
+	assert.NotNil(t, query.Having, "HAVING 条件不应为 nil")
+	assert.Empty(t, query.Having, "HAVING 条件应为空切片")
 	assert.False(t, query.HasFilters(), "应没有过滤条件")
 }
 
