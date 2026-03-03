@@ -12,6 +12,10 @@ package db
 
 import (
 	"fmt"
+	"os"
+	"testing"
+	"time"
+
 	"github.com/kamalyes/go-logger"
 	"github.com/stretchr/testify/assert"
 	"gorm.io/driver/mysql"
@@ -20,9 +24,6 @@ import (
 	"gorm.io/gorm/clause"
 	gormLogger "gorm.io/gorm/logger"
 	"gorm.io/gorm/schema"
-	"os"
-	"testing"
-	"time"
 )
 
 // TestMigrateUser 测试用的用户模型
@@ -79,7 +80,7 @@ func TestNewMigrator(t *testing.T) {
 	assert.True(t, migrator.config.SkipCommentOnError, "默认应跳过注释错误")
 
 	// 测试自定义配置
-	customLogger := logger.NewLogger(nil)
+	customLogger := logger.NewLogger()
 	config := &MigratorConfig{
 		Models:             []interface{}{&TestMigrateUser{}},
 		SkipIndexOnError:   false,

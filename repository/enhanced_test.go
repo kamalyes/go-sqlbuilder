@@ -26,7 +26,7 @@ func TestNewEnhancedRepository(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewEnhancedRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewEnhancedRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	assert.NotNil(t, repo, "增强版仓储不应为空")
 	assert.NotNil(t, repo.BaseRepository, "基础仓储不应为空")
@@ -39,7 +39,7 @@ func TestNewEnhancedRepositoryWithDB(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
-	repo := NewEnhancedRepositoryWithDB[TestUser](gormDB, logger.NewLogger(nil), "test_users")
+	repo := NewEnhancedRepositoryWithDB[TestUser](gormDB, logger.NewLogger(), "test_users")
 
 	assert.NotNil(t, repo, "增强版仓储不应为空")
 	assert.NotNil(t, repo.BaseRepository, "基础仓储不应为空")
@@ -52,7 +52,7 @@ func TestEnhancedRepositoryFindByField(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
-	repo := NewEnhancedRepositoryWithDB[TestUser](gormDB, logger.NewLogger(nil), "test_users")
+	repo := NewEnhancedRepositoryWithDB[TestUser](gormDB, logger.NewLogger(), "test_users")
 	ctx := context.Background()
 
 	// 创建测试数据
@@ -84,7 +84,7 @@ func TestEnhancedRepositoryFindOneByField(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
-	repo := NewEnhancedRepositoryWithDB[TestUser](gormDB, logger.NewLogger(nil), "test_users")
+	repo := NewEnhancedRepositoryWithDB[TestUser](gormDB, logger.NewLogger(), "test_users")
 	ctx := context.Background()
 
 	// 创建测试数据
@@ -109,7 +109,7 @@ func TestEnhancedRepositoryFindByFields(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
-	repo := NewEnhancedRepositoryWithDB[TestUser](gormDB, logger.NewLogger(nil), "test_users")
+	repo := NewEnhancedRepositoryWithDB[TestUser](gormDB, logger.NewLogger(), "test_users")
 	ctx := context.Background()
 
 	// 创建测试数据
@@ -142,7 +142,7 @@ func TestEnhancedRepositoryFindByFieldWithPagination(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
-	repo := NewEnhancedRepositoryWithDB[TestUser](gormDB, logger.NewLogger(nil), "test_users")
+	repo := NewEnhancedRepositoryWithDB[TestUser](gormDB, logger.NewLogger(), "test_users")
 	ctx := context.Background()
 
 	// 创建测试数据
@@ -179,7 +179,7 @@ func TestEnhancedRepositoryFindByFieldWithCursor(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
-	repo := NewEnhancedRepositoryWithDB[TestUser](gormDB, logger.NewLogger(nil), "test_users")
+	repo := NewEnhancedRepositoryWithDB[TestUser](gormDB, logger.NewLogger(), "test_users")
 	ctx := context.Background()
 
 	// 创建测试数据
@@ -217,7 +217,7 @@ func TestEnhancedRepositoryFindInField(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
-	repo := NewEnhancedRepositoryWithDB[TestUser](gormDB, logger.NewLogger(nil), "test_users")
+	repo := NewEnhancedRepositoryWithDB[TestUser](gormDB, logger.NewLogger(), "test_users")
 	ctx := context.Background()
 
 	// 创建测试数据
@@ -246,7 +246,7 @@ func TestEnhancedRepositoryCountByField(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
-	repo := NewEnhancedRepositoryWithDB[TestUser](gormDB, logger.NewLogger(nil), "test_users")
+	repo := NewEnhancedRepositoryWithDB[TestUser](gormDB, logger.NewLogger(), "test_users")
 	ctx := context.Background()
 
 	// 创建测试数据
@@ -274,7 +274,7 @@ func TestEnhancedRepositoryUpdateByField(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
-	repo := NewEnhancedRepositoryWithDB[TestUser](gormDB, logger.NewLogger(nil), "test_users")
+	repo := NewEnhancedRepositoryWithDB[TestUser](gormDB, logger.NewLogger(), "test_users")
 	ctx := context.Background()
 
 	// 创建测试数据
@@ -303,7 +303,7 @@ func TestEnhancedRepositoryDeleteByField(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
-	repo := NewEnhancedRepositoryWithDB[TestUser](gormDB, logger.NewLogger(nil), "test_users")
+	repo := NewEnhancedRepositoryWithDB[TestUser](gormDB, logger.NewLogger(), "test_users")
 	ctx := context.Background()
 
 	// 创建测试数据
@@ -330,7 +330,7 @@ func TestEnhancedRepositoryUpdateSingleField(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
-	repo := NewEnhancedRepositoryWithDB[TestUser](gormDB, logger.NewLogger(nil), "test_users")
+	repo := NewEnhancedRepositoryWithDB[TestUser](gormDB, logger.NewLogger(), "test_users")
 	ctx := context.Background()
 
 	// 创建测试数据
@@ -353,7 +353,7 @@ func TestEnhancedRepositoryIncrementField(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
-	repo := NewEnhancedRepositoryWithDB[TestUser](gormDB, logger.NewLogger(nil), "test_users")
+	repo := NewEnhancedRepositoryWithDB[TestUser](gormDB, logger.NewLogger(), "test_users")
 	ctx := context.Background()
 
 	// 创建测试数据
@@ -376,7 +376,7 @@ func TestEnhancedRepositoryDecrementField(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
-	repo := NewEnhancedRepositoryWithDB[TestUser](gormDB, logger.NewLogger(nil), "test_users")
+	repo := NewEnhancedRepositoryWithDB[TestUser](gormDB, logger.NewLogger(), "test_users")
 	ctx := context.Background()
 
 	// 创建测试数据
@@ -399,7 +399,7 @@ func TestEnhancedRepositoryBatchUpdateByField(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
-	repo := NewEnhancedRepositoryWithDB[TestUser](gormDB, logger.NewLogger(nil), "test_users")
+	repo := NewEnhancedRepositoryWithDB[TestUser](gormDB, logger.NewLogger(), "test_users")
 	ctx := context.Background()
 
 	// 创建测试数据
@@ -428,7 +428,7 @@ func TestEnhancedRepositoryFindWithOrder(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
-	repo := NewEnhancedRepositoryWithDB[TestUser](gormDB, logger.NewLogger(nil), "test_users")
+	repo := NewEnhancedRepositoryWithDB[TestUser](gormDB, logger.NewLogger(), "test_users")
 	ctx := context.Background()
 
 	// 创建测试数据
@@ -469,7 +469,7 @@ func TestEnhancedRepositoryFindByTimeRange(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
-	repo := NewEnhancedRepositoryWithDB[TestUser](gormDB, logger.NewLogger(nil), "test_users")
+	repo := NewEnhancedRepositoryWithDB[TestUser](gormDB, logger.NewLogger(), "test_users")
 	ctx := context.Background()
 
 	// 创建测试数据（不同时间）
@@ -496,7 +496,7 @@ func TestEnhancedRepositoryExistsBy(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
-	repo := NewEnhancedRepositoryWithDB[TestUser](gormDB, logger.NewLogger(nil), "test_users")
+	repo := NewEnhancedRepositoryWithDB[TestUser](gormDB, logger.NewLogger(), "test_users")
 	ctx := context.Background()
 
 	// 创建测试数据
@@ -520,7 +520,7 @@ func TestEnhancedRepositoryGetDistinctValues(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
-	repo := NewEnhancedRepositoryWithDB[TestUser](gormDB, logger.NewLogger(nil), "test_users")
+	repo := NewEnhancedRepositoryWithDB[TestUser](gormDB, logger.NewLogger(), "test_users")
 	ctx := context.Background()
 
 	// 创建测试数据
@@ -553,7 +553,7 @@ func TestEnhancedRepositoryCreateIfNotExistsEnhanced(t *testing.T) {
 	gormDB, err := setupTestDB()
 	assert.NoError(t, err)
 
-	repo := NewEnhancedRepositoryWithDB[TestUser](gormDB, logger.NewLogger(nil), "test_users")
+	repo := NewEnhancedRepositoryWithDB[TestUser](gormDB, logger.NewLogger(), "test_users")
 	ctx := context.Background()
 
 	// 第一次创建
@@ -589,7 +589,7 @@ func TestEnhancedRepositoryNewEnhancedRepositoryWithDB(t *testing.T) {
 	assert.NoError(t, err)
 
 	// 测试正常创建
-	repo := NewEnhancedRepositoryWithDB[TestUser](gormDB, logger.NewLogger(nil), "test_users")
+	repo := NewEnhancedRepositoryWithDB[TestUser](gormDB, logger.NewLogger(), "test_users")
 	assert.NotNil(t, repo)
 	assert.NotNil(t, repo.BaseRepository)
 }
@@ -600,7 +600,7 @@ func TestEnhancedRepositoryFindByFieldErrorCase(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := db.MustNewGormHandler(gormDB)
-	repo := NewEnhancedRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewEnhancedRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	ctx := context.Background()
 

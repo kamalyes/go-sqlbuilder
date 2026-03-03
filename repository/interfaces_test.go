@@ -916,7 +916,7 @@ func TestGetDeletedWithNilQuery(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := db.MustNewGormHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	ctx := context.Background()
 
@@ -942,7 +942,7 @@ func TestGetNonDeletedWithNilQuery(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := db.MustNewGormHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	ctx := context.Background()
 
@@ -1027,7 +1027,7 @@ func TestApplyQueryWithFilterGroup(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := db.MustNewGormHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	ctx := context.Background()
 
@@ -1228,7 +1228,7 @@ func TestSoftDeleteComplexScenarios(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := db.MustNewGormHandler(gormDB)
-	baseRepo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	baseRepo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 	repo := NewRepositoryWithSoftDelete(baseRepo)
 
 	ctx := context.Background()

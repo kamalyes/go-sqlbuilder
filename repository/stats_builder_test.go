@@ -23,7 +23,7 @@ import (
 func TestMultiTabletatsBuilderCount(t *testing.T) {
 	db, err := setupTestDB()
 	assert.NoError(t, err)
-	log := logger.NewLogger(nil)
+	log := logger.NewLogger()
 	ctx := context.Background()
 
 	// 创建测试数据
@@ -63,7 +63,7 @@ func TestMultiTabletatsBuilderCount(t *testing.T) {
 func TestMultiTabletatsBuilderWithTimeRange(t *testing.T) {
 	db, err := setupTestDB()
 	assert.NoError(t, err)
-	log := logger.NewLogger(nil)
+	log := logger.NewLogger()
 	ctx := context.Background()
 
 	now := time.Now()
@@ -95,7 +95,7 @@ func TestMultiTabletatsBuilderWithTimeRange(t *testing.T) {
 func TestMultiTabletatsBuilderWithConditions(t *testing.T) {
 	db, err := setupTestDB()
 	assert.NoError(t, err)
-	log := logger.NewLogger(nil)
+	log := logger.NewLogger()
 	ctx := context.Background()
 
 	// 创建测试数据
@@ -125,7 +125,7 @@ func TestMultiTabletatsBuilderWithConditions(t *testing.T) {
 func TestMultiTabletatsBuilderSum(t *testing.T) {
 	db, err := setupTestDB()
 	assert.NoError(t, err)
-	log := logger.NewLogger(nil)
+	log := logger.NewLogger()
 	ctx := context.Background()
 
 	// 创建测试数据
@@ -152,7 +152,7 @@ func TestMultiTabletatsBuilderSum(t *testing.T) {
 func TestMultiTabletatsBuilderWithTimeout(t *testing.T) {
 	db, err := setupTestDB()
 	assert.NoError(t, err)
-	log := logger.NewLogger(nil)
+	log := logger.NewLogger()
 	ctx := context.Background()
 
 	// 创建测试数据
@@ -177,7 +177,7 @@ func TestMultiTabletatsBuilderWithTimeout(t *testing.T) {
 func TestMultiTabletatsBuilderWithWorkers(t *testing.T) {
 	db, err := setupTestDB()
 	assert.NoError(t, err)
-	log := logger.NewLogger(nil)
+	log := logger.NewLogger()
 	ctx := context.Background()
 
 	// 创建测试数据
@@ -216,7 +216,7 @@ func TestMultiTabletatsBuilderWithWorkers(t *testing.T) {
 func TestMultiTabletatsBuilderExecuteWithDetails(t *testing.T) {
 	db, err := setupTestDB()
 	assert.NoError(t, err)
-	log := logger.NewLogger(nil)
+	log := logger.NewLogger()
 	ctx := context.Background()
 
 	// 创建测试数据

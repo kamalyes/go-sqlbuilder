@@ -36,7 +36,7 @@ func TestExecuteConcurrentQuery(t *testing.T) {
 	assert.NoError(t, err)
 
 	executor := NewConcurrentQueryExecutor(db).
-		WithLogger(logger.NewLogger(nil)).
+		WithLogger(logger.NewLogger()).
 		WithTimeout(60 * time.Second)
 
 	tasks := []ConcurrentQueryTask[int64]{
@@ -252,7 +252,7 @@ func TestExecuteConcurrentQueries(t *testing.T) {
 	db, err := setupTestDB()
 	assert.NoError(t, err)
 	ctx := context.Background()
-	log := logger.NewLogger(nil)
+	log := logger.NewLogger()
 
 	// 创建测试数据
 	users := []TestUser{
@@ -290,7 +290,7 @@ func TestConcurrentQueryOptions(t *testing.T) {
 	db, err := setupTestDB()
 	assert.NoError(t, err)
 	ctx := context.Background()
-	log := logger.NewLogger(nil)
+	log := logger.NewLogger()
 
 	tasks := []ConcurrentQueryTask[int64]{
 		{

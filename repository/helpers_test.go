@@ -32,7 +32,7 @@ func TestSoftDeleteHelpers(t *testing.T) {
 	gormDB.Exec("DELETE FROM test_users")
 
 	dbHandler := db.MustNewGormHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	ctx := context.Background()
 
@@ -99,7 +99,7 @@ func TestRestoreDeleted(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := db.MustNewGormHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	ctx := context.Background()
 
@@ -142,7 +142,7 @@ func TestRestoreDeletedBatch(t *testing.T) {
 
 	dbHandler := db.MustNewGormHandler(gormDB)
 
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	ctx := context.Background()
 
@@ -197,7 +197,7 @@ func TestPermanentlyDelete(t *testing.T) {
 
 	dbHandler := db.MustNewGormHandler(gormDB)
 
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	ctx := context.Background()
 
@@ -238,7 +238,7 @@ func TestPermanentlyDeleteBatch(t *testing.T) {
 
 	dbHandler := db.MustNewGormHandler(gormDB)
 
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	ctx := context.Background()
 
@@ -291,7 +291,7 @@ func TestSoftDeleteHelpersWithPagination(t *testing.T) {
 
 	dbHandler := db.MustNewGormHandler(gormDB)
 
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	ctx := context.Background()
 
@@ -355,7 +355,7 @@ func TestSoftDeleteHelpersWithOrdering(t *testing.T) {
 
 	dbHandler := db.MustNewGormHandler(gormDB)
 
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	ctx := context.Background()
 
@@ -407,7 +407,7 @@ func TestRepositoryWithSoftDelete_DeletedAt(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := db.MustNewGormHandler(gormDB)
-	baseRepo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	baseRepo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	// 创建软删除仓储
 	repo := NewRepositoryWithSoftDelete(baseRepo)
@@ -485,7 +485,7 @@ func TestRepositoryWithSoftDelete_ListMethods(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := db.MustNewGormHandler(gormDB)
-	baseRepo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	baseRepo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	// 创建软删除仓储
 	repo := NewRepositoryWithSoftDelete(baseRepo)
@@ -550,7 +550,7 @@ func TestNewRepositoryWithSoftDelete(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := db.MustNewGormHandler(gormDB)
-	baseRepo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	baseRepo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	// 测试创建软删除仓储
 	repo := NewRepositoryWithSoftDelete(baseRepo)
@@ -585,7 +585,7 @@ func TestRepositoryWithSoftDelete_IsDeletedMethods(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := db.MustNewGormHandler(gormDB)
-	baseRepo := NewBaseRepository[TestUserWithIsDeleted](dbHandler, logger.NewLogger(nil), "test_users_is_deleted")
+	baseRepo := NewBaseRepository[TestUserWithIsDeleted](dbHandler, logger.NewLogger(), "test_users_is_deleted")
 	repo := NewRepositoryWithSoftDelete(baseRepo)
 
 	ctx := context.Background()
@@ -681,7 +681,7 @@ func TestRepositoryWithSoftDelete_ListDeletedAndNotDeleted(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := db.MustNewGormHandler(gormDB)
-	baseRepo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	baseRepo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 	repo := NewRepositoryWithSoftDelete(baseRepo)
 
 	ctx := context.Background()

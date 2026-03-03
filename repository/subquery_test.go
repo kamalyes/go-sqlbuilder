@@ -89,7 +89,7 @@ func TestSubQuery(t *testing.T) {
 
 	repo := NewBaseRepository[TestMessage](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"messages",
 	)
 
@@ -326,7 +326,7 @@ func TestSubQueryWithDifferentOperators(t *testing.T) {
 		Name  string `gorm:"column:name"`
 	}
 
-	repo := NewBaseRepository[TestItem](dbHandler, logger.NewLogger(nil), "test_items")
+	repo := NewBaseRepository[TestItem](dbHandler, logger.NewLogger(), "test_items")
 	ctx := context.Background()
 
 	t.Run("SubQuery with NOT IN", func(t *testing.T) {

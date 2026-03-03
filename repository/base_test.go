@@ -180,7 +180,7 @@ func TestNewBaseRepository(t *testing.T) {
 	dbHandler := newTestDBHandler(gormDB)
 
 	// 测试默认配置
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "users")
 	assert.NotNil(t, repo, "仓储不应为空")
 	assert.Equal(t, "users", repo.table, "表名应为 'users'")
 	assert.Equal(t, 100, repo.batchSize, "默认批处理大小应为 100")
@@ -198,7 +198,7 @@ func TestNewBaseRepositoryWithOptions(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	testLogger := logger.NewLogger(nil)
+	testLogger := logger.NewLogger()
 
 	// 测试自定义配置
 	repo := NewBaseRepository[TestUser](
@@ -229,7 +229,7 @@ func TestBaseRepositoryCreate(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	ctx := context.Background()
 	user := &TestUser{
@@ -257,7 +257,7 @@ func TestBaseRepositoryCreateNilEntity(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "users")
 
 	ctx := context.Background()
 
@@ -272,7 +272,7 @@ func TestBaseRepositoryCreateReadOnlyMode(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "users", WithReadOnly[TestUser]())
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "users", WithReadOnly[TestUser]())
 
 	ctx := context.Background()
 	user := &TestUser{Name: "John"}
@@ -288,7 +288,7 @@ func TestBaseRepositoryGet(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	ctx := context.Background()
 
@@ -317,7 +317,7 @@ func TestBaseRepositoryList(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	ctx := context.Background()
 
@@ -349,7 +349,7 @@ func TestBaseRepositoryCount(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	ctx := context.Background()
 
@@ -375,7 +375,7 @@ func TestBaseRepositoryExists(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	ctx := context.Background()
 
@@ -458,7 +458,7 @@ func TestBaseRepositoryGetByFilters(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	ctx := context.Background()
 
@@ -494,7 +494,7 @@ func TestBaseRepositoryGetByFields(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	ctx := context.Background()
 
@@ -536,7 +536,7 @@ func TestBaseRepositoryListWithPreloads(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	ctx := context.Background()
 
@@ -564,7 +564,7 @@ func TestBaseRepositoryFind(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	ctx := context.Background()
 
@@ -609,7 +609,7 @@ func TestBaseRepositoryUpdateBatch(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	ctx := context.Background()
 
@@ -684,7 +684,7 @@ func TestBaseRepositoryUpdateByFilters(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	ctx := context.Background()
 
@@ -718,7 +718,7 @@ func TestBaseRepositoryDeleteByFilters(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	ctx := context.Background()
 
@@ -751,7 +751,7 @@ func TestBaseRepositoryTransaction(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	ctx := context.Background()
 
@@ -777,7 +777,7 @@ func TestBaseRepositoryGetAll(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	ctx := context.Background()
 
@@ -875,7 +875,7 @@ func TestBaseRepositoryFirst(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	ctx := context.Background()
 
@@ -920,7 +920,7 @@ func TestBaseRepositoryLast(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	ctx := context.Background()
 
@@ -965,7 +965,7 @@ func TestBaseRepositoryFindOne(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	ctx := context.Background()
 
@@ -1008,7 +1008,7 @@ func TestBaseRepositoryCreateOrUpdate(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	ctx := context.Background()
 	user := &TestUser{
@@ -1041,7 +1041,7 @@ func TestBaseRepositoryBulkCreate(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users", WithBatchSize[TestUser](2))
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users", WithBatchSize[TestUser](2))
 
 	ctx := context.Background()
 	users := []*TestUser{
@@ -1065,7 +1065,7 @@ func TestBaseRepositoryUpdateFieldsByFilters(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	ctx := context.Background()
 
@@ -1103,7 +1103,7 @@ func TestBaseRepositoryCreateIfNotExists(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	ctx := context.Background()
 
@@ -1157,7 +1157,7 @@ func TestBaseRepositoryGetWithPreloads(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	ctx := context.Background()
 
@@ -1199,7 +1199,7 @@ func TestBaseRepositoryGetByFilter(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	ctx := context.Background()
 
@@ -1241,7 +1241,7 @@ func TestBaseRepositoryListWithPagination(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	ctx := context.Background()
 
@@ -1303,7 +1303,7 @@ func TestBaseRepositoryUpdate(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	ctx := context.Background()
 
@@ -1352,7 +1352,7 @@ func TestBaseRepositoryDelete(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	ctx := context.Background()
 
@@ -1391,7 +1391,7 @@ func TestBaseRepositoryDeleteBatch(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	ctx := context.Background()
 
@@ -1434,7 +1434,7 @@ func TestBaseRepositoryUpdateFields(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	ctx := context.Background()
 
@@ -1483,7 +1483,7 @@ func TestBaseRepositorySoftDelete(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	ctx := context.Background()
 
@@ -1526,7 +1526,7 @@ func TestBaseRepositorySoftDeleteBatch(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	ctx := context.Background()
 
@@ -1584,7 +1584,7 @@ func TestBaseRepositoryRestore(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	ctx := context.Background()
 
@@ -1627,7 +1627,7 @@ func TestBaseRepositoryRestoreBatch(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	ctx := context.Background()
 
@@ -1667,7 +1667,7 @@ func TestBaseRepositoryCountByField(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	ctx := context.Background()
 
@@ -1698,7 +1698,7 @@ func TestBaseRepositoryPluck(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	ctx := context.Background()
 
@@ -1739,7 +1739,7 @@ func TestBaseRepositoryDistinct(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	ctx := context.Background()
 
@@ -1782,7 +1782,7 @@ func TestBaseRepositoryDBHandler(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	// 获取数据库处理器
 	handler := repo.DBHandler()
@@ -1796,7 +1796,7 @@ func TestBaseRepositoryTable(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	// 获取表名
 	tableName := repo.Table()
@@ -1809,7 +1809,7 @@ func TestBaseRepositorySoftDeleteByFilters(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	ctx := context.Background()
 
@@ -1859,7 +1859,7 @@ func TestBaseRepositoryCreateBatch(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 	ctx := context.Background()
 
 	// 准备测试数据
@@ -1910,7 +1910,7 @@ func TestBaseRepositoryCreateBatch(t *testing.T) {
 	assert.NoError(t, err, "空批量创建不应该返回错误")
 
 	// 测试只读模式
-	repoReadOnly := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users", WithReadOnly[TestUser]())
+	repoReadOnly := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users", WithReadOnly[TestUser]())
 	err = repoReadOnly.CreateBatch(ctx, user1)
 	assert.Error(t, err, "只读模式下创建应该返回错误")
 }
@@ -1921,7 +1921,7 @@ func TestComplexFiltering(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 	ctx := context.Background()
 
 	// 创建测试数据
@@ -1977,7 +1977,7 @@ func TestTransactionOperations(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 	ctx := context.Background()
 
 	// 准备初始数据
@@ -2048,7 +2048,7 @@ func TestBaseRepositoryWithContextExtractor(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := db.MustNewGormHandler(gormDB)
-	testLogger := logger.NewLogger(nil)
+	testLogger := logger.NewLogger()
 
 	repo := NewBaseRepository[TestUser](dbHandler, testLogger, "test_users")
 	assert.NotNil(t, repo)
@@ -2057,7 +2057,7 @@ func TestBaseRepositoryWithContextExtractor(t *testing.T) {
 
 // TestBaseRepository_DefaultContextExtractor 测试默认上下文提取器
 func TestBaseRepositoryDefaultContextExtractor(t *testing.T) {
-	testLogger := logger.NewLogger(nil)
+	testLogger := logger.NewLogger()
 
 	// 创建包含各种上下文值的context
 	ctx := context.WithValue(context.Background(), "request_id", "req-123")
@@ -2075,7 +2075,7 @@ func TestBaseRepositoryBulkCreateErrorHandling(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := db.MustNewGormHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	// 测试空数组
 	err = repo.BulkCreate(context.Background(), []*TestUser{})
@@ -2103,7 +2103,7 @@ func TestBaseRepositoryListAdvanced(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := db.MustNewGormHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	// 插入测试数据
 	users := []*TestUser{
@@ -2143,7 +2143,7 @@ func TestBaseRepositoryFilterConditions(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := db.MustNewGormHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	// 插入测试数据
 	users := []*TestUser{
@@ -2194,7 +2194,7 @@ func TestBaseRepositoryFilterGroupComplexLogic(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := db.MustNewGormHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	// 插入测试数据
 	users := []*TestUser{
@@ -2239,7 +2239,7 @@ func TestBaseRepositoryEdgeCases(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := db.MustNewGormHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	// 测试空数组的批量操作
 	err = repo.UpdateBatch(context.Background())
@@ -2294,7 +2294,7 @@ func TestBaseRepositoryReadOnlyMode(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := db.MustNewGormHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users", WithReadOnly[TestUser]())
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users", WithReadOnly[TestUser]())
 
 	// 测试只读模式下的创建操作应该返回错误
 	user := &TestUser{Name: "Test", Email: "test@test.com", Age: 30}
@@ -2322,7 +2322,7 @@ func TestBaseRepositoryInvalidInputs(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := db.MustNewGormHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	// 测试nil实体
 	_, err = repo.Create(context.Background(), nil)
@@ -2372,7 +2372,7 @@ func TestBaseRepositoryFindCompatibility(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := db.MustNewGormHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	// 插入测试数据
 	users := []*TestUser{
@@ -2414,7 +2414,7 @@ func TestBaseRepositoryPluckDistinct(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := db.MustNewGormHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	// 插入测试数据
 	users := []*TestUser{
@@ -2456,7 +2456,7 @@ func TestBuildFilterCondition(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := db.MustNewGormHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	// 测试各种操作符的条件构建
 	testCases := []struct {
@@ -2516,7 +2516,7 @@ func TestBuildGroupCondition(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := db.MustNewGormHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	// 插入测试数据
 	users := []*TestUser{
@@ -2700,7 +2700,7 @@ func TestApplyOrdering(t *testing.T) {
 	dbHandler := db.MustNewGormHandler(gormDB)
 
 	// 测试带默认排序的仓储
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users", WithDefaultOrder[TestUser]("age DESC"))
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users", WithDefaultOrder[TestUser]("age DESC"))
 
 	// 插入测试数据
 	users := []*TestUser{
@@ -3077,7 +3077,7 @@ func TestRepositoryListWithSelect(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	ctx := context.Background()
 
@@ -3112,7 +3112,7 @@ func TestRepositoryListWithOmit(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	ctx := context.Background()
 
@@ -3149,7 +3149,7 @@ func TestRepositoryListWithSelectAndOmit(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	ctx := context.Background()
 
@@ -3186,7 +3186,7 @@ func TestRepositoryListWithOmitLargeFields(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	ctx := context.Background()
 
@@ -3215,7 +3215,7 @@ func TestRepositoryListWithPreloadsAndSelect(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	ctx := context.Background()
 
@@ -3249,7 +3249,7 @@ func TestApplyFieldSelection(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	db := gormDB.Table("test_users")
 
@@ -3275,7 +3275,7 @@ func TestComplexQueryWithFieldSelection(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	ctx := context.Background()
 
@@ -3326,7 +3326,7 @@ func TestFieldSelectionWithPagination(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	ctx := context.Background()
 
@@ -3418,7 +3418,7 @@ func TestCoverageBooster(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	ctx := context.Background()
 
@@ -3523,7 +3523,7 @@ func TestAutoFieldsBasic(t *testing.T) {
 	// 创建启用自动字段的仓储
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -3550,7 +3550,7 @@ func TestAutoFieldsQuery(t *testing.T) {
 	// 创建启用自动字段的仓储
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -3593,7 +3593,7 @@ func TestAutoFieldsWithOmit(t *testing.T) {
 	// 创建启用自动字段的仓储
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -3635,7 +3635,7 @@ func TestAutoFieldsEnableDisable(t *testing.T) {
 	dbHandler := newTestDBHandler(gormDB)
 
 	// 创建未启用自动字段的仓储
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	assert.False(t, repo.IsAutoFieldsEnabled(), "默认不应启用自动字段")
 
@@ -3664,7 +3664,7 @@ func TestAutoFieldsVsManualSelect(t *testing.T) {
 	// 创建启用自动字段的仓储
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -3708,7 +3708,7 @@ func TestAutoFieldsGetModelFields(t *testing.T) {
 	dbHandler := newTestDBHandler(gormDB)
 
 	// 创建未启用自动字段的仓储
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	// 首次调用GetModelFields应触发字段提取
 	fields := repo.GetModelFields()
@@ -3733,14 +3733,14 @@ func TestAutoFieldsComprehensive(t *testing.T) {
 	// 创建两个仓储：一个启用自动字段，一个不启用(使用同一个表)
 	repoAuto := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
 
 	repoManual := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 	)
 
@@ -3780,7 +3780,7 @@ func TestAutoFieldsWithComplexQuery(t *testing.T) {
 
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -3830,7 +3830,7 @@ func TestAutoFieldsPerformance(t *testing.T) {
 
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -3861,7 +3861,7 @@ func TestAutoFieldsSQLOutput(t *testing.T) {
 	fmt.Println("\n========== 测试自动字段选择功能 ==========")
 
 	// 创建测试数据
-	repoSetup := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repoSetup := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 	users := []*TestUser{
 		{Name: "Alice", Email: "alice@test.com", Age: 25, Status: "active"},
 		{Name: "Bob", Email: "bob@test.com", Age: 30, Status: "active"},
@@ -3870,7 +3870,7 @@ func TestAutoFieldsSQLOutput(t *testing.T) {
 	assert.NoError(t, err)
 
 	fmt.Println("\n--- 测试1: 不启用自动字段（使用 SELECT *）---")
-	repoNormal := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repoNormal := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 	fmt.Println("配置: 普通模式（未启用自动字段）")
 	results1, err := repoNormal.List(ctx, NewQuery())
 	assert.NoError(t, err)
@@ -3880,7 +3880,7 @@ func TestAutoFieldsSQLOutput(t *testing.T) {
 	fmt.Println("\n--- 测试2: 启用自动字段 ---")
 	repoAuto := NewBaseRepository(
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -3928,7 +3928,7 @@ func TestAutoFieldsMultipleQueries(t *testing.T) {
 	dbHandler := newTestDBHandler(gormDB)
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -4035,7 +4035,7 @@ func TestAutoFieldsWithPagination(t *testing.T) {
 	dbHandler := newTestDBHandler(gormDB)
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -4083,7 +4083,7 @@ func TestAutoFieldsWithFilters(t *testing.T) {
 	dbHandler := newTestDBHandler(gormDB)
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -4158,7 +4158,7 @@ func TestAutoFieldsWithOrdering(t *testing.T) {
 	dbHandler := newTestDBHandler(gormDB)
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -4213,7 +4213,7 @@ func TestAutoFieldsWithUpdate(t *testing.T) {
 	dbHandler := newTestDBHandler(gormDB)
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -4256,7 +4256,7 @@ func TestAutoFieldsEdgeCases(t *testing.T) {
 	t.Run("EmptyQuery", func(t *testing.T) {
 		repo := NewBaseRepository[TestUser](
 			dbHandler,
-			logger.NewLogger(nil),
+			logger.NewLogger(),
 			"test_users",
 			WithAutoFields[TestUser](),
 		)
@@ -4269,7 +4269,7 @@ func TestAutoFieldsEdgeCases(t *testing.T) {
 
 	// 测试2: 重复启用自动字段
 	t.Run("MultipleEnable", func(t *testing.T) {
-		repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+		repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 		repo.EnableAutoFields()
 		repo.EnableAutoFields() // 重复启用
 		assert.True(t, repo.IsAutoFieldsEnabled())
@@ -4277,7 +4277,7 @@ func TestAutoFieldsEdgeCases(t *testing.T) {
 
 	// 测试3: 启用后禁用再启用
 	t.Run("ToggleAutoFields", func(t *testing.T) {
-		repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+		repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 		assert.False(t, repo.IsAutoFieldsEnabled())
 
@@ -4316,7 +4316,7 @@ func TestAutoFieldsWithComplexScenarios(t *testing.T) {
 	dbHandler := newTestDBHandler(gormDB)
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -4398,7 +4398,7 @@ func TestAutoFieldsPerformanceComparison(t *testing.T) {
 	ctx := context.Background()
 
 	// 创建测试数据
-	setupRepo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	setupRepo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 	users := make([]*TestUser, 100)
 	for i := 0; i < 100; i++ {
 		users[i] = &TestUser{
@@ -4413,10 +4413,10 @@ func TestAutoFieldsPerformanceComparison(t *testing.T) {
 
 	// 对比测试
 	t.Run("CompareSelectAll", func(t *testing.T) {
-		repoNormal := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+		repoNormal := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 		repoAuto := NewBaseRepository[TestUser](
 			dbHandler,
-			logger.NewLogger(nil),
+			logger.NewLogger(),
 			"test_users",
 			WithAutoFields[TestUser](),
 		)
@@ -4448,7 +4448,7 @@ func TestAutoFieldsWithTransaction(t *testing.T) {
 	dbHandler := newTestDBHandler(gormDB)
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -4484,7 +4484,7 @@ func TestAutoFieldsNilContext(t *testing.T) {
 	dbHandler := newTestDBHandler(gormDB)
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -4505,7 +4505,7 @@ func TestAutoFieldsInvalidFieldName(t *testing.T) {
 	dbHandler := newTestDBHandler(gormDB)
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -4534,7 +4534,7 @@ func TestAutoFieldsSelectNonExistentField(t *testing.T) {
 	dbHandler := newTestDBHandler(gormDB)
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -4562,7 +4562,7 @@ func TestAutoFieldsOmitAllFields(t *testing.T) {
 	dbHandler := newTestDBHandler(gormDB)
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -4589,7 +4589,7 @@ func TestAutoFieldsDuplicateSelect(t *testing.T) {
 	dbHandler := newTestDBHandler(gormDB)
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -4615,7 +4615,7 @@ func TestAutoFieldsDuplicateOmit(t *testing.T) {
 	dbHandler := newTestDBHandler(gormDB)
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -4641,7 +4641,7 @@ func TestAutoFieldsEmptyDatabase(t *testing.T) {
 	dbHandler := newTestDBHandler(gormDB)
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -4667,7 +4667,7 @@ func TestAutoFieldsLargeDataset(t *testing.T) {
 	dbHandler := newTestDBHandler(gormDB)
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -4706,7 +4706,7 @@ func TestAutoFieldsSpecialCharactersInData(t *testing.T) {
 	dbHandler := newTestDBHandler(gormDB)
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -4737,7 +4737,7 @@ func TestAutoFieldsUnicodeData(t *testing.T) {
 	dbHandler := newTestDBHandler(gormDB)
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -4767,7 +4767,7 @@ func TestAutoFieldsVeryLongFieldValues(t *testing.T) {
 	dbHandler := newTestDBHandler(gormDB)
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -4798,7 +4798,7 @@ func TestAutoFieldsNullValues(t *testing.T) {
 	dbHandler := newTestDBHandler(gormDB)
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -4829,7 +4829,7 @@ func TestAutoFieldsBoundaryAgeValues(t *testing.T) {
 	dbHandler := newTestDBHandler(gormDB)
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -4871,7 +4871,7 @@ func TestAutoFieldsFilterWithInvalidOperator(t *testing.T) {
 	dbHandler := newTestDBHandler(gormDB)
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -4904,7 +4904,7 @@ func TestAutoFieldsMultipleSelectCalls(t *testing.T) {
 	dbHandler := newTestDBHandler(gormDB)
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -4933,7 +4933,7 @@ func TestAutoFieldsMultipleOmitCalls(t *testing.T) {
 	dbHandler := newTestDBHandler(gormDB)
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -4962,7 +4962,7 @@ func TestAutoFieldsSelectAndOmitConflict(t *testing.T) {
 	dbHandler := newTestDBHandler(gormDB)
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -4992,7 +4992,7 @@ func TestAutoFieldsInvalidPaginationParams(t *testing.T) {
 	dbHandler := newTestDBHandler(gormDB)
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -5042,7 +5042,7 @@ func TestAutoFieldsInvalidOrderDirection(t *testing.T) {
 	dbHandler := newTestDBHandler(gormDB)
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -5071,7 +5071,7 @@ func TestAutoFieldsOrderByNonExistentField(t *testing.T) {
 	dbHandler := newTestDBHandler(gormDB)
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -5096,7 +5096,7 @@ func TestAutoFieldsExtremelyLargeLimit(t *testing.T) {
 	dbHandler := newTestDBHandler(gormDB)
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -5121,7 +5121,7 @@ func TestAutoFieldsNegativeLimit(t *testing.T) {
 	dbHandler := newTestDBHandler(gormDB)
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -5146,7 +5146,7 @@ func TestAutoFieldsNegativeOffset(t *testing.T) {
 	dbHandler := newTestDBHandler(gormDB)
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -5171,7 +5171,7 @@ func TestAutoFieldsOffsetLargerThanTotal(t *testing.T) {
 	dbHandler := newTestDBHandler(gormDB)
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -5196,7 +5196,7 @@ func TestAutoFieldsCombinedFiltersEmpty(t *testing.T) {
 	dbHandler := newTestDBHandler(gormDB)
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -5225,7 +5225,7 @@ func TestAutoFieldsDeepNestedTransaction(t *testing.T) {
 	dbHandler := newTestDBHandler(gormDB)
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -5263,7 +5263,7 @@ func TestAutoFieldsTransactionRollback(t *testing.T) {
 	dbHandler := newTestDBHandler(gormDB)
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -5296,7 +5296,7 @@ func TestAutoFieldsUpdateNonExistentRecord(t *testing.T) {
 	dbHandler := newTestDBHandler(gormDB)
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -5327,7 +5327,7 @@ func TestAutoFieldsDeleteNonExistentRecord(t *testing.T) {
 	dbHandler := newTestDBHandler(gormDB)
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -5350,7 +5350,7 @@ func TestAutoFieldsBatchCreateEmpty(t *testing.T) {
 	dbHandler := newTestDBHandler(gormDB)
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -5375,7 +5375,7 @@ func TestAutoFieldsBatchDeleteEmpty(t *testing.T) {
 	dbHandler := newTestDBHandler(gormDB)
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -5395,7 +5395,7 @@ func TestAutoFieldsDuplicateEmail(t *testing.T) {
 	dbHandler := newTestDBHandler(gormDB)
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -5421,7 +5421,7 @@ func TestAutoFieldsGetNonExistentID(t *testing.T) {
 	dbHandler := newTestDBHandler(gormDB)
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -5441,7 +5441,7 @@ func TestAutoFieldsFirstOnEmpty(t *testing.T) {
 	dbHandler := newTestDBHandler(gormDB)
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -5461,7 +5461,7 @@ func TestAutoFieldsLastOnEmpty(t *testing.T) {
 	dbHandler := newTestDBHandler(gormDB)
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -5481,7 +5481,7 @@ func TestAutoFieldsPluckNonExistentField(t *testing.T) {
 	dbHandler := newTestDBHandler(gormDB)
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -5507,7 +5507,7 @@ func TestAutoFieldsDistinctOnEmpty(t *testing.T) {
 	dbHandler := newTestDBHandler(gormDB)
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -5529,7 +5529,7 @@ func TestAutoFieldsCountByNonExistentField(t *testing.T) {
 	dbHandler := newTestDBHandler(gormDB)
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -5554,7 +5554,7 @@ func TestAutoFieldsUpdateFieldsEmpty(t *testing.T) {
 	dbHandler := newTestDBHandler(gormDB)
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -5579,7 +5579,7 @@ func TestAutoFieldsUpdateFieldsNilValue(t *testing.T) {
 	dbHandler := newTestDBHandler(gormDB)
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -5611,7 +5611,7 @@ func TestAutoFieldsConcurrentWrites(t *testing.T) {
 	dbHandler := newTestDBHandler(gormDB)
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -5670,7 +5670,7 @@ func TestAutoFieldsConcurrentUpdates(t *testing.T) {
 	dbHandler := newTestDBHandler(gormDB)
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -5733,7 +5733,7 @@ func TestAutoFieldsComplexFilterGroup(t *testing.T) {
 	dbHandler := newTestDBHandler(gormDB)
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -5767,7 +5767,7 @@ func TestAutoFieldsMultipleOrderFields(t *testing.T) {
 	dbHandler := newTestDBHandler(gormDB)
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -5801,7 +5801,7 @@ func TestAutoFieldsEmptyStringFilter(t *testing.T) {
 	dbHandler := newTestDBHandler(gormDB)
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -5829,7 +5829,7 @@ func TestAutoFieldsZeroValueFilter(t *testing.T) {
 	dbHandler := newTestDBHandler(gormDB)
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -5857,7 +5857,7 @@ func TestAutoFieldsBooleanLikeFilter(t *testing.T) {
 	dbHandler := newTestDBHandler(gormDB)
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -5883,7 +5883,7 @@ func TestAutoFieldsInFilterEmpty(t *testing.T) {
 	dbHandler := newTestDBHandler(gormDB)
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -5911,7 +5911,7 @@ func TestAutoFieldsInFilterSingleValue(t *testing.T) {
 	dbHandler := newTestDBHandler(gormDB)
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -5936,7 +5936,7 @@ func TestAutoFieldsBetweenFilterReversed(t *testing.T) {
 	dbHandler := newTestDBHandler(gormDB)
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -5964,7 +5964,7 @@ func TestAutoFieldsBetweenFilterSameValue(t *testing.T) {
 	dbHandler := newTestDBHandler(gormDB)
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -5989,7 +5989,7 @@ func TestAutoFieldsOmitSensitiveNoSensitiveTag(t *testing.T) {
 	dbHandler := newTestDBHandler(gormDB)
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -6015,7 +6015,7 @@ func TestAutoFieldsOmitLargeFieldsNoLargeTag(t *testing.T) {
 	dbHandler := newTestDBHandler(gormDB)
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -6041,7 +6041,7 @@ func TestAutoFieldsSelectOnlyWithAutoFields(t *testing.T) {
 	dbHandler := newTestDBHandler(gormDB)
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -6067,7 +6067,7 @@ func TestAutoFieldsRapidEnableDisable(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	// 快速切换100次
 	for i := 0; i < 100; i++ {
@@ -6086,7 +6086,7 @@ func TestAutoFieldsGetFieldsCached(t *testing.T) {
 	dbHandler := newTestDBHandler(gormDB)
 	repo := NewBaseRepository[TestUser](
 		dbHandler,
-		logger.NewLogger(nil),
+		logger.NewLogger(),
 		"test_users",
 		WithAutoFields[TestUser](),
 	)
@@ -6123,7 +6123,7 @@ func BenchmarkFieldSelectionOverhead(b *testing.B) {
 	b.Run("GetStructFields_Cached", func(b *testing.B) {
 		repo := NewBaseRepository[TestUser](
 			dbHandler,
-			logger.NewLogger(nil),
+			logger.NewLogger(),
 			"test_users",
 			WithAutoFields[TestUser](),
 		)
@@ -6161,7 +6161,7 @@ func BenchmarkFieldSelectionOverhead(b *testing.B) {
 	})
 
 	b.Run("ApplyFieldSelection_Disabled", func(b *testing.B) {
-		repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+		repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 		db := gormDB.Model(&TestUser{})
 		b.ReportAllocs()
 		for i := 0; i < b.N; i++ {
@@ -6172,7 +6172,7 @@ func BenchmarkFieldSelectionOverhead(b *testing.B) {
 	b.Run("ApplyFieldSelection_AutoFields", func(b *testing.B) {
 		repo := NewBaseRepository[TestUser](
 			dbHandler,
-			logger.NewLogger(nil),
+			logger.NewLogger(),
 			"test_users",
 			WithAutoFields[TestUser](),
 		)
@@ -6186,7 +6186,7 @@ func BenchmarkFieldSelectionOverhead(b *testing.B) {
 	b.Run("ApplyFieldSelection_AutoFields_WithOmit", func(b *testing.B) {
 		repo := NewBaseRepository[TestUser](
 			dbHandler,
-			logger.NewLogger(nil),
+			logger.NewLogger(),
 			"test_users",
 			WithAutoFields[TestUser](),
 		)
@@ -6199,7 +6199,7 @@ func BenchmarkFieldSelectionOverhead(b *testing.B) {
 	})
 
 	b.Run("ApplyFieldSelection_ManualSelect", func(b *testing.B) {
-		repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+		repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 		queryWithSelect := NewQuery().Select("id", "name", "email")
 		db := gormDB.Model(&TestUser{})
 		b.ReportAllocs()
@@ -6232,7 +6232,7 @@ func BenchmarkFieldSelectionOverhead(b *testing.B) {
 	b.Run("EnableDisable_AutoFields", func(b *testing.B) {
 		repo := NewBaseRepository[TestUser](
 			dbHandler,
-			logger.NewLogger(nil),
+			logger.NewLogger(),
 			"test_users",
 			WithAutoFields[TestUser](),
 		)
@@ -6258,7 +6258,7 @@ func BenchmarkAutoFields_vs_SelectAll(b *testing.B) {
 	ctx := context.Background()
 
 	// 准备测试数据
-	setupRepo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	setupRepo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 	users := make([]*TestUser, 100)
 	for i := 0; i < 100; i++ {
 		users[i] = &TestUser{
@@ -6274,7 +6274,7 @@ func BenchmarkAutoFields_vs_SelectAll(b *testing.B) {
 	}
 
 	b.Run("SelectAll", func(b *testing.B) {
-		repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+		repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 		b.ResetTimer()
 		b.ReportAllocs()
 
@@ -6289,7 +6289,7 @@ func BenchmarkAutoFields_vs_SelectAll(b *testing.B) {
 	b.Run("AutoFields", func(b *testing.B) {
 		repo := NewBaseRepository[TestUser](
 			dbHandler,
-			logger.NewLogger(nil),
+			logger.NewLogger(),
 			"test_users",
 			WithAutoFields[TestUser](),
 		)
@@ -6305,7 +6305,7 @@ func BenchmarkAutoFields_vs_SelectAll(b *testing.B) {
 	})
 
 	b.Run("ManualSelect", func(b *testing.B) {
-		repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+		repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 		query := NewQuery().Select("id", "name", "email")
 		b.ResetTimer()
 		b.ReportAllocs()
@@ -6321,7 +6321,7 @@ func BenchmarkAutoFields_vs_SelectAll(b *testing.B) {
 	b.Run("AutoFieldsWithOmit", func(b *testing.B) {
 		repo := NewBaseRepository[TestUser](
 			dbHandler,
-			logger.NewLogger(nil),
+			logger.NewLogger(),
 			"test_users",
 			WithAutoFields[TestUser](),
 		)
@@ -6350,7 +6350,7 @@ func BenchmarkFieldCaching(b *testing.B) {
 	b.Run("WithCache", func(b *testing.B) {
 		repo := NewBaseRepository[TestUser](
 			dbHandler,
-			logger.NewLogger(nil),
+			logger.NewLogger(),
 			"test_users",
 			WithAutoFields[TestUser](),
 		)
@@ -6383,7 +6383,7 @@ func BenchmarkGetOperations(b *testing.B) {
 	ctx := context.Background()
 
 	// 准备测试数据
-	setupRepo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	setupRepo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 	user := &TestUser{
 		Name:   "BenchUser",
 		Email:  "bench@test.com",
@@ -6396,7 +6396,7 @@ func BenchmarkGetOperations(b *testing.B) {
 	}
 
 	b.Run("Get_SelectAll", func(b *testing.B) {
-		repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+		repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 		b.ResetTimer()
 		b.ReportAllocs()
 
@@ -6411,7 +6411,7 @@ func BenchmarkGetOperations(b *testing.B) {
 	b.Run("Get_AutoFields", func(b *testing.B) {
 		repo := NewBaseRepository[TestUser](
 			dbHandler,
-			logger.NewLogger(nil),
+			logger.NewLogger(),
 			"test_users",
 			WithAutoFields[TestUser](),
 		)
@@ -6438,7 +6438,7 @@ func BenchmarkCreateOperations(b *testing.B) {
 	ctx := context.Background()
 
 	b.Run("Create_Normal", func(b *testing.B) {
-		repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+		repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 		// 清理旧数据
 		gormDB.Exec("DELETE FROM test_users")
@@ -6464,7 +6464,7 @@ func BenchmarkCreateOperations(b *testing.B) {
 	b.Run("Create_AutoFields", func(b *testing.B) {
 		repo := NewBaseRepository[TestUser](
 			dbHandler,
-			logger.NewLogger(nil),
+			logger.NewLogger(),
 			"test_users",
 			WithAutoFields[TestUser](),
 		)
@@ -6505,7 +6505,7 @@ func BenchmarkBatchOperations(b *testing.B) {
 
 	for _, size := range sizes {
 		b.Run(fmt.Sprintf("Batch%d_Normal", size), func(b *testing.B) {
-			repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+			repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 			// 清理旧数据
 			gormDB.Exec("DELETE FROM test_users")
@@ -6534,7 +6534,7 @@ func BenchmarkBatchOperations(b *testing.B) {
 		b.Run(fmt.Sprintf("Batch%d_AutoFields", size), func(b *testing.B) {
 			repo := NewBaseRepository[TestUser](
 				dbHandler,
-				logger.NewLogger(nil),
+				logger.NewLogger(),
 				"test_users",
 				WithAutoFields[TestUser](),
 			)
@@ -6576,7 +6576,7 @@ func BenchmarkFilterOperations(b *testing.B) {
 	ctx := context.Background()
 
 	// 准备测试数据
-	setupRepo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	setupRepo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 	users := make([]*TestUser, 1000)
 	for i := 0; i < 1000; i++ {
 		users[i] = &TestUser{
@@ -6592,7 +6592,7 @@ func BenchmarkFilterOperations(b *testing.B) {
 	}
 
 	b.Run("SimpleFilter_SelectAll", func(b *testing.B) {
-		repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+		repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 		query := NewQuery().AddFilter(NewEqFilter("status", "active"))
 		b.ResetTimer()
 		b.ReportAllocs()
@@ -6608,7 +6608,7 @@ func BenchmarkFilterOperations(b *testing.B) {
 	b.Run("SimpleFilter_AutoFields", func(b *testing.B) {
 		repo := NewBaseRepository[TestUser](
 			dbHandler,
-			logger.NewLogger(nil),
+			logger.NewLogger(),
 			"test_users",
 			WithAutoFields[TestUser](),
 		)
@@ -6625,7 +6625,7 @@ func BenchmarkFilterOperations(b *testing.B) {
 	})
 
 	b.Run("ComplexFilter_SelectAll", func(b *testing.B) {
-		repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+		repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 		query := NewQuery().
 			AddFilter(NewEqFilter("status", "active")).
 			AddFilter(NewGteFilter("age", 25)).
@@ -6645,7 +6645,7 @@ func BenchmarkFilterOperations(b *testing.B) {
 	b.Run("ComplexFilter_AutoFields", func(b *testing.B) {
 		repo := NewBaseRepository[TestUser](
 			dbHandler,
-			logger.NewLogger(nil),
+			logger.NewLogger(),
 			"test_users",
 			WithAutoFields[TestUser](),
 		)
@@ -6677,7 +6677,7 @@ func BenchmarkPaginationOperations(b *testing.B) {
 	ctx := context.Background()
 
 	// 准备测试数据
-	setupRepo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	setupRepo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 	users := make([]*TestUser, 1000)
 	for i := 0; i < 1000; i++ {
 		users[i] = &TestUser{
@@ -6698,7 +6698,7 @@ func BenchmarkPaginationOperations(b *testing.B) {
 	}
 
 	b.Run("Pagination_SelectAll", func(b *testing.B) {
-		repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+		repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 		b.ResetTimer()
 		b.ReportAllocs()
 
@@ -6713,7 +6713,7 @@ func BenchmarkPaginationOperations(b *testing.B) {
 	b.Run("Pagination_AutoFields", func(b *testing.B) {
 		repo := NewBaseRepository[TestUser](
 			dbHandler,
-			logger.NewLogger(nil),
+			logger.NewLogger(),
 			"test_users",
 			WithAutoFields[TestUser](),
 		)
@@ -6740,7 +6740,7 @@ func BenchmarkUpdateOperations(b *testing.B) {
 	ctx := context.Background()
 
 	// 准备测试数据
-	setupRepo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	setupRepo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 	users := make([]*TestUser, 100)
 	for i := 0; i < 100; i++ {
 		users[i] = &TestUser{
@@ -6756,7 +6756,7 @@ func BenchmarkUpdateOperations(b *testing.B) {
 	}
 
 	b.Run("UpdateFields_Normal", func(b *testing.B) {
-		repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+		repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 		fields := map[string]interface{}{"age": 30}
 		b.ResetTimer()
 		b.ReportAllocs()
@@ -6773,7 +6773,7 @@ func BenchmarkUpdateOperations(b *testing.B) {
 	b.Run("UpdateFields_AutoFields", func(b *testing.B) {
 		repo := NewBaseRepository[TestUser](
 			dbHandler,
-			logger.NewLogger(nil),
+			logger.NewLogger(),
 			"test_users",
 			WithAutoFields[TestUser](),
 		)
@@ -6802,7 +6802,7 @@ func BenchmarkMemoryUsage(b *testing.B) {
 	ctx := context.Background()
 
 	// 准备大量测试数据
-	setupRepo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	setupRepo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 	users := make([]*TestUser, 10000)
 	for i := 0; i < 10000; i++ {
 		users[i] = &TestUser{
@@ -6818,7 +6818,7 @@ func BenchmarkMemoryUsage(b *testing.B) {
 	}
 
 	b.Run("LargeQuery_SelectAll", func(b *testing.B) {
-		repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+		repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 		b.ResetTimer()
 		b.ReportAllocs()
 
@@ -6834,7 +6834,7 @@ func BenchmarkMemoryUsage(b *testing.B) {
 	b.Run("LargeQuery_AutoFields", func(b *testing.B) {
 		repo := NewBaseRepository[TestUser](
 			dbHandler,
-			logger.NewLogger(nil),
+			logger.NewLogger(),
 			"test_users",
 			WithAutoFields[TestUser](),
 		)
@@ -6851,7 +6851,7 @@ func BenchmarkMemoryUsage(b *testing.B) {
 	})
 
 	b.Run("LargeQuery_SelectFewFields", func(b *testing.B) {
-		repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+		repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 		query := NewQuery().Select("id", "name")
 		b.ResetTimer()
 		b.ReportAllocs()
@@ -6874,7 +6874,7 @@ func TestApplyFilterGroupRefactored(t *testing.T) {
 	require.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	// 准备测试数据
 	ctx := context.Background()
@@ -7052,7 +7052,7 @@ func TestComplexNestedFilterGroups(t *testing.T) {
 	require.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	// 准备测试数据
 	ctx := context.Background()
@@ -7110,7 +7110,7 @@ func BenchmarkRefactoredFilterMethods(b *testing.B) {
 	}
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 	ctx := context.Background()
 
 	// 准备测试数据
@@ -7201,7 +7201,7 @@ func TestBaseRepositoryDeleteByFiltersWithCount(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	ctx := context.Background()
 
@@ -7232,7 +7232,7 @@ func TestBaseRepositoryDeleteByFiltersWithCountNoMatch(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	ctx := context.Background()
 
@@ -7248,7 +7248,7 @@ func TestBaseRepositoryDeleteByFiltersWithCountMultiple(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	ctx := context.Background()
 
@@ -7278,7 +7278,7 @@ func TestBaseRepositoryDeleteByFiltersWithCountNoFilters(t *testing.T) {
 	assert.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	ctx := context.Background()
 
@@ -7296,7 +7296,7 @@ func TestBuildFiltersFromArgsDefaultMode(t *testing.T) {
 	require.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	tests := []struct {
 		name      string
@@ -7380,7 +7380,7 @@ func TestBuildFiltersFromArgsOperatorMode(t *testing.T) {
 	require.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 
 	tests := []struct {
 		name      string
@@ -7476,7 +7476,7 @@ func TestFindWhere(t *testing.T) {
 	require.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 	ctx := context.Background()
 
 	// 准备测试数据
@@ -7541,7 +7541,7 @@ func TestFindWhereOp(t *testing.T) {
 	require.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 	ctx := context.Background()
 
 	// 准备测试数据
@@ -7618,7 +7618,7 @@ func TestFindOneWhere(t *testing.T) {
 	require.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 	ctx := context.Background()
 
 	// 准备测试数据
@@ -7674,7 +7674,7 @@ func TestFindOneWhereOp(t *testing.T) {
 	require.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 	ctx := context.Background()
 
 	// 准备测试数据
@@ -7732,7 +7732,7 @@ func TestPaginate(t *testing.T) {
 	require.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 	ctx := context.Background()
 
 	// 准备测试数据 (10条记录)
@@ -7813,7 +7813,7 @@ func TestPaginateOp(t *testing.T) {
 	require.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 	ctx := context.Background()
 
 	// 准备测试数据
@@ -7877,7 +7877,7 @@ func TestCountWhere(t *testing.T) {
 	require.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 	ctx := context.Background()
 
 	// 准备测试数据
@@ -7936,7 +7936,7 @@ func TestCountWhereOp(t *testing.T) {
 	require.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 	ctx := context.Background()
 
 	// 准备测试数据
@@ -7999,7 +7999,7 @@ func TestExistsWhere(t *testing.T) {
 	require.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 	ctx := context.Background()
 
 	// 准备测试数据
@@ -8056,7 +8056,7 @@ func TestDeleteWhere(t *testing.T) {
 	require.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 	ctx := context.Background()
 
 	// 准备测试数据
@@ -8107,7 +8107,7 @@ func TestDeleteWhereOp(t *testing.T) {
 	require.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 	ctx := context.Background()
 
 	// 准备测试数据
@@ -8158,7 +8158,7 @@ func TestDeleteWhereOpWithCount(t *testing.T) {
 	require.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 	ctx := context.Background()
 
 	// 准备测试数据
@@ -8220,7 +8220,7 @@ func TestUpdateWhere(t *testing.T) {
 	require.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 	ctx := context.Background()
 
 	// 准备测试数据
@@ -8276,7 +8276,7 @@ func TestUpdateWhereOp(t *testing.T) {
 	require.NoError(t, err)
 
 	dbHandler := newTestDBHandler(gormDB)
-	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(nil), "test_users")
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
 	ctx := context.Background()
 
 	// 准备测试数据

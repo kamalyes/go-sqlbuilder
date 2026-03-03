@@ -12,10 +12,11 @@ package db
 
 import (
 	"fmt"
-	"github.com/kamalyes/go-logger"
-	"gorm.io/gorm"
 	"regexp"
 	"strings"
+
+	"github.com/kamalyes/go-logger"
+	"gorm.io/gorm"
 )
 
 // IndexDefinition 索引定义
@@ -181,7 +182,7 @@ func NewMigrator(db *gorm.DB, config *MigratorConfig) *Migrator {
 
 	log := config.Logger
 	if log == nil {
-		log = logger.NewLogger(nil)
+		log = logger.NewLogger()
 	}
 
 	return &Migrator{
