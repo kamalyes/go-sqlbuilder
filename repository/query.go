@@ -345,6 +345,18 @@ func (q *Query) AddLteFilterIfNotEmpty(field string, value interface{}) *Query {
 	return q
 }
 
+// AddCursorFilter 游标分页方向过滤（仅当 cursor 不为空时生效）
+// isPrev=true 时使用 <（向前翻页），否则使用 >（向后翻页）
+func (q *Query) AddCursorFilter(field string, cursor interface{}, isPrev bool) *Query {
+	if validator.IsEmptyValue(reflect.ValueOf(cursor)) {
+		return q
+	}
+	if isPrev {
+		return q.AddFilter(NewLtFilter(field, cursor))
+	}
+	return q.AddFilter(NewGtFilter(field, cursor))
+}
+
 // AddNotInFilterIfNotEmpty 添加 NOT IN 过滤条件（仅当切片不为空时）
 func (q *Query) AddNotInFilterIfNotEmpty(field string, values interface{}) *Query {
 	if values == nil {
