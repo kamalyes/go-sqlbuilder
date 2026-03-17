@@ -357,6 +357,24 @@ func (q *Query) AddCursorFilter(field string, cursor interface{}, isPrev bool) *
 	return q.AddFilter(NewGtFilter(field, cursor))
 }
 
+// AddEqOrInFilter 单值用 =，多值自动转 IN（仅当切片不为空时生效）
+// 适用于"按单个或多个 ID 过滤"的常见场景，避免手动判断长度
+// 示例: query.AddEqOrInFilter("session_id", sessionIDs)
+func (q *Query) AddEqOrInFilter(field string, values interface{}) *Query {
+	if values == nil {
+		return q
+	}
+	slice := convert.AnySliceToInterfaceSlice(values)
+	switch len(slice) {
+	case 0:
+		return q
+	case 1:
+		return q.AddFilter(NewEqFilter(field, slice[0]))
+	default:
+		return q.AddFilter(NewInFilterSlice(field, slice))
+	}
+}
+
 // AddNotInFilterIfNotEmpty 添加 NOT IN 过滤条件（仅当切片不为空时）
 func (q *Query) AddNotInFilterIfNotEmpty(field string, values interface{}) *Query {
 	if values == nil {
