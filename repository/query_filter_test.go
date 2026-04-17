@@ -1459,6 +1459,77 @@ func TestFilterGroupClone(t *testing.T) {
 	assert.Equal(t, 3, len(cloned.Filters))
 }
 
+// TestQueryClone 测试 Query.Clone 深拷贝行为
+func TestQueryClone(t *testing.T) {
+	original := NewQuery().AddFilter(NewInFilterSlice("status", []interface{}{"active", "pending"}))
+	original.WithFilterGroup(NewFilterGroup(constants.LOGIC_AND).AddFilter(&Filter{
+		Field:    "user_id",
+		Operator: constants.OP_IN,
+		Value:    NewSubQuery("SELECT user_id FROM users WHERE status = ?", "active"),
+	}))
+	original.AddOrder("created_at", constants.Desc)
+	original.WithPaging(2, 20)
+	original.Limit(10)
+	original.Offset(5)
+	original.Distinct = true
+	original.AddGroupBy("status")
+	original.AddHaving(NewBetweenFilter("score", 60, 100))
+	original.Select("id", "status")
+	original.Omit("payload")
+
+	cloned := original.Clone()
+
+	assert.NotSame(t, original, cloned)
+	assert.Equal(t, original, cloned)
+
+	cloned.Filters[0].Field = "state"
+	cloned.Filters[0].Value.([]interface{})[0] = "archived"
+	cloned.FilterGroup.Filters[0].Field = "owner_id"
+	cloned.FilterGroup.Filters[0].Value.(*SubQuery).Args[0] = "inactive"
+	cloned.Orders[0].Field = "updated_at"
+	cloned.Pagination.Page = 99
+	*cloned.LimitValue = 30
+	*cloned.OffsetValue = 15
+	cloned.GroupBy[0] = "category"
+	cloned.Having[0].Field = "level"
+	cloned.Having[0].Value.([]interface{})[0] = 80
+	cloned.SelectFields[0] = "name"
+	cloned.OmitFields[0] = "secret"
+
+	assert.Equal(t, "status", original.Filters[0].Field)
+	assert.Equal(t, "active", original.Filters[0].Value.([]interface{})[0])
+	assert.Equal(t, "user_id", original.FilterGroup.Filters[0].Field)
+	assert.Equal(t, "active", original.FilterGroup.Filters[0].Value.(*SubQuery).Args[0])
+	assert.Equal(t, "created_at", original.Orders[0].Field)
+	assert.Equal(t, 2, original.Pagination.Page)
+	assert.Equal(t, 10, *original.LimitValue)
+	assert.Equal(t, 5, *original.OffsetValue)
+	assert.Equal(t, "status", original.GroupBy[0])
+	assert.Equal(t, "score", original.Having[0].Field)
+	assert.Equal(t, 60, original.Having[0].Value.([]interface{})[0])
+	assert.Equal(t, "id", original.SelectFields[0])
+	assert.Equal(t, "payload", original.OmitFields[0])
+}
+
+// TestQueryCloneZeroValue 测试零值 Query 克隆后保持已初始化切片
+func TestQueryCloneZeroValue(t *testing.T) {
+	cloned := (&Query{}).Clone()
+
+	assert.NotNil(t, cloned)
+	assert.NotNil(t, cloned.Filters)
+	assert.NotNil(t, cloned.Orders)
+	assert.NotNil(t, cloned.GroupBy)
+	assert.NotNil(t, cloned.Having)
+	assert.NotNil(t, cloned.SelectFields)
+	assert.NotNil(t, cloned.OmitFields)
+	assert.Len(t, cloned.Filters, 0)
+	assert.Len(t, cloned.Orders, 0)
+	assert.Len(t, cloned.GroupBy, 0)
+	assert.Len(t, cloned.Having, 0)
+	assert.Len(t, cloned.SelectFields, 0)
+	assert.Len(t, cloned.OmitFields, 0)
+}
+
 // TestNewInFilterSliceEmptySlice 测试空切片情况
 func TestNewInFilterSliceEmptySlice(t *testing.T) {
 	filter := NewInFilterSlice("status", []interface{}{})
@@ -1949,4 +2020,101 @@ func TestBuildGroupConditionAllBranches(t *testing.T) {
 		assert.Equal(t, "name = ?", sql)
 		assert.Equal(t, []interface{}{"John"}, args)
 	})
+}
+
+// =============== 状态检查与重置方法测试 ===============
+
+func TestHasPagination(t *testing.T) {
+	q := NewQuery()
+	assert.False(t, q.HasPagination())
+
+	q.WithPaging(1, 10)
+	assert.True(t, q.HasPagination())
+}
+
+func TestHasGroupBy(t *testing.T) {
+	q := NewQuery()
+	assert.False(t, q.HasGroupBy())
+
+	q.AddGroupBy("status")
+	assert.True(t, q.HasGroupBy())
+}
+
+func TestHasHaving(t *testing.T) {
+	q := NewQuery()
+	assert.False(t, q.HasHaving())
+
+	q.AddHaving(NewGtFilter("count", 5))
+	assert.True(t, q.HasHaving())
+}
+
+func TestHasOrders(t *testing.T) {
+	q := NewQuery()
+	assert.False(t, q.HasOrders())
+
+	q.AddOrder("created_at", constants.Desc)
+	assert.True(t, q.HasOrders())
+}
+
+func TestHasSelectFields(t *testing.T) {
+	q := NewQuery()
+	assert.False(t, q.HasSelectFields())
+
+	q.Select("id", "name")
+	assert.True(t, q.HasSelectFields())
+}
+
+func TestHasOmitFields(t *testing.T) {
+	q := NewQuery()
+	assert.False(t, q.HasOmitFields())
+
+	q.Omit("password")
+	assert.True(t, q.HasOmitFields())
+}
+
+func TestIsLimited(t *testing.T) {
+	q := NewQuery()
+	assert.False(t, q.IsLimited())
+
+	q.Limit(50)
+	assert.True(t, q.IsLimited())
+}
+
+func TestIsOffset(t *testing.T) {
+	q := NewQuery()
+	assert.False(t, q.IsOffset())
+
+	q.Offset(100)
+	assert.True(t, q.IsOffset())
+}
+
+func TestResetFilters(t *testing.T) {
+	q := NewQuery().
+		AddEqual("status", "active").
+		WithFilterGroup(NewFilterGroup(constants.LOGIC_AND).AddFilter(NewEqFilter("age", 18)))
+
+	assert.True(t, q.HasFilters())
+
+	q.ResetFilters()
+	assert.False(t, q.HasFilters())
+	assert.Len(t, q.Filters, 0)
+	assert.Nil(t, q.FilterGroup)
+}
+
+func TestResetOrders(t *testing.T) {
+	q := NewQuery().AddOrderAsc("name").AddOrderDesc("created_at")
+	assert.True(t, q.HasOrders())
+
+	q.ResetOrders()
+	assert.False(t, q.HasOrders())
+	assert.Len(t, q.Orders, 0)
+}
+
+func TestResetPagination(t *testing.T) {
+	q := NewQuery().WithPaging(2, 20)
+	assert.True(t, q.HasPagination())
+
+	q.ResetPagination()
+	assert.False(t, q.HasPagination())
+	assert.Nil(t, q.Pagination)
 }

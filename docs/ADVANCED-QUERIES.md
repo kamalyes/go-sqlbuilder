@@ -694,6 +694,82 @@ query := repository.NewQuery().
     AddPreload("Orders")
 ```
 
+## 查询状态检查
+
+Query 提供了一组状态检查方法，用于判断是否已设置各类查询条件：
+
+```go
+query := repository.NewQuery().
+    AddEqFilter("status", "active").
+    AddOrderDesc("created_at").
+    WithPaging(1, 20).
+    Select("id", "name").
+    Limit(50)
+
+query.HasFilters()       // true - 是否有过滤条件（含 FilterGroup）
+query.HasPagination()    // true - 是否设置了分页
+query.HasOrders()        // true - 是否设置了排序
+query.HasSelectFields()  // true - 是否指定了查询字段
+query.HasOmitFields()    // false - 是否指定了排除字段
+query.HasGroupBy()       // false - 是否设置了分组
+query.HasHaving()        // false - 是否设置了 HAVING 条件
+query.IsLimited()        // true - 是否设置了 Limit
+query.IsOffset()         // false - 是否设置了 Offset
+```
+
+**实战示例 - 条件应用中间件：**
+
+```go
+func applyDefaults(query *repository.Query) *repository.Query {
+    if !query.HasOrders() {
+        query.AddOrderDesc("created_at")
+    }
+    if !query.HasPagination() && !query.IsLimited() {
+        query.Limit(100) // 防止全表查询
+    }
+    return query
+}
+```
+
+## 查询重置
+
+当需要复用 Query 对象但修改部分条件时，可以使用重置方法：
+
+```go
+query := repository.NewQuery().
+    AddEqFilter("status", "active").
+    AddOrderDesc("created_at").
+    WithPaging(1, 20)
+
+// 重置过滤条件（清除 Filters 和 FilterGroup）
+query.ResetFilters()
+
+// 重置排序条件
+query.ResetOrders()
+
+// 重置分页设置
+query.ResetPagination()
+```
+
+**实战示例 - 复用查询模板：**
+
+```go
+// 基础查询模板
+base := repository.NewQuery().
+    AddEqFilter("tenant_id", tenantID).
+    OmitSensitive().
+    AddOrderDesc("created_at")
+
+// 第一次查询：活跃用户
+activeUsers, _ := repo.List(ctx, base.Clone().AddEqFilter("status", "active"))
+
+// 第二次查询：需要重新构建过滤条件
+query := base.Clone().ResetFilters().
+    AddEqFilter("tenant_id", tenantID).
+    AddEqFilter("status", "deleted")
+deletedUsers, _ := repo.List(ctx, query)
+```
+
 ## 调试查询
 
 ```go

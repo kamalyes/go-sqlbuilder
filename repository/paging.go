@@ -32,8 +32,14 @@ type Pagination = PaginationT[int]
 // Pagination32 int32 版本的分页类型（用于一般场景）
 type Pagination32 = PaginationT[int32]
 
+// PaginationResult32 分页结果类型别名（int32版本，与Pagination32一致）
+type PaginationResult32 = Pagination32
+
 // Pagination64 int64 版本的分页类型（用于需要大数值的场景）
 type Pagination64 = PaginationT[int64]
+
+// PaginationResult64 分页结果类型别名（int64版本，与Pagination64一致）
+type PaginationResult64 = Pagination64
 
 // GetOffset 计算数据库偏移量
 func (p *PaginationT[T]) GetOffset() int {

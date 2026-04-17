@@ -20,6 +20,7 @@ import (
 	"github.com/kamalyes/go-toolbox/pkg/convert"
 	"github.com/kamalyes/go-toolbox/pkg/mathx"
 	"github.com/kamalyes/go-toolbox/pkg/stringx"
+	"github.com/kamalyes/go-toolbox/pkg/syncx"
 	"github.com/kamalyes/go-toolbox/pkg/validator"
 )
 
@@ -102,6 +103,40 @@ func (q *Query) WithPaging(page, pageSize int) *Query {
 		PageSize: mathx.IF(pageSize <= 0, constants.DefaultPageSize, pageSize),
 	}
 	return q
+}
+
+// SetPage 设置当前页码
+func (q *Query) SetPage(page int) *Query {
+	if q.Pagination == nil {
+		q.Pagination = &Pagination{}
+	}
+	q.Pagination.Page = page
+	return q
+}
+
+// SetPageSize 设置每页记录数
+func (q *Query) SetPageSize(pageSize int) *Query {
+	if q.Pagination == nil {
+		q.Pagination = &Pagination{}
+	}
+	q.Pagination.PageSize = pageSize
+	return q
+}
+
+// SetPagination 设置分页参数（页码和每页大小）
+func (q *Query) SetPagination(page, pageSize int) *Query {
+	return q.WithPaging(page, pageSize)
+}
+
+// GetPagination 获取分页对象（如果不存在则创建默认分页）
+func (q *Query) GetPagination() *Pagination {
+	if q.Pagination == nil {
+		q.Pagination = &Pagination{
+			Page:     constants.DefaultPage,
+			PageSize: constants.DefaultPageSize,
+		}
+	}
+	return q.Pagination
 }
 
 // Limit 设置查询限制数量
@@ -870,4 +905,96 @@ func (q *Query) processSubGroups(group *FilterGroup, conditions *[]string, args 
 			}
 		}
 	}
+}
+
+// HasPagination 检查是否设置了分页
+func (q *Query) HasPagination() bool {
+	return q.Pagination != nil
+}
+
+// HasGroupBy 检查是否设置了分组
+func (q *Query) HasGroupBy() bool {
+	return len(q.GroupBy) > 0
+}
+
+// HasHaving 检查是否设置了HAVING条件
+func (q *Query) HasHaving() bool {
+	return len(q.Having) > 0
+}
+
+// HasOrders 检查是否设置了排序
+func (q *Query) HasOrders() bool {
+	return len(q.Orders) > 0
+}
+
+// HasSelectFields 检查是否指定了查询字段
+func (q *Query) HasSelectFields() bool {
+	return len(q.SelectFields) > 0
+}
+
+// HasOmitFields 检查是否指定了排除字段
+func (q *Query) HasOmitFields() bool {
+	return len(q.OmitFields) > 0
+}
+
+// IsLimited 检查是否设置了查询限制数量
+func (q *Query) IsLimited() bool {
+	return q.LimitValue != nil
+}
+
+// IsOffset 检查是否设置了查询偏移量
+func (q *Query) IsOffset() bool {
+	return q.OffsetValue != nil
+}
+
+// ResetFilters 重置所有过滤条件（包括简单过滤器和复合过滤组）
+func (q *Query) ResetFilters() *Query {
+	q.Filters = make([]*Filter, 0)
+	q.FilterGroup = nil
+	return q
+}
+
+// ResetOrders 重置所有排序条件
+func (q *Query) ResetOrders() *Query {
+	q.Orders = make([]Order, 0)
+	return q
+}
+
+// ResetPagination 重置分页设置
+func (q *Query) ResetPagination() *Query {
+	q.Pagination = nil
+	return q
+}
+
+// Clone 深拷贝查询对象，创建一个新的独立副本
+func (q *Query) Clone() *Query {
+	cloned := NewQuery()
+	if q == nil {
+		return cloned
+	}
+
+	if err := syncx.DeepCopy(&cloned, &q); err != nil {
+		return NewQuery()
+	}
+
+	if cloned.Filters == nil {
+		cloned.Filters = make([]*Filter, 0)
+	}
+	if cloned.Orders == nil {
+		cloned.Orders = make([]Order, 0)
+	}
+	if cloned.GroupBy == nil {
+		cloned.GroupBy = make([]string, 0)
+	}
+	if cloned.Having == nil {
+		cloned.Having = make([]*Filter, 0)
+	}
+	if cloned.SelectFields == nil {
+		cloned.SelectFields = make([]string, 0)
+	}
+	if cloned.OmitFields == nil {
+		cloned.OmitFields = make([]string, 0)
+	}
+
+	return cloned
 }
