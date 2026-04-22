@@ -78,6 +78,36 @@ func (d *PostgreSQLDialect) FormatTimeGroup(field string, groupType TimeGroupTyp
 	return fmt.Sprintf("TO_CHAR(%s, '%s')", field, format)
 }
 
+// CockroachDBDialect CockroachDB 方言（兼容PostgreSQL语法）
+type CockroachDBDialect struct{}
+
+func (d *CockroachDBDialect) FormatTimeGroup(field string, groupType TimeGroupType) string {
+	formatMap := map[TimeGroupType]string{
+		GroupByHour:  "YYYY-MM-DD HH24:00:00",
+		GroupByDay:   "YYYY-MM-DD",
+		GroupByWeek:  "IYYY-IW",
+		GroupByMonth: "YYYY-MM",
+		GroupByYear:  "YYYY",
+	}
+	format := formatTimeGroup(groupType, formatMap)
+	return fmt.Sprintf("TO_CHAR(%s, '%s')", field, format)
+}
+
+// ClickHouseDialect ClickHouse 方言
+type ClickHouseDialect struct{}
+
+func (d *ClickHouseDialect) FormatTimeGroup(field string, groupType TimeGroupType) string {
+	formatMap := map[TimeGroupType]string{
+		GroupByHour:  "%Y-%m-%d %H:00:00",
+		GroupByDay:   "%Y-%m-%d",
+		GroupByWeek:  "%Y-%U",
+		GroupByMonth: "%Y-%m",
+		GroupByYear:  "%Y",
+	}
+	format := formatTimeGroup(groupType, formatMap)
+	return fmt.Sprintf("formatDateTime(%s, '%s')", field, format)
+}
+
 // DetectDialect 自动检测数据库方言
 func DetectDialect(db *gorm.DB) Dialect {
 	dialector := db.Dialector.Name()
@@ -89,8 +119,11 @@ func DetectDialect(db *gorm.DB) Dialect {
 		return &SQLiteDialect{}
 	case "postgres", "postgresql":
 		return &PostgreSQLDialect{}
+	case "cockroachdb", "cockroach":
+		return &CockroachDBDialect{}
+	case "clickhouse":
+		return &ClickHouseDialect{}
 	default:
-		// 默认使用 MySQL 方言
 		return &MySQLDialect{}
 	}
 }

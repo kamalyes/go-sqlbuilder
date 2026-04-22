@@ -16,6 +16,7 @@ import (
 	"strings"
 
 	"github.com/kamalyes/go-logger"
+	"github.com/kamalyes/go-sqlbuilder/constants"
 	"gorm.io/gorm"
 )
 
@@ -313,9 +314,9 @@ func (m *Migrator) AddComments() error {
 func (m *Migrator) addComment(c TableComment, dialector string) error {
 	var sql string
 	switch dialector {
-	case "mysql":
+	case constants.DialectorMySQL:
 		sql = fmt.Sprintf("ALTER TABLE %s COMMENT = '%s'", c.Table, c.Comment)
-	case "postgres":
+	case constants.DialectorPostgreSQL, constants.DialectorCockroachDB:
 		sql = fmt.Sprintf("COMMENT ON TABLE %s IS '%s'", c.Table, c.Comment)
 	default:
 		// 其他数据库不支持表注释
@@ -411,7 +412,7 @@ type ColumnComment struct {
 // 检查所有字段的注释是否与 Model 中定义的一致，不一致则更新
 func (m *Migrator) SyncColumnComments(models ...interface{}) error {
 	dialector := m.db.Dialector.Name()
-	if dialector != "mysql" && dialector != "postgres" {
+	if !constants.IsSupportedDialector(dialector) {
 		m.logger.Debug("当前数据库 %s 不支持字段注释同步", dialector)
 		return nil
 	}
@@ -470,7 +471,7 @@ func (m *Migrator) syncModelColumnComments(model interface{}, dialector string) 
 
 		// 获取列类型（MySQL ALTER COLUMN 需要）
 		columnType := ""
-		if dialector == "mysql" {
+		if constants.IsMySQLDialector(dialector) {
 			columnType, err = m.getColumnType(tableName, field.DBName)
 			if err != nil {
 				m.logger.Warn("获取列 %s.%s 类型失败: %v", tableName, field.DBName, err)
@@ -502,13 +503,13 @@ func (m *Migrator) getColumnComments(tableName, dialector string) (map[string]st
 
 	var err error
 	switch dialector {
-	case "mysql":
+	case constants.DialectorMySQL:
 		err = m.db.Raw(`
 			SELECT COLUMN_NAME as column_name, COLUMN_COMMENT as column_comment 
 			FROM INFORMATION_SCHEMA.COLUMNS 
 			WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?
 		`, tableName).Scan(&rows).Error
-	case "postgres":
+	case constants.DialectorPostgreSQL, constants.DialectorCockroachDB:
 		err = m.db.Raw(`
 			SELECT a.attname as column_name, 
 				   COALESCE(d.description, '') as column_comment
@@ -549,11 +550,10 @@ func (m *Migrator) updateColumnComment(tableName, columnName, comment, columnTyp
 
 	var sql string
 	switch dialector {
-	case "mysql":
-		// MySQL 需要完整的列定义
+	case constants.DialectorMySQL:
 		sql = fmt.Sprintf("ALTER TABLE `%s` MODIFY COLUMN `%s` %s COMMENT '%s'",
 			tableName, columnName, columnType, comment)
-	case "postgres":
+	case constants.DialectorPostgreSQL, constants.DialectorCockroachDB:
 		sql = fmt.Sprintf("COMMENT ON COLUMN %s.%s IS '%s'",
 			tableName, columnName, comment)
 	default:
