@@ -2,9 +2,9 @@
  * @Author: kamalyes 501893067@qq.com
  * @Date: 2025-11-11 00:00:00
  * @LastEditors: kamalyes 501893067@qq.com
- * @LastEditTime: 2025-11-23 23:30:00
- * @FilePath: \go-sqlbuilder\mapopt_test.go
- * @Description: Map类型扩展测试
+ * @LastEditTime: 2026-05-08 15:16:15
+ * @FilePath: \go-sqlbuilder\types_test.go
+ * @Description: 类型重导出兼容层测试
  *
  * Copyright (c) 2025 by kamalyes, All Rights Reserved.
  */
@@ -12,8 +12,9 @@ package sqlbuilder
 
 import (
 	"database/sql/driver"
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestMapAny_ScanAndValue(t *testing.T) {
@@ -120,90 +121,6 @@ func TestMapAny_Operations(t *testing.T) {
 	clone["name"] = "Bob"
 	assert.Equal(t, "Alice", m["name"]) // 原数据不变
 	assert.Equal(t, "Bob", clone["name"])
-}
-
-func TestMapString_ScanAndValue(t *testing.T) {
-	m := MapString{}
-
-	// Test Scan
-	jsonData := []byte(`{"key1":"value1","key2":"value2"}`)
-	err := m.Scan(jsonData)
-	assert.NoError(t, err)
-	assert.Equal(t, "value1", m["key1"])
-	assert.Equal(t, "value2", m["key2"])
-
-	// Test Scan with nil
-	m2 := MapString{}
-	err = m2.Scan(nil)
-	assert.NoError(t, err)
-	assert.NotNil(t, m2)
-
-	// Test Scan with invalid type
-	m3 := MapString{}
-	err = m3.Scan(123)
-	assert.Error(t, err)
-
-	// Test Value
-	val, err := m.Value()
-	assert.NoError(t, err)
-	assert.NotNil(t, val)
-
-	// Test Value with nil
-	var m4 MapString
-	val, err = m4.Value()
-	assert.NoError(t, err)
-	assert.Nil(t, val)
-}
-
-func TestMapString_Operations(t *testing.T) {
-	m := MapString{
-		"name":  "Alice",
-		"email": "alice@test.com",
-	}
-
-	// Test Get
-	assert.Equal(t, "Alice", m.Get("name"))
-	assert.Equal(t, "", m.Get("nonexist"))
-	assert.Equal(t, "default", m.Get("nonexist", "default"))
-
-	// Test Set
-	m.Set("city", "Beijing")
-	assert.Equal(t, "Beijing", m["city"])
-
-	// Test Has
-	assert.True(t, m.Has("name"))
-	assert.False(t, m.Has("nonexist"))
-
-	// Test Delete
-	m.Delete("city")
-	assert.False(t, m.Has("city"))
-
-	// Test Keys
-	keys := m.Keys()
-	assert.Contains(t, keys, "name")
-	assert.Contains(t, keys, "email")
-
-	// Test Values
-	values := m.Values()
-	assert.Contains(t, values, "Alice")
-	assert.Contains(t, values, "alice@test.com")
-
-	// Test Merge
-	other := MapString{"phone": "123456", "email": "new@test.com"}
-	m.Merge(other)
-	assert.Equal(t, "123456", m["phone"])
-	assert.Equal(t, "new@test.com", m["email"]) // 覆盖
-
-	// Test Clone
-	clone := m.Clone()
-	clone["name"] = "Bob"
-	assert.Equal(t, "Alice", m["name"]) // 原数据不变
-	assert.Equal(t, "Bob", clone["name"])
-
-	// Test ToMapAny
-	mapAny := m.ToMapAny()
-	assert.Equal(t, "Alice", mapAny["name"])
-	assert.IsType(t, MapAny{}, mapAny)
 }
 
 func TestStringSlice_ScanAndValue(t *testing.T) {
@@ -496,7 +413,7 @@ func TestJSONType(t *testing.T) {
 	}
 
 	// Test Scan and Value
-	j := &JSONType[Person]{}
+	j := &JSON[Person]{}
 	jsonData := []byte(`{"name":"Alice","age":30}`)
 	err := j.Scan(jsonData)
 	assert.NoError(t, err)
@@ -517,17 +434,17 @@ func TestJSONType(t *testing.T) {
 	assert.NotNil(t, val)
 
 	// Test Scan with nil
-	j2 := &JSONType[Person]{}
+	j2 := &JSON[Person]{}
 	err = j2.Scan(nil)
 	assert.NoError(t, err)
 
 	// Test Scan with invalid type
-	j3 := &JSONType[Person]{}
+	j3 := &JSON[Person]{}
 	err = j3.Scan(123)
 	assert.Error(t, err)
 
 	// Test with driver.Valuer interface
-	var _ driver.Valuer = (*JSONType[Person])(nil)
+	var _ driver.Valuer = (*JSON[Person])(nil)
 }
 
 func TestSlice(t *testing.T) {
