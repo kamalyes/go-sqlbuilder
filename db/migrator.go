@@ -27,6 +27,10 @@ type IndexDefinition struct {
 	Columns string   // 列定义（如 "(col1, col2)" 或 "col1 DESC"）
 	Unique  bool     // 是否唯一索引
 	columns []string // 内部使用：解析后的列名列表
+
+	// ClickHouse 特有参数
+	ClickHouseType        string // ClickHouse 索引类型（如 bloom_filter, minmax, set 等），默认 bloom_filter
+	ClickHouseGranularity int    // ClickHouse 索引粒度，默认 1
 }
 
 // GenerateIndexName 根据命名规范自动生成索引名
@@ -260,23 +264,60 @@ func (m *Migrator) CreateIndexes() error {
 
 // createIndex 创建单个索引
 func (m *Migrator) createIndex(idx IndexDefinition) error {
-	// 自动生成索引名（如果未指定）
 	indexName := idx.GenerateIndexName()
 
-	// 先检查索引是否存在（兼容 MySQL/PostgreSQL/SQLite）
 	if m.hasIndex(idx.Table, indexName) {
 		m.logger.Debug("索引 %s 已存在，跳过创建", indexName)
 		return nil
 	}
 
+	dialector := m.db.Dialector.Name()
+
 	var sql string
-	if idx.Unique {
+	switch {
+	case constants.IsClickHouseDialector(dialector):
+		return m.createClickHouseIndex(idx, indexName)
+	case idx.Unique:
 		sql = fmt.Sprintf("CREATE UNIQUE INDEX %s ON %s %s", indexName, idx.Table, idx.Columns)
-	} else {
+	default:
 		sql = fmt.Sprintf("CREATE INDEX %s ON %s %s", indexName, idx.Table, idx.Columns)
 	}
 
 	return m.db.Exec(sql).Error
+}
+
+// createClickHouseIndex 创建 ClickHouse 索引
+// ClickHouse 使用 ALTER TABLE ADD INDEX 语法，且需要指定 TYPE 和 GRANULARITY
+func (m *Migrator) createClickHouseIndex(idx IndexDefinition, indexName string) error {
+	cols := idx.parseColumns()
+	if len(cols) == 0 {
+		return fmt.Errorf("ClickHouse 索引 %s 缺少列定义", indexName)
+	}
+
+	expr := idx.Columns
+	if expr == "" {
+		expr = fmt.Sprintf("(%s)", strings.Join(cols, ", "))
+	}
+
+	indexType := idx.ClickHouseType
+	if indexType == "" {
+		indexType = "bloom_filter"
+	}
+
+	granularity := idx.ClickHouseGranularity
+	if granularity == 0 {
+		granularity = 1
+	}
+
+	sql := fmt.Sprintf("ALTER TABLE %s ADD INDEX %s %s TYPE %s GRANULARITY %d",
+		idx.Table, indexName, expr, indexType, granularity)
+
+	if err := m.db.Exec(sql).Error; err != nil {
+		return err
+	}
+
+	materializeSQL := fmt.Sprintf("ALTER TABLE %s MATERIALIZE INDEX %s", idx.Table, indexName)
+	return m.db.Exec(materializeSQL).Error
 }
 
 // hasIndex 检查索引是否存在
@@ -313,13 +354,18 @@ func (m *Migrator) AddComments() error {
 // addComment 添加单个表注释
 func (m *Migrator) addComment(c TableComment, dialector string) error {
 	var sql string
-	switch dialector {
-	case constants.DialectorMySQL:
+	switch {
+	case constants.IsMySQLDialector(dialector):
 		sql = fmt.Sprintf("ALTER TABLE %s COMMENT = '%s'", c.Table, c.Comment)
-	case constants.DialectorPostgreSQL, constants.DialectorCockroachDB:
+	case constants.IsPostgreSQLFamilyDialector(dialector):
 		sql = fmt.Sprintf("COMMENT ON TABLE %s IS '%s'", c.Table, c.Comment)
+	case constants.IsClickHouseDialector(dialector):
+		sql = fmt.Sprintf("ALTER TABLE %s COMMENT '%s'", c.Table, c.Comment)
+	case constants.IsSQLiteDialector(dialector):
+		m.logger.Debug("SQLite 不支持表注释，跳过表 %s 的注释设置", c.Table)
+		return nil
 	default:
-		// 其他数据库不支持表注释
+		m.logger.Debug("当前数据库 %s 不支持表注释，跳过", dialector)
 		return nil
 	}
 
@@ -412,6 +458,12 @@ type ColumnComment struct {
 // 检查所有字段的注释是否与 Model 中定义的一致，不一致则更新
 func (m *Migrator) SyncColumnComments(models ...interface{}) error {
 	dialector := m.db.Dialector.Name()
+
+	if constants.IsSQLiteDialector(dialector) {
+		m.logger.Debug("SQLite 不支持字段注释同步")
+		return nil
+	}
+
 	if !constants.IsSupportedDialector(dialector) {
 		m.logger.Debug("当前数据库 %s 不支持字段注释同步", dialector)
 		return nil
@@ -502,14 +554,14 @@ func (m *Migrator) getColumnComments(tableName, dialector string) (map[string]st
 	}
 
 	var err error
-	switch dialector {
-	case constants.DialectorMySQL:
+	switch {
+	case constants.IsMySQLDialector(dialector):
 		err = m.db.Raw(`
 			SELECT COLUMN_NAME as column_name, COLUMN_COMMENT as column_comment 
 			FROM INFORMATION_SCHEMA.COLUMNS 
 			WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?
 		`, tableName).Scan(&rows).Error
-	case constants.DialectorPostgreSQL, constants.DialectorCockroachDB:
+	case constants.IsPostgreSQLFamilyDialector(dialector):
 		err = m.db.Raw(`
 			SELECT a.attname as column_name, 
 				   COALESCE(d.description, '') as column_comment
@@ -517,6 +569,14 @@ func (m *Migrator) getColumnComments(tableName, dialector string) (map[string]st
 			LEFT JOIN pg_description d ON d.objoid = a.attrelid AND d.objsubid = a.attnum
 			WHERE a.attrelid = ?::regclass AND a.attnum > 0 AND NOT a.attisdropped
 		`, tableName).Scan(&rows).Error
+	case constants.IsClickHouseDialector(dialector):
+		err = m.db.Raw(`
+			SELECT name as column_name, comment as column_comment
+			FROM system.columns
+			WHERE database = currentDatabase() AND table = ?
+		`, tableName).Scan(&rows).Error
+	case constants.IsSQLiteDialector(dialector):
+		return comments, nil
 	default:
 		return comments, nil
 	}
@@ -545,18 +605,24 @@ func (m *Migrator) getColumnType(tableName, columnName string) (string, error) {
 
 // updateColumnComment 更新单个列的注释
 func (m *Migrator) updateColumnComment(tableName, columnName, comment, columnType, dialector string) error {
-	// 转义单引号
 	comment = strings.ReplaceAll(comment, "'", "''")
 
 	var sql string
-	switch dialector {
-	case constants.DialectorMySQL:
+	switch {
+	case constants.IsMySQLDialector(dialector):
 		sql = fmt.Sprintf("ALTER TABLE `%s` MODIFY COLUMN `%s` %s COMMENT '%s'",
 			tableName, columnName, columnType, comment)
-	case constants.DialectorPostgreSQL, constants.DialectorCockroachDB:
+	case constants.IsPostgreSQLFamilyDialector(dialector):
 		sql = fmt.Sprintf("COMMENT ON COLUMN %s.%s IS '%s'",
 			tableName, columnName, comment)
+	case constants.IsClickHouseDialector(dialector):
+		sql = fmt.Sprintf("ALTER TABLE %s COMMENT COLUMN %s '%s'",
+			tableName, columnName, comment)
+	case constants.IsSQLiteDialector(dialector):
+		m.logger.Debug("SQLite 不支持列注释更新，跳过 %s.%s", tableName, columnName)
+		return nil
 	default:
+		m.logger.Debug("当前数据库 %s 不支持列注释更新，跳过", dialector)
 		return nil
 	}
 
