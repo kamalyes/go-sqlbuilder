@@ -11,9 +11,10 @@
 package repository
 
 import (
-	"reflect"
+	"fmt"
 
 	"github.com/kamalyes/go-sqlbuilder/constants"
+	"github.com/kamalyes/go-toolbox/pkg/convert"
 	"github.com/kamalyes/go-toolbox/pkg/validator"
 )
 
@@ -129,18 +130,26 @@ func (fg *FilterGroup) AddFilterIf(condition bool, filter *Filter) *FilterGroup 
 
 // AddFilterIfValueNotEmpty 当 filter 的 Value 不为空时添加过滤条件
 func (fg *FilterGroup) AddFilterIfValueNotEmpty(filter *Filter) *FilterGroup {
-	if filter != nil && !validator.IsEmptyValue(reflect.ValueOf(filter.Value)) {
-		fg.AddFilter(filter)
+	if filter == nil {
+		return fg
 	}
+	deref, empty := validator.IsEmptyAfterDeref(filter.Value)
+	if empty {
+		return fg
+	}
+	filter.Value = deref
+	fg.AddFilter(filter)
 	return fg
 }
 
 // AddFilterIfNotEmpty 当值不为空时添加过滤条件
-// 支持 string, slice, map 等类型的空值判断
+// 支持指针自动解引用，string, slice, map 等类型的空值判断
 func (fg *FilterGroup) AddFilterIfNotEmpty(field string, operator constants.Operator, value interface{}) *FilterGroup {
-	if !validator.IsEmptyValue(reflect.ValueOf(value)) {
-		fg.AddFilter(NewFilter(field, operator, value))
+	deref, empty := validator.IsEmptyAfterDeref(value)
+	if empty {
+		return fg
 	}
+	fg.AddFilter(NewFilter(field, operator, deref))
 	return fg
 }
 
@@ -175,51 +184,105 @@ func (fg *FilterGroup) AddLteFilterIfNotEmpty(field string, value interface{}) *
 }
 
 // AddLikeFilterIfNotEmpty 当值不为空时添加 LIKE 过滤条件
-func (fg *FilterGroup) AddLikeFilterIfNotEmpty(field string, value string) *FilterGroup {
-	return fg.AddFilterIfValueNotEmpty(NewLikeFilter(field, value))
+// value 支持 string 和 *string 类型
+func (fg *FilterGroup) AddLikeFilterIfNotEmpty(field string, value interface{}) *FilterGroup {
+	deref, empty := validator.IsEmptyAfterDeref(value)
+	if empty {
+		return fg
+	}
+	fg.AddFilter(NewLikeFilter(field, fmt.Sprintf("%v", deref)))
+	return fg
 }
 
 // AddInFilterIfNotEmpty 当切片不为空时添加 IN 过滤条件
-func (fg *FilterGroup) AddInFilterIfNotEmpty(field string, values []interface{}) *FilterGroup {
-	return fg.AddFilterIfValueNotEmpty(NewInFilterSlice(field, values))
-}
-
-// AddNotInFilterIfNotEmpty 当切片不为空时添加 NOT IN 过滤条件
-func (fg *FilterGroup) AddNotInFilterIfNotEmpty(field string, values []interface{}) *FilterGroup {
-	return fg.AddFilterIfValueNotEmpty(NewNotInFilterSlice(field, values))
-}
-
-// AddBetweenFilterIfNotEmpty 当最小值和最大值都不为空时添加 BETWEEN 过滤条件
-func (fg *FilterGroup) AddBetweenFilterIfNotEmpty(field string, min, max interface{}) *FilterGroup {
-	if !validator.IsEmptyValue(reflect.ValueOf(min)) && !validator.IsEmptyValue(reflect.ValueOf(max)) {
-		fg.AddFilter(NewBetweenFilter(field, min, max))
+// values 支持任意切片类型（[]string、[]int 等）以及对应指针类型
+func (fg *FilterGroup) AddInFilterIfNotEmpty(field string, values interface{}) *FilterGroup {
+	deref, empty := validator.IsEmptyAfterDeref(values)
+	if empty {
+		return fg
+	}
+	if slice := convert.AnySliceToInterfaceSlice(deref); len(slice) > 0 {
+		fg.AddFilter(NewInFilterSlice(field, slice))
 	}
 	return fg
 }
 
+// AddNotInFilterIfNotEmpty 当切片不为空时添加 NOT IN 过滤条件
+// values 支持任意切片类型（[]string、[]int 等）以及对应指针类型
+func (fg *FilterGroup) AddNotInFilterIfNotEmpty(field string, values interface{}) *FilterGroup {
+	deref, empty := validator.IsEmptyAfterDeref(values)
+	if empty {
+		return fg
+	}
+	if slice := convert.AnySliceToInterfaceSlice(deref); len(slice) > 0 {
+		fg.AddFilter(NewNotInFilterSlice(field, slice))
+	}
+	return fg
+}
+
+// AddBetweenFilterIfNotEmpty 当最小值和最大值都不为空时添加 BETWEEN 过滤条件
+func (fg *FilterGroup) AddBetweenFilterIfNotEmpty(field string, min, max interface{}) *FilterGroup {
+	minDeref, minEmpty := validator.IsEmptyAfterDeref(min)
+	maxDeref, maxEmpty := validator.IsEmptyAfterDeref(max)
+	if minEmpty || maxEmpty {
+		return fg
+	}
+	fg.AddFilter(NewBetweenFilter(field, minDeref, maxDeref))
+	return fg
+}
+
 // AddStartsWithFilterIfNotEmpty 当值不为空时添加前缀匹配过滤条件
-func (fg *FilterGroup) AddStartsWithFilterIfNotEmpty(field string, value string) *FilterGroup {
-	return fg.AddFilterIfValueNotEmpty(NewStartsWithFilter(field, value))
+// value 支持 string 和 *string 类型
+func (fg *FilterGroup) AddStartsWithFilterIfNotEmpty(field string, value interface{}) *FilterGroup {
+	deref, empty := validator.IsEmptyAfterDeref(value)
+	if empty {
+		return fg
+	}
+	fg.AddFilter(NewStartsWithFilter(field, fmt.Sprintf("%v", deref)))
+	return fg
 }
 
 // AddEndsWithFilterIfNotEmpty 当值不为空时添加后缀匹配过滤条件
-func (fg *FilterGroup) AddEndsWithFilterIfNotEmpty(field string, value string) *FilterGroup {
-	return fg.AddFilterIfValueNotEmpty(NewEndsWithFilter(field, value))
+// value 支持 string 和 *string 类型
+func (fg *FilterGroup) AddEndsWithFilterIfNotEmpty(field string, value interface{}) *FilterGroup {
+	deref, empty := validator.IsEmptyAfterDeref(value)
+	if empty {
+		return fg
+	}
+	fg.AddFilter(NewEndsWithFilter(field, fmt.Sprintf("%v", deref)))
+	return fg
 }
 
-// AddRegexpFilterIfNotEmpty  当值不为空时添加正则匹配过滤条件（仅MySQL/PostgreSQL）
-func (fg *FilterGroup) AddRegexpFilterIfNotEmpty(field string, pattern string) *FilterGroup {
-	return fg.AddFilterIfValueNotEmpty(NewRegexpFilter(field, pattern))
+// AddRegexpFilterIfNotEmpty 当值不为空时添加正则匹配过滤条件（仅MySQL/PostgreSQL）
+// pattern 支持 string 和 *string 类型
+func (fg *FilterGroup) AddRegexpFilterIfNotEmpty(field string, pattern interface{}) *FilterGroup {
+	deref, empty := validator.IsEmptyAfterDeref(pattern)
+	if empty {
+		return fg
+	}
+	fg.AddFilter(NewRegexpFilter(field, fmt.Sprintf("%v", deref)))
+	return fg
 }
 
 // AddNotLikeFilterIfNotEmpty 当值不为空时添加 NOT LIKE 过滤条件
-func (fg *FilterGroup) AddNotLikeFilterIfNotEmpty(field string, value string) *FilterGroup {
-	return fg.AddFilterIfValueNotEmpty(NewNotLikeFilter(field, value))
+// value 支持 string 和 *string 类型
+func (fg *FilterGroup) AddNotLikeFilterIfNotEmpty(field string, value interface{}) *FilterGroup {
+	deref, empty := validator.IsEmptyAfterDeref(value)
+	if empty {
+		return fg
+	}
+	fg.AddFilter(NewNotLikeFilter(field, fmt.Sprintf("%v", deref)))
+	return fg
 }
 
 // AddFindInSetFilterIfNotEmpty 当值不为空时添加 FIND_IN_SET 过滤条件（MySQL特定）
 func (fg *FilterGroup) AddFindInSetFilterIfNotEmpty(field string, value interface{}) *FilterGroup {
-	return fg.AddFilterIfValueNotEmpty(&Filter{Field: field, Operator: constants.OP_FIND_IN_SET, Value: value})
+	deref, empty := validator.IsEmptyAfterDeref(value)
+	if empty {
+		return fg
+	}
+	fg.AddFilter(&Filter{Field: field, Operator: constants.OP_FIND_IN_SET, Value: deref})
+	return fg
 }
 
 // AddGroupIf 当条件为真时添加嵌套条件组

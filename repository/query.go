@@ -213,60 +213,24 @@ func (q *Query) flattenFilters(group *FilterGroup) []*Filter {
 }
 
 // AddFilterIfNotEmpty 添加过滤条件（仅当值不为空时）
-// 支持泛型自动处理不同类型的值
+// 支持泛型自动处理不同类型的值，包括指针自动解引用
+// 规则: nil/nil指针 -> 跳过, 布尔/数字(含零值) -> 有效, 空字符串/空切片 -> 跳过, 非空切片 -> IN
 func (q *Query) AddFilterIfNotEmpty(field string, value interface{}) *Query {
-	if value == nil {
+	deref, empty := validator.IsEmptyAfterDeref(value)
+	if empty {
 		return q
 	}
+	rv := reflect.ValueOf(deref)
 
-	// 使用反射检查指针类型
-	rv := reflect.ValueOf(value)
-
-	// 处理指针类型
-	if rv.Kind() == reflect.Ptr {
-		// 处理所有指针类型
-		if rv.IsNil() {
-			return q // nil 指针，不添加过滤器
-		}
-		// 解引用指针，使用实际值
-		actualValue := rv.Elem().Interface()
-
-		// 对于字符串指针，检查是否为空字符串
-		if str, ok := actualValue.(string); ok && str == "" {
-			return q
-		}
-
-		// 使用解引用后的值添加过滤器
-		q.AddFilter(NewEqFilter(field, actualValue))
-		return q
-	}
-
-	// 处理字符串空值
-	if str, ok := value.(string); ok && str == "" {
-		return q
-	}
-
-	// 处理切片类型
 	if rv.Kind() == reflect.Slice || rv.Kind() == reflect.Array {
-		slice := convert.AnySliceToInterfaceSlice(value)
+		slice := convert.AnySliceToInterfaceSlice(deref)
 		if len(slice) > 0 {
 			q.AddFilter(NewInFilterSlice(field, slice))
 		}
 		return q
 	}
 
-	// 处理布尔类型：布尔值（包括 false）都是有效值，应该添加过滤条件
-	if rv.Kind() == reflect.Bool {
-		q.AddFilter(NewEqFilter(field, value))
-		return q
-	}
-
-	// 处理零值：对于数字类型和枚举，零值不添加过滤条件
-	if rv.IsZero() {
-		return q
-	}
-
-	q.AddFilter(NewEqFilter(field, value))
+	q.AddFilter(NewEqFilter(field, deref))
 	return q
 }
 
@@ -286,55 +250,36 @@ func (q *Query) AddRawFilter(rawCondition string) *Query {
 }
 
 // AddLikeFilterIfNotEmpty 添加 LIKE 过滤条件（仅当关键词不为空时）
-func (q *Query) AddLikeFilterIfNotEmpty(field, keyword string) *Query {
-	if keyword != "" {
-		q.AddFilter(NewLikeFilter(field, keyword))
+// keyword 支持 string 和 *string 类型
+func (q *Query) AddLikeFilterIfNotEmpty(field string, keyword interface{}) *Query {
+	deref, empty := validator.IsEmptyAfterDeref(keyword)
+	if empty {
+		return q
 	}
+	q.AddFilter(NewLikeFilter(field, fmt.Sprintf("%v", deref)))
 	return q
-}
-
-// isTimeValid 检查时间值是否有效(非nil且非零值)
-func isTimeValid(timeVal interface{}) bool {
-	if timeVal == nil {
-		return false
-	}
-
-	// 定义 Unix 零点
-	unixZero := time.Unix(0, 0)
-
-	// 处理 *time.Time 类型
-	if ptr, ok := timeVal.(*time.Time); ok {
-		return ptr != nil && !ptr.IsZero() && ptr.After(unixZero)
-	}
-
-	// 处理 time.Time 类型
-	if t, ok := timeVal.(time.Time); ok {
-		return !t.IsZero() && t.After(unixZero)
-	}
-
-	// 其他类型认为有效
-	return true
 }
 
 // AddTimeRangeFilter 添加时间范围过滤条件
 // 自动过滤掉nil和零值时间，避免生成无效的SQL条件
 func (q *Query) AddTimeRangeFilter(field string, startTime, endTime interface{}) *Query {
-	if isTimeValid(startTime) {
+	if validator.IsTimeValid(startTime) {
 		q.AddFilter(NewGteFilter(field, startTime))
 	}
-	if isTimeValid(endTime) {
+	if validator.IsTimeValid(endTime) {
 		q.AddFilter(NewLteFilter(field, endTime))
 	}
 	return q
 }
 
 // AddInFilterIfNotEmpty 添加 IN 过滤条件(仅当切片不为空时)
+// values 支持任意切片类型（[]string、[]int 等）以及对应指针类型
 func (q *Query) AddInFilterIfNotEmpty(field string, values interface{}) *Query {
-	if values == nil {
+	deref, empty := validator.IsEmptyAfterDeref(values)
+	if empty {
 		return q
 	}
-
-	if slice := convert.AnySliceToInterfaceSlice(values); len(slice) > 0 {
+	if slice := convert.AnySliceToInterfaceSlice(deref); len(slice) > 0 {
 		q.AddFilter(NewInFilterSlice(field, slice))
 	}
 	return q
@@ -342,64 +287,77 @@ func (q *Query) AddInFilterIfNotEmpty(field string, values interface{}) *Query {
 
 // AddNeqFilterIfNotEmpty 添加不等于过滤条件（仅当值不为空时）
 func (q *Query) AddNeqFilterIfNotEmpty(field string, value interface{}) *Query {
-	if !validator.IsEmptyValue(reflect.ValueOf(value)) {
-		q.AddFilter(NewNeqFilter(field, value))
+	deref, empty := validator.IsEmptyAfterDeref(value)
+	if empty {
+		return q
 	}
+	q.AddFilter(NewNeqFilter(field, deref))
 	return q
 }
 
 // AddGtFilterIfNotEmpty 添加大于过滤条件（仅当值不为空时）
 func (q *Query) AddGtFilterIfNotEmpty(field string, value interface{}) *Query {
-	if !validator.IsEmptyValue(reflect.ValueOf(value)) {
-		q.AddFilter(NewGtFilter(field, value))
+	deref, empty := validator.IsEmptyAfterDeref(value)
+	if empty {
+		return q
 	}
+	q.AddFilter(NewGtFilter(field, deref))
 	return q
 }
 
 // AddGteFilterIfNotEmpty 添加大于等于过滤条件（仅当值不为空时）
 func (q *Query) AddGteFilterIfNotEmpty(field string, value interface{}) *Query {
-	if !validator.IsEmptyValue(reflect.ValueOf(value)) {
-		q.AddFilter(NewGteFilter(field, value))
+	deref, empty := validator.IsEmptyAfterDeref(value)
+	if empty {
+		return q
 	}
+	q.AddFilter(NewGteFilter(field, deref))
 	return q
 }
 
 // AddLtFilterIfNotEmpty 添加小于过滤条件（仅当值不为空时）
 func (q *Query) AddLtFilterIfNotEmpty(field string, value interface{}) *Query {
-	if !validator.IsEmptyValue(reflect.ValueOf(value)) {
-		q.AddFilter(NewLtFilter(field, value))
+	deref, empty := validator.IsEmptyAfterDeref(value)
+	if empty {
+		return q
 	}
+	q.AddFilter(NewLtFilter(field, deref))
 	return q
 }
 
 // AddLteFilterIfNotEmpty 添加小于等于过滤条件（仅当值不为空时）
 func (q *Query) AddLteFilterIfNotEmpty(field string, value interface{}) *Query {
-	if !validator.IsEmptyValue(reflect.ValueOf(value)) {
-		q.AddFilter(NewLteFilter(field, value))
+	deref, empty := validator.IsEmptyAfterDeref(value)
+	if empty {
+		return q
 	}
+	q.AddFilter(NewLteFilter(field, deref))
 	return q
 }
 
 // AddCursorFilter 游标分页方向过滤（仅当 cursor 不为空时生效）
 // isPrev=true 时使用 <（向前翻页），否则使用 >（向后翻页）
 func (q *Query) AddCursorFilter(field string, cursor interface{}, isPrev bool) *Query {
-	if validator.IsEmptyValue(reflect.ValueOf(cursor)) {
+	deref, empty := validator.IsEmptyAfterDeref(cursor)
+	if empty {
 		return q
 	}
 	if isPrev {
-		return q.AddFilter(NewLtFilter(field, cursor))
+		return q.AddFilter(NewLtFilter(field, deref))
 	}
-	return q.AddFilter(NewGtFilter(field, cursor))
+	return q.AddFilter(NewGtFilter(field, deref))
 }
 
 // AddEqOrInFilter 单值用 =，多值自动转 IN（仅当切片不为空时生效）
 // 适用于"按单个或多个 ID 过滤"的常见场景，避免手动判断长度
+// values 支持任意切片类型（[]string、[]int 等）以及对应指针类型
 // 示例: query.AddEqOrInFilter("session_id", sessionIDs)
 func (q *Query) AddEqOrInFilter(field string, values interface{}) *Query {
-	if values == nil {
+	deref, empty := validator.IsEmptyAfterDeref(values)
+	if empty {
 		return q
 	}
-	slice := convert.AnySliceToInterfaceSlice(values)
+	slice := convert.AnySliceToInterfaceSlice(deref)
 	switch len(slice) {
 	case 0:
 		return q
@@ -411,11 +369,13 @@ func (q *Query) AddEqOrInFilter(field string, values interface{}) *Query {
 }
 
 // AddNotInFilterIfNotEmpty 添加 NOT IN 过滤条件（仅当切片不为空时）
+// values 支持任意切片类型（[]string、[]int 等）以及对应指针类型
 func (q *Query) AddNotInFilterIfNotEmpty(field string, values interface{}) *Query {
-	if values == nil {
+	deref, empty := validator.IsEmptyAfterDeref(values)
+	if empty {
 		return q
 	}
-	if slice := convert.AnySliceToInterfaceSlice(values); len(slice) > 0 {
+	if slice := convert.AnySliceToInterfaceSlice(deref); len(slice) > 0 {
 		q.AddFilter(NewNotInFilterSlice(field, slice))
 	}
 	return q
@@ -423,41 +383,55 @@ func (q *Query) AddNotInFilterIfNotEmpty(field string, values interface{}) *Quer
 
 // AddBetweenFilterIfNotEmpty 添加 BETWEEN 过滤条件（仅当最小值和最大值都不为空时）
 func (q *Query) AddBetweenFilterIfNotEmpty(field string, min, max interface{}) *Query {
-	if !validator.IsEmptyValue(reflect.ValueOf(min)) && !validator.IsEmptyValue(reflect.ValueOf(max)) {
-		q.AddFilter(NewBetweenFilter(field, min, max))
+	minDeref, minEmpty := validator.IsEmptyAfterDeref(min)
+	maxDeref, maxEmpty := validator.IsEmptyAfterDeref(max)
+	if minEmpty || maxEmpty {
+		return q
 	}
+	q.AddFilter(NewBetweenFilter(field, minDeref, maxDeref))
 	return q
 }
 
 // AddStartsWithFilterIfNotEmpty 添加前缀匹配过滤条件（仅当值不为空时）
-func (q *Query) AddStartsWithFilterIfNotEmpty(field, value string) *Query {
-	if !validator.IsEmptyValue(reflect.ValueOf(value)) {
-		q.AddFilter(NewStartsWithFilter(field, value))
+// value 支持 string 和 *string 类型
+func (q *Query) AddStartsWithFilterIfNotEmpty(field string, value interface{}) *Query {
+	deref, empty := validator.IsEmptyAfterDeref(value)
+	if empty {
+		return q
 	}
+	q.AddFilter(NewStartsWithFilter(field, fmt.Sprintf("%v", deref)))
 	return q
 }
 
 // AddEndsWithFilterIfNotEmpty 添加后缀匹配过滤条件（仅当值不为空时）
-func (q *Query) AddEndsWithFilterIfNotEmpty(field, value string) *Query {
-	if !validator.IsEmptyValue(reflect.ValueOf(value)) {
-		q.AddFilter(NewEndsWithFilter(field, value))
+// value 支持 string 和 *string 类型
+func (q *Query) AddEndsWithFilterIfNotEmpty(field string, value interface{}) *Query {
+	deref, empty := validator.IsEmptyAfterDeref(value)
+	if empty {
+		return q
 	}
+	q.AddFilter(NewEndsWithFilter(field, fmt.Sprintf("%v", deref)))
 	return q
 }
 
 // AddNotLikeFilterIfNotEmpty 添加 NOT LIKE 过滤条件（仅当值不为空时）
-func (q *Query) AddNotLikeFilterIfNotEmpty(field, value string) *Query {
-	if !validator.IsEmptyValue(reflect.ValueOf(value)) {
-		q.AddFilter(NewNotLikeFilter(field, value))
+// value 支持 string 和 *string 类型
+func (q *Query) AddNotLikeFilterIfNotEmpty(field string, value interface{}) *Query {
+	deref, empty := validator.IsEmptyAfterDeref(value)
+	if empty {
+		return q
 	}
+	q.AddFilter(NewNotLikeFilter(field, fmt.Sprintf("%v", deref)))
 	return q
 }
 
 // AddFindInSetFilterIfNotEmpty 添加 FIND_IN_SET 过滤条件（仅当值不为空时，MySQL特定）
 func (q *Query) AddFindInSetFilterIfNotEmpty(field string, value interface{}) *Query {
-	if !validator.IsEmptyValue(reflect.ValueOf(value)) {
-		q.AddFilter(NewFindInSetFilter(field, value))
+	deref, empty := validator.IsEmptyAfterDeref(value)
+	if empty {
+		return q
 	}
+	q.AddFilter(NewFindInSetFilter(field, deref))
 	return q
 }
 
