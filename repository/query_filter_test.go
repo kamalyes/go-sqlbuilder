@@ -2623,3 +2623,77 @@ func TestSubQueryInFilterFile(t *testing.T) {
 		assert.Equal(t, 2, len(sq.Args))
 	})
 }
+
+// TestNewOperatorsIntegration 测试新增操作符的集成
+func TestNewOperatorsIntegration(t *testing.T) {
+	// 测试 NewStartsWithFilter
+	filter := NewStartsWithFilter("name", "user")
+	assert.Equal(t, "name", filter.Field)
+	assert.Equal(t, constants.OP_STARTS_WITH, filter.Operator)
+	assert.Equal(t, "user", filter.Value)
+
+	// 测试 NewEndsWithFilter
+	filter = NewEndsWithFilter("email", "@example.com")
+	assert.Equal(t, "email", filter.Field)
+	assert.Equal(t, constants.OP_ENDS_WITH, filter.Operator)
+	assert.Equal(t, "@example.com", filter.Value)
+}
+
+// TestBuildFilterConditionWithNewOperators 测试构建过滤条件的新操作符
+func TestBuildFilterConditionWithNewOperators(t *testing.T) {
+	testCases := []struct {
+		name              string
+		filter            *Filter
+		expectedCondition string
+		expectedArg       interface{}
+		shouldHaveArg     bool
+	}{
+		{
+			name:              "STARTS_WITH filter",
+			filter:            &Filter{Field: "name", Operator: constants.OP_STARTS_WITH, Value: "user"},
+			expectedCondition: "name LIKE ?",
+			expectedArg:       "user" + constants.SQL_WILDCARD_ANY,
+			shouldHaveArg:     true,
+		},
+		{
+			name:              "ENDS_WITH filter",
+			filter:            &Filter{Field: "email", Operator: constants.OP_ENDS_WITH, Value: "@example.com"},
+			expectedCondition: "email LIKE ?",
+			expectedArg:       constants.SQL_WILDCARD_ANY + "@example.com",
+			shouldHaveArg:     true,
+		},
+		{
+			name:              "CONTAINS filter",
+			filter:            &Filter{Field: "description", Operator: constants.OP_CONTAINS, Value: "keyword"},
+			expectedCondition: "description LIKE ?",
+			expectedArg:       constants.SQL_WILDCARD_ANY + "keyword" + constants.SQL_WILDCARD_ANY,
+			shouldHaveArg:     true,
+		},
+		{
+			name:              "STARTS_WITH with non-string value",
+			filter:            &Filter{Field: "name", Operator: constants.OP_STARTS_WITH, Value: 123},
+			expectedCondition: "",
+			shouldHaveArg:     false,
+		},
+		{
+			name:              "ENDS_WITH with empty string",
+			filter:            &Filter{Field: "name", Operator: constants.OP_ENDS_WITH, Value: ""},
+			expectedCondition: "name LIKE ?",
+			expectedArg:       constants.SQL_WILDCARD_ANY,
+			shouldHaveArg:     true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			condition, arg := buildFilterCondition(tc.filter)
+			assert.Equal(t, tc.expectedCondition, condition)
+
+			if tc.shouldHaveArg {
+				assert.Equal(t, tc.expectedArg, arg)
+			} else {
+				assert.Nil(t, arg)
+			}
+		})
+	}
+}

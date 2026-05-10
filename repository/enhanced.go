@@ -292,9 +292,9 @@ func (r *EnhancedRepository[T]) CreateIfNotExists(ctx context.Context, entity *T
 
 	if exists {
 		// 如果存在，返回现有记录
-		existingEntity, err := r.FindOneByField(ctx, checkField, checkValue)
-		if err != nil {
-			return nil, false, err
+		existingEntity, existingEntityErr := r.FindOneByField(ctx, checkField, checkValue)
+		if existingEntityErr != nil {
+			return nil, false, existingEntityErr
 		}
 		return existingEntity, false, nil
 	}

@@ -1039,8 +1039,8 @@ func TestApplyQueryWithFilterGroup(t *testing.T) {
 	}
 
 	for _, user := range users {
-		_, err := repo.Create(ctx, user)
-		assert.NoError(t, err)
+		_, createErr := repo.Create(ctx, user)
+		assert.NoError(t, createErr)
 	}
 
 	// 创建复杂的 FilterGroup

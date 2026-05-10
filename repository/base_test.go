@@ -1933,8 +1933,8 @@ func TestComplexFiltering(t *testing.T) {
 	}
 
 	for _, user := range users {
-		_, err := repo.Create(ctx, user)
-		assert.NoError(t, err)
+		_, createdErr := repo.Create(ctx, user)
+		assert.NoError(t, createdErr)
 	}
 
 	// 测试复杂查询：过滤器组合
@@ -1988,7 +1988,7 @@ func TestTransactionOperations(t *testing.T) {
 	err = repo.Transaction(ctx, func(tx Transaction[TestUser]) error {
 		// 测试Create单个用户
 		user1 := &TestUser{Name: "事务用户1", Email: "tx1@test.com", Age: 30, Status: "active"}
-		err := tx.Create(ctx, user1)
+		err = tx.Create(ctx, user1)
 		assert.NoError(t, err, "事务中创建不应该返回错误")
 
 		user2 := &TestUser{Name: "事务用户2", Email: "tx2@test.com", Age: 35, Status: "active"}
@@ -4491,7 +4491,7 @@ func TestAutoFieldsNilContext(t *testing.T) {
 
 	// 使用nil context应该返回错误或panic
 	assert.NotPanics(t, func() {
-		_, err := repo.List(nil, NewQuery())
+		_, err := repo.List(context.TODO(), NewQuery())
 		// nil context可能被允许，也可能不允许，只要不panic就好
 		_ = err
 	})
@@ -5273,7 +5273,7 @@ func TestAutoFieldsTransactionRollback(t *testing.T) {
 	// 事务中故意返回错误以触发回滚
 	err = repo.Transaction(ctx, func(tx Transaction[TestUser]) error {
 		user := &TestUser{Name: "Rollback", Email: "rollback@test.com", Age: 25, Status: "active"}
-		err := tx.Create(ctx, user)
+		err = tx.Create(ctx, user)
 		if err != nil {
 			return err
 		}
@@ -5701,7 +5701,7 @@ func TestAutoFieldsConcurrentUpdates(t *testing.T) {
 			fields := map[string]interface{}{
 				"age": 25 + index,
 			}
-			err := repo.UpdateFields(ctx, created.ID, fields)
+			err = repo.UpdateFields(ctx, created.ID, fields)
 			if err == nil {
 				mu.Lock()
 				updateCount++
