@@ -44,9 +44,9 @@ func (s *BaseService[T]) List(ctx context.Context, query *repository.Query) ([]*
     return s.Repo.List(ctx, query)
 }
 
-// ListWithPagination 分页查询
-func (s *BaseService[T]) ListWithPagination(ctx context.Context, query *repository.Query, page *repository.Pagination) ([]*T, *repository.Pagination, error) {
-    return s.Repo.ListWithPagination(ctx, query, page)
+// ListWithPagination 分页查询（page 可选，不传时使用 query 分页或默认值）
+func (s *BaseService[T]) ListWithPagination(ctx context.Context, query *repository.Query, page ...*repository.Pagination) ([]*T, *repository.Pagination, error) {
+	return s.Repo.ListWithPagination(ctx, query, page...)
 }
 ```
 

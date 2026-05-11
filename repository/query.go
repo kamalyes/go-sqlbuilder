@@ -97,34 +97,36 @@ func (q *Query) AddOrder(field, direction string) *Query {
 }
 
 // WithPaging 设置分页条件
-func (q *Query) WithPaging(page, pageSize int) *Query {
+func (q *Query) WithPaging(page, pageSize interface{}) *Query {
+	p, _ := convert.MustIntT[int](page, nil)
+	ps, _ := convert.MustIntT[int](pageSize, nil)
 	q.Pagination = &Pagination{
-		Page:     mathx.IF(page <= 0, constants.DefaultPage, page),
-		PageSize: mathx.IF(pageSize <= 0, constants.DefaultPageSize, pageSize),
+		Page:     mathx.IF(p <= 0, constants.DefaultPage, p),
+		PageSize: mathx.IF(ps <= 0, constants.DefaultPageSize, ps),
 	}
 	return q
 }
 
 // SetPage 设置当前页码
-func (q *Query) SetPage(page int) *Query {
+func (q *Query) SetPage(page interface{}) *Query {
 	if q.Pagination == nil {
 		q.Pagination = &Pagination{}
 	}
-	q.Pagination.Page = page
+	q.Pagination.Page, _ = convert.MustIntT[int](page, nil)
 	return q
 }
 
 // SetPageSize 设置每页记录数
-func (q *Query) SetPageSize(pageSize int) *Query {
+func (q *Query) SetPageSize(pageSize interface{}) *Query {
 	if q.Pagination == nil {
 		q.Pagination = &Pagination{}
 	}
-	q.Pagination.PageSize = pageSize
+	q.Pagination.PageSize, _ = convert.MustIntT[int](pageSize, nil)
 	return q
 }
 
 // SetPagination 设置分页参数（页码和每页大小）
-func (q *Query) SetPagination(page, pageSize int) *Query {
+func (q *Query) SetPagination(page, pageSize interface{}) *Query {
 	return q.WithPaging(page, pageSize)
 }
 

@@ -41,7 +41,7 @@ type Repository[T any] interface {
 	Last(ctx context.Context, filters ...*Filter) (*T, error)
 	FindOne(ctx context.Context, filters ...*Filter) (*T, error)
 	List(ctx context.Context, query *Query) ([]*T, error)
-	ListWithPagination(ctx context.Context, query *Query, page *Pagination) ([]*T, *Pagination, error)
+	ListWithPagination(ctx context.Context, query *Query, page ...*Pagination) ([]*T, *Pagination, error)
 
 	// 更新
 	Update(ctx context.Context, entity *T) (*T, error)

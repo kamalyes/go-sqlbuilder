@@ -335,6 +335,27 @@ query.SetPage(2)
 query.SetPageSize(50)
 ```
 
+### 分页参数说明
+`WithPaging`、`SetPage`、`SetPageSize`、`SetPagination` 的参数均为 `interface{}` 类型，内部自动转为 `int`，支持各种数字类型（int、int64、float64 等），无需手动类型转换：
+```go
+var page int64 = 2
+var size uint = 50
+query.WithPaging(page, size)  // 直接传入，无需 int(page)
+```
+
+### page 可选参数
+`ListWithPagination` 的 `page` 参数为可选参数。当使用 `WithPaging` 设置分页后，可以直接调用而无需再传 `page`：
+```go
+// 在 Query 中设置分页，直接查询（无需额外传 page）
+query := repository.NewQuery().
+    WithPaging(1, 20).
+    AddOrder("created_at", "DESC")
+users, pageInfo, err := repo.ListWithPagination(ctx, query)
+
+// 也可以显式传入 page 覆盖 Query 中的设置
+users, pageInfo, err := repo.ListWithPagination(ctx, query, &repository.Pagination{Page: 2, PageSize: 10})
+```
+
 ### 使用 Pagination 对象
 ```go
 pagination := &repository.Pagination{

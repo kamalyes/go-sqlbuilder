@@ -723,21 +723,29 @@ func (r *BaseRepository[T]) ListWithPreloads(ctx context.Context, query *Query, 
 }
 
 // ListWithPagination 分页列表查询（泛型版本，支持任意整数类型的分页参数）
-func ListWithPaginationT[T any, P types.Integer](r *BaseRepository[T], ctx context.Context, query *Query, page *PaginationT[P]) ([]*T, *PaginationT[P], error) {
+// page 可选，不传时优先使用 query.Pagination；若 query 也为 nil 或无分页，则使用默认值
+// 优先级：显式传入的 page > query.Pagination > 默认值
+func ListWithPaginationT[T any, P types.Integer](r *BaseRepository[T], ctx context.Context, query *Query, page ...*PaginationT[P]) ([]*T, *PaginationT[P], error) {
 	if query == nil {
 		query = NewQuery()
 	}
 
-	if page == nil {
-		page = &PaginationT[P]{
-			Page:     P(constants.DefaultPage),
-			PageSize: P(constants.DefaultPageSize),
+	// 解析分页参数：显式传入 > query.Pagination > 默认值
+	var p *PaginationT[P]
+	if len(page) > 0 && page[0] != nil {
+		p = page[0]
+	} else if query.Pagination != nil {
+		p = &PaginationT[P]{
+			Page:     P(query.Pagination.Page),
+			PageSize: P(query.Pagination.PageSize),
 		}
+	} else {
+		p = &PaginationT[P]{}
 	}
 
 	// 参数校验和安全限制 - 使用泛型方法
-	page.Page = mathx.IF(page.Page <= 0, P(constants.DefaultPage), page.Page)
-	page.PageSize = mathx.IfDefaultAndClamp(page.PageSize, P(constants.DefaultPageSize), P(constants.MinPageSize), P(constants.MaxPageSize))
+	p.Page = mathx.IF(p.Page <= 0, P(constants.DefaultPage), p.Page)
+	p.PageSize = mathx.IfDefaultAndClamp(p.PageSize, P(constants.DefaultPageSize), P(constants.MinPageSize), P(constants.MaxPageSize))
 
 	var entities []*T
 	db := r.db.GetDB().WithContext(ctx).Table(r.table)
@@ -747,45 +755,49 @@ func ListWithPaginationT[T any, P types.Integer](r *BaseRepository[T], ctx conte
 		db = ApplyFilter(db, filter)
 	}
 
+	// 应用复合过滤条件组
+	if query.FilterGroup != nil {
+		db = ApplyFilterGroup(db, query.FilterGroup)
+	}
+
 	// 计算总数
 	var total int64
 	countDb := db
 	countDb.Model(new(T)).Count(&total)
-	page.Total = total
+	p.Total = total
 
 	// 如果没有数据，直接返回空结果
 	if total == 0 {
-		return []*T{}, page, nil
+		return []*T{}, p, nil
 	}
 
-	// 应用排序
-	for _, order := range query.Orders {
-		db = db.Order(order.Field + " " + order.Direction)
-	}
+	// 应用排序（支持默认排序）
+	db = ApplyOrdering(db, query.Orders, r.defaultOrder)
 
 	// 应用分页
-	offset := (int(page.Page) - 1) * int(page.PageSize)
-	result := db.Offset(offset).Limit(int(page.PageSize)).Find(&entities)
+	offset := (int(p.Page) - 1) * int(p.PageSize)
+	result := db.Offset(offset).Limit(int(p.PageSize)).Find(&entities)
 	if result.Error != nil {
 		return nil, nil, result.Error
 	}
 
-	return entities, page, nil
+	return entities, p, nil
 }
 
 // ListWithPagination 分页列表查询
-func (r *BaseRepository[T]) ListWithPagination(ctx context.Context, query *Query, page *Pagination) ([]*T, *Pagination, error) {
-	return ListWithPaginationT(r, ctx, query, page)
+// page 可选，不传时优先使用 query.Pagination；若 query 也无分页，则使用默认值
+func (r *BaseRepository[T]) ListWithPagination(ctx context.Context, query *Query, page ...*Pagination) ([]*T, *Pagination, error) {
+	return ListWithPaginationT(r, ctx, query, page...)
 }
 
 // ListWithPagination32 分页列表查询（int32 版本，用于一般场景）
-func (r *BaseRepository[T]) ListWithPagination32(ctx context.Context, query *Query, page *Pagination32) ([]*T, *Pagination32, error) {
-	return ListWithPaginationT(r, ctx, query, page)
+func (r *BaseRepository[T]) ListWithPagination32(ctx context.Context, query *Query, page ...*Pagination32) ([]*T, *Pagination32, error) {
+	return ListWithPaginationT(r, ctx, query, page...)
 }
 
 // ListWithPagination64 分页列表查询（int64 版本，用于需要大数值的场景）
-func (r *BaseRepository[T]) ListWithPagination64(ctx context.Context, query *Query, page *Pagination64) ([]*T, *Pagination64, error) {
-	return ListWithPaginationT(r, ctx, query, page)
+func (r *BaseRepository[T]) ListWithPagination64(ctx context.Context, query *Query, page ...*Pagination64) ([]*T, *Pagination64, error) {
+	return ListWithPaginationT(r, ctx, query, page...)
 }
 
 // Find 通用查询方法，兼容旧的API调用方式

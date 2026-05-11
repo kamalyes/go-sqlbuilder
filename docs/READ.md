@@ -57,18 +57,24 @@ users, err := repo.List(ctx, query)
 ```
 
 ### 带分页的列表查询
-```go
-// 创建分页参数
-pagination := &repository.Pagination{
-    Page:     1,
-    PageSize: 20,
-}
+`page` 参数为**可选参数**，支持以下调用方式：
 
-// 创建查询条件
+```go
+// 方式1：不传 page，使用 query 中的分页设置（推荐）
+query := repository.NewQuery().
+    WithPaging(1, 20).
+    AddFilter(repository.NewEqFilter("status", "active"))
+users, pageInfo, err := repo.ListWithPagination(ctx, query)
+
+// 方式2：不传 page 且 query 未设置分页，自动使用默认值（Page=1, PageSize=20）
 query := repository.NewQuery().
     AddFilter(repository.NewEqFilter("status", "active"))
+users, pageInfo, err := repo.ListWithPagination(ctx, query)
 
-// 执行分页查询
+// 方式3：显式传入 page，覆盖 query 中的分页设置
+query := repository.NewQuery().
+    AddFilter(repository.NewEqFilter("status", "active"))
+pagination := &repository.Pagination{Page: 1, PageSize: 20}
 users, pageInfo, err := repo.ListWithPagination(ctx, query, pagination)
 
 // pageInfo 包含：
@@ -77,6 +83,8 @@ users, pageInfo, err := repo.ListWithPagination(ctx, query, pagination)
 // - HasNext: 是否有下一页
 // - HasPrev: 是否有上一页
 ```
+
+**优先级规则**：显式传入的 `page` > `query.Pagination`（通过 `WithPaging` 等设置）> 默认值
 
 ## 存在性检查
 

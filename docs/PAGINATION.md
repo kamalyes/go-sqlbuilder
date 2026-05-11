@@ -1,11 +1,38 @@
 # 分页详解
 
 ## 概述
+
 go-sqlbuilder 支持传统分页和游标分页两种方式。
 
 ## 传统分页
 
+### page 参数说明
+
+`ListWithPagination` 的 `page` 参数为**可选参数**（variadic），支持以下三种调用方式：
+
+```go
+// 方式1：不传 page，使用 query 中的分页设置（推荐与 Query 链式配合）
+query := repository.NewQuery().
+    WithPaging(1, 20).
+    AddOrder("created_at", "DESC")
+users, pageInfo, err := repo.ListWithPagination(ctx, query)
+
+// 方式2：不传 page 且 query 未设置分页，自动使用默认值（Page=1, PageSize=20）
+query := repository.NewQuery().AddOrder("created_at", "DESC")
+users, pageInfo, err := repo.ListWithPagination(ctx, query)
+
+// 方式3：显式传入 page，覆盖 query 中的分页设置
+query := repository.NewQuery().
+    WithPaging(1, 20).
+    AddOrder("created_at", "DESC")
+pagination := &repository.Pagination{Page: 2, PageSize: 10}
+users, pageInfo, err := repo.ListWithPagination(ctx, query, pagination)
+```
+
+**优先级规则**：显式传入的 `page` > `query.Pagination`（通过 `WithPaging` 等设置）> 默认值
+
 ### 基础用法
+
 ```go
 // 创建分页参数
 pagination := &repository.Pagination{
@@ -18,6 +45,7 @@ users, pageInfo, err := repo.ListWithPagination(ctx, query, pagination)
 ```
 
 ### 返回的分页信息
+
 ```go
 type Pagination struct {
     Page       int   // 当前页码
@@ -30,21 +58,22 @@ type Pagination struct {
 ```
 
 ### 使用示例
+
 ```go
 func getUserPage(ctx context.Context, repo repository.IRepository[User], page, pageSize int) (*UserPageResult, error) {
     query := repository.NewQuery().
         AddOrder("created_at", "DESC")
-    
+
     pagination := &repository.Pagination{
         Page:     page,
         PageSize: pageSize,
     }
-    
+
     users, pageInfo, err := repo.ListWithPagination(ctx, query, pagination)
     if err != nil {
         return nil, err
     }
-    
+
     return &UserPageResult{
         List:       users,
         Total:      pageInfo.Total,
@@ -62,6 +91,7 @@ func getUserPage(ctx context.Context, repo repository.IRepository[User], page, p
 游标分页适合大数据量场景，性能更好。
 
 ### EnhancedRepository 游标分页
+
 ```go
 enhanced := repository.NewEnhancedRepository[User](handler, logger, "users")
 
@@ -94,11 +124,12 @@ if nextCursor == "" {
 ```
 
 ### 加载全部数据（游标分页）
+
 ```go
 func loadAllUsers(ctx context.Context, enhanced *repository.EnhancedRepository[User]) ([]*User, error) {
     var allUsers []*User
     cursor := ""
-    
+
     for {
         users, newCursor, err := enhanced.FindByFieldWithCursor(
             ctx, "status", "active", cursor, 100, "id", "ASC",
@@ -106,27 +137,27 @@ func loadAllUsers(ctx context.Context, enhanced *repository.EnhancedRepository[U
         if err != nil {
             return nil, err
         }
-        
+
         allUsers = append(allUsers, users...)
-        
+
         if newCursor == "" {
             break  // 没有更多数据
         }
         cursor = newCursor
     }
-    
+
     return allUsers, nil
 }
 ```
 
 ## 分页对比
 
-| 特性 | 传统分页 | 游标分页 |
-|------|----------|----------|
-| 适用场景 | 需要跳转到任意页 | 顺序加载大量数据 |
-| 性能 | 页码越大越慢 | 稳定高效 |
-| 数据一致性 | 可能重复/遗漏 | 较好 |
-| 总页数 | 可计算 | 未知 |
+| 特性       | 传统分页         | 游标分页         |
+| ---------- | ---------------- | ---------------- |
+| 适用场景   | 需要跳转到任意页 | 顺序加载大量数据 |
+| 性能       | 页码越大越慢     | 稳定高效         |
+| 数据一致性 | 可能重复/遗漏    | 较好             |
+| 总页数     | 可计算           | 未知             |
 
 ## 完整示例
 
@@ -143,12 +174,12 @@ func getUsersByPage(ctx context.Context, repo repository.IRepository[User], page
     query := repository.NewQuery().
         AddFilter(repository.NewEqFilter("status", "active")).
         AddOrder("created_at", "DESC")
-    
+
     pagination := &repository.Pagination{
         Page:     page,
         PageSize: pageSize,
     }
-    
+
     return repo.ListWithPagination(ctx, query, pagination)
 }
 
