@@ -72,7 +72,7 @@ endTime := time.Now()
 
 // WHERE created_at BETWEEN startTime AND endTime
 query := repository.NewQuery().
-    AddBetweenFilter("created_at", startTime, endTime)
+    AddBetween("created_at", startTime, endTime)
 
 records, err := repo.List(ctx, query)
 ```
