@@ -223,6 +223,7 @@
       "varchar",
       "webp",
       "Wechat",
-      "zipx"
+      "zipx",
+      "protojson"
     ]
 }
