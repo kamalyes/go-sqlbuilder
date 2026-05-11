@@ -27,6 +27,7 @@ go.work.sum
 # Test related files
 /tests/*.png
 *.log
+cover
 coverage.html
 coverage.xml
 coverage.txt

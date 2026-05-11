@@ -67,6 +67,12 @@
 | [5. 上下文使用 (CONTEXT-USAGE)](./CONTEXT-USAGE.md) | Context 最佳实践 |
 | [6. 数据库迁移 (MIGRATOR)](./MIGRATOR.md) | Schema 迁移工具 |
 
+### 🔐 多租户作用域
+
+| 文档 | 说明 | 使用频率 |
+|------|------|---------|
+| [1. 作用域使用指南 (SCOPE-USAGE)](./SCOPE-USAGE.md) | OPS/租户域、全局/地区/平台级作用域 | ⭐⭐⭐⭐⭐ |
+
 ### 🏗️ 架构设计
 
 | 文档 | 说明 |
@@ -195,6 +201,8 @@ docs/
 | 复杂报表 | CONDITIONAL-AGGREGATE | ConditionalAggregateBuilder |
 | 字段自增 | ENHANCED | IncrementField |
 | 今日/本周数据 | TIME-QUERIES | AddToday, AddThisWeek |
+| **多租户数据隔离** | SCOPE-USAGE | ApplySQLScope, NewScopeData |
+| **OPS/租户域访问控制** | SCOPE-USAGE | ScopeEntry, ScopeData |
 
 ---
 
