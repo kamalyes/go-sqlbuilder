@@ -11,17 +11,17 @@
 | 特性 | 说明 | 文档 |
 |:-----|:-----|:----:|
 | 🚀 **仓储模式** | 泛型 BaseRepository 和 EnhancedRepository，类型安全的 CRUD | [📘 快速开始](docs/QUICKSTART.md) |
-| 🔍 **高级查询** | FilterGroup 支持复杂 AND/OR 条件组合和无限嵌套 | [📙 高级查询](docs/ADVANCED-QUERIES.md) |
-| 🎯 **类型安全** | 完全的泛型支持，编译时类型检查 | [📗 CRUD 操作](docs/CRUD-OPERATIONS.md) |
-| ⚡ **自动字段选择** | 基于 struct tags 自动生成查询字段，避免 SELECT * | [⚡ 自动字段选择](docs/AUTO-FIELD-SELECTION.md) |
-| 🔗 **便捷查询** | 简化的查询 API，支持链式调用 | [🔥 便捷查询方法](docs/CONVENIENCE-METHODS.md) |
-| 📊 **性能优化** | 批量操作、游标分页、原子字段更新、字段缓存 | [📓 EnhancedRepository](docs/ENHANCED-REPOSITORY.md) |
+| 🔍 **高级查询** | FilterGroup 支持复杂 AND/OR 条件组合和无限嵌套 | [📙 条件组合](docs/FILTER-GROUP.md) |
+| 🎯 **类型安全** | 完全的泛型支持，编译时类型检查 | [📗 CRUD 指南](docs/CRUD-GUIDE.md) |
+| ⚡ **字段选择** | Query 对象支持字段选择、排除敏感字段 | [⚡ Query 对象](docs/QUERY.md) |
+| 🔗 **便捷查询** | 简化的查询 API，支持链式调用 | [🔥 便捷查询](docs/CONVENIENCE.md) |
+| 📊 **性能优化** | 批量操作、游标分页、原子字段更新 | [📓 增强版仓储](docs/ENHANCED.md) |
 | 🔐 **错误处理** | 集成 go-toolbox/errorx 的结构化错误管理 | [📒 错误处理](docs/ERROR-HANDLING.md) |
 | 📝 **审计追踪** | 内置审计字段（created_by, updated_by） | [📔 模型定义](docs/MODELS.md) |
-| 🗄️ **数据库迁移** | 自动迁移、索引创建、表注释 | [🗄️ 数据库迁移器](docs/MIGRATOR.md) |
-| 🔄 **上下文支持** | 超时控制、日志追踪、请求隔离 | [🔄 Context 使用指南](docs/CONTEXT-USAGE.md) |
-| 🎛️ **复杂条件** | FilterGroup 支持无限嵌套的条件组合 | [📕 FilterGroup 指南](docs/FILTERGROUP.md) |
-| 🚄 **并发统计** | 多表并发查询、时间分组统计、条件聚合 | [🚄 并发统计查询](docs/CONCURRENT-STATS.md) |
+| 🗄️ **数据库迁移** | 自动迁移、索引创建、表注释 | [🗄️ 数据库迁移](docs/MIGRATOR.md) |
+| 🔄 **上下文支持** | 超时控制、日志追踪、请求隔离 | [🔄 Context 使用](docs/CONTEXT-USAGE.md) |
+| 🎛️ **复杂条件** | Filter 和 FilterGroup 构建复杂 WHERE 条件 | [📕 条件过滤](docs/FILTER.md) |
+| 🚄 **并发统计** | 多表并发查询、时间分组统计、条件聚合 | [🚄 并发查询](docs/CONCURRENT.md) |
 
 > 📖 **完整文档**：查看 [文档中心](docs/README.md) 了解所有功能和学习路径
 
