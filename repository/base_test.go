@@ -57,28 +57,13 @@ type TestPost struct {
 // Post 用于测试的帖子模型（别名）
 type Post = TestPost
 
-// getInt64 从 map[string]interface{} 中安全获取 int64 值 (处理SQLite和MySQL差异)
-func getInt64(m map[string]interface{}, key string) int64 {
-	v := m[key]
-	if v == nil {
-		return 0
-	}
-
-	switch val := v.(type) {
-	case int64:
-		return val
-	case int:
-		return int64(val)
-	case float64:
-		return int64(val)
-	case *interface{}:
-		if val == nil {
-			return 0
-		}
-		return getInt64(map[string]interface{}{key: *val}, key)
-	default:
-		return 0
-	}
+// TestJSONConfig is used to verify JSON string field normalization.
+type TestJSONConfig struct {
+	ID          uint   `json:"id" gorm:"primaryKey"`
+	Name        string `json:"name" gorm:"column:name"`
+	Detail      string `json:"detail" gorm:"column:detail;type:json"`
+	JSONBDetail string `json:"jsonb_detail" gorm:"column:jsonb_detail;type:jsonb"`
+	Plain       string `json:"plain" gorm:"column:plain;type:text"`
 }
 
 // getFloat64 从 map[string]interface{} 中安全获取 float64 值 (处理SQLite和MySQL差异)
@@ -249,6 +234,67 @@ func TestBaseRepositoryCreate(t *testing.T) {
 	assert.NotZero(t, result.ID, "ID应被自动生成")
 	assert.NotZero(t, result.CreatedAt, "创建时间应被设置")
 	assert.NotZero(t, result.UpdatedAt, "更新时间应被设置")
+}
+
+// TestBaseRepositoryNormalizesEmptyJSONStringFields 测试归一化空JSON字符串字段
+func TestBaseRepositoryNormalizesEmptyJSONStringFields(t *testing.T) {
+	// 测试启用归一化
+	repo := &BaseRepository[TestJSONConfig]{normalizeEnabled: true}
+	config := &TestJSONConfig{Name: "firebase"}
+	repo.normalizeJSONStringEntity(config)
+	assert.Equal(t, "{}", config.Detail)
+	assert.Equal(t, "{}", config.JSONBDetail)
+	assert.Equal(t, "", config.Plain)
+
+	fields := map[string]interface{}{
+		"detail":       "",
+		"jsonb_detail": " \n\t ",
+		"plain":        "",
+	}
+	repo.normalizeJSONStringFieldMap(fields)
+	assert.Equal(t, "{}", fields["detail"])
+	assert.Equal(t, "{}", fields["jsonb_detail"])
+	assert.Equal(t, "", fields["plain"])
+
+	config.Detail = ` {"ok":true} `
+	config.JSONBDetail = ` [1,2] `
+	repo.normalizeJSONStringEntity(config)
+	assert.Equal(t, `{"ok":true}`, config.Detail)
+	assert.Equal(t, `[1,2]`, config.JSONBDetail)
+}
+
+// TestBaseRepositoryNormalizeWithCustomConfig 测试自定义归一化配置
+func TestBaseRepositoryNormalizeWithCustomConfig(t *testing.T) {
+	// 测试自定义默认值
+	repo := &BaseRepository[TestJSONConfig]{
+		normalizeEnabled:      true,
+		normalizeDefaultValue: "[]",
+	}
+	config := &TestJSONConfig{Name: "test"}
+	repo.normalizeJSONStringEntity(config)
+	assert.Equal(t, "[]", config.Detail)
+	assert.Equal(t, "[]", config.JSONBDetail)
+
+	// 测试自定义归一化函数
+	customFunc := func(value string) string {
+		if value == "" {
+			return `{"custom":true}`
+		}
+		return value
+	}
+	repo2 := &BaseRepository[TestJSONConfig]{
+		normalizeEnabled: true,
+		normalizeFunc:    customFunc,
+	}
+	config2 := &TestJSONConfig{Name: "test"}
+	repo2.normalizeJSONStringEntity(config2)
+	assert.Equal(t, `{"custom":true}`, config2.Detail)
+
+	// 测试禁用归一化
+	repo3 := &BaseRepository[TestJSONConfig]{normalizeEnabled: false}
+	config3 := &TestJSONConfig{Name: "test", Detail: "666"}
+	repo3.normalizeJSONStringEntity(config3)
+	assert.Equal(t, "666", config3.Detail) // 应保持原值
 }
 
 // TestBaseRepositoryCreateNilEntity 测试创建空实体

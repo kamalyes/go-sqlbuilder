@@ -23,6 +23,8 @@ import (
 	"github.com/kamalyes/go-sqlbuilder/errors"
 	"github.com/kamalyes/go-toolbox/pkg/errorx"
 	"github.com/kamalyes/go-toolbox/pkg/mathx"
+	"github.com/kamalyes/go-toolbox/pkg/safe"
+	"github.com/kamalyes/go-toolbox/pkg/serializer"
 	"github.com/kamalyes/go-toolbox/pkg/types"
 	"github.com/kamalyes/go-toolbox/pkg/validator"
 	"gorm.io/gorm"
@@ -31,6 +33,9 @@ import (
 // ContextFieldExtractor context字段提取器函数类型
 // 用于从context中提取需要记录到日志的字段
 type ContextFieldExtractor func(ctx context.Context, log logger.ILogger) logger.ILogger
+
+// NormalizeFunc 归一化函数类型
+type NormalizeFunc func(value string) string
 
 // BaseRepository 基础仓储实现，包含通用的 CRUD 操作
 type BaseRepository[T any] struct {
@@ -47,6 +52,9 @@ type BaseRepository[T any] struct {
 	autoUpdateTimeIndexes []int          // 更新时间字段索引缓存
 	modelFields           []string       // 模型字段缓存（用于自动字段选择）
 	autoFields            bool           // 是否启用自动字段模式
+	normalizeEnabled      bool           // 是否启用 JSON 字段归一化
+	normalizeFunc         NormalizeFunc  // 自定义归一化函数
+	normalizeDefaultValue string         // JSON 字段默认值
 }
 
 // 编译时检查 - 确保 BaseRepository 实现了 Repository 接口
@@ -108,6 +116,40 @@ func WithAutoFields[T any]() RepositoryOption[T] {
 		// 初始化时提取并缓存字段
 		var model T
 		r.modelFields = GetStructFields(model)
+	}
+}
+
+// WithNormalize 启用 JSON 字段归一化
+// 默认使用 serializer.NormalizeJSONText 进行归一化
+func WithNormalize[T any]() RepositoryOption[T] {
+	return func(r *BaseRepository[T]) {
+		r.normalizeEnabled = true
+	}
+}
+
+// WithNormalizeFunc 设置自定义归一化函数
+func WithNormalizeFunc[T any](fn NormalizeFunc) RepositoryOption[T] {
+	return func(r *BaseRepository[T]) {
+		r.normalizeEnabled = true
+		r.normalizeFunc = fn
+	}
+}
+
+// WithNormalizeDefaultValue 设置 JSON 字段默认值
+// 当字段为空时使用此默认值
+func WithNormalizeDefaultValue[T any](defaultValue string) RepositoryOption[T] {
+	return func(r *BaseRepository[T]) {
+		r.normalizeEnabled = true
+		r.normalizeDefaultValue = defaultValue
+	}
+}
+
+// WithNormalizeConfig 统一配置归一化选项
+func WithNormalizeConfig[T any](enabled bool, fn NormalizeFunc, defaultValue string) RepositoryOption[T] {
+	return func(r *BaseRepository[T]) {
+		r.normalizeEnabled = enabled
+		r.normalizeFunc = fn
+		r.normalizeDefaultValue = defaultValue
 	}
 }
 
@@ -262,6 +304,46 @@ func (r *BaseRepository[T]) resetAutoUpdateTime(entity *T) {
 			entityField.Set(reflect.Zero(field.Type))
 		}
 	}
+}
+
+// normalizeJSONStringEntities 归一化实体中的JSON字段值（批量处理）
+func (r *BaseRepository[T]) normalizeJSONStringEntities(entities []*T) {
+	if !r.normalizeEnabled {
+		return
+	}
+	for _, entity := range entities {
+		r.normalizeJSONStringEntity(entity)
+	}
+}
+
+// normalizeJSONStringEntity 归一化实体中的JSON字段值
+func (r *BaseRepository[T]) normalizeJSONStringEntity(entity *T) {
+	if !r.normalizeEnabled {
+		return
+	}
+	safe.NormalizeStringFieldsByTagType(entity, "gorm", validator.IsJSONColumnType, r.getNormalizeFunc())
+}
+
+// normalizeJSONStringFieldMap 从字段map中归一化JSON字段值
+func (r *BaseRepository[T]) normalizeJSONStringFieldMap(fields map[string]interface{}) {
+	if !r.normalizeEnabled {
+		return
+	}
+	safe.NormalizeStringFieldMapByTagType[T](fields, "gorm", validator.IsJSONColumnType, r.getNormalizeFunc())
+}
+
+// getNormalizeFunc 获取归一化函数
+// 优先使用自定义函数，否则使用默认函数
+func (r *BaseRepository[T]) getNormalizeFunc() NormalizeFunc {
+	if r.normalizeFunc != nil {
+		return r.normalizeFunc
+	}
+	return r.defaultNormalizeFunc
+}
+
+// defaultNormalizeFunc 默认归一化函数
+func (r *BaseRepository[T]) defaultNormalizeFunc(value string) string {
+	return serializer.NormalizeJSONText(value, r.normalizeDefaultValue)
 }
 
 // buildFiltersFromArgs 从可变参数构建过滤器
@@ -517,6 +599,7 @@ func (r *BaseRepository[T]) Create(ctx context.Context, entity *T) (*T, error) {
 	if err := r.checkEntity(entity); err != nil {
 		return nil, err
 	}
+	r.normalizeJSONStringEntity(entity)
 
 	if result := r.newDB(ctx).Create(entity); result.Error != nil {
 		return nil, r.handleErrorWithContext(ctx, result.Error, "create")
@@ -580,6 +663,7 @@ func (r *BaseRepository[T]) CreateBatch(ctx context.Context, entities ...*T) err
 	if len(entities) == 0 {
 		return nil
 	}
+	r.normalizeJSONStringEntities(entities)
 
 	result := r.newDB(ctx).CreateInBatches(entities, r.batchSize)
 	return r.handleErrorWithContext(ctx, result.Error, "create batch")
@@ -593,6 +677,7 @@ func (r *BaseRepository[T]) BulkCreate(ctx context.Context, entities []*T, batch
 	if len(entities) == 0 {
 		return nil
 	}
+	r.normalizeJSONStringEntities(entities)
 
 	size := r.batchSize
 	if len(batchSize) > 0 && batchSize[0] > 0 {
@@ -845,6 +930,7 @@ func (r *BaseRepository[T]) Update(ctx context.Context, entity *T) (*T, error) {
 
 	// 重置自动更新时间字段让 GORM 自动填充
 	r.resetAutoUpdateTime(entity)
+	r.normalizeJSONStringEntity(entity)
 
 	if result := r.newDB(ctx).Save(entity); result.Error != nil {
 		return nil, result.Error
@@ -857,6 +943,7 @@ func (r *BaseRepository[T]) UpdateBatch(ctx context.Context, entities ...*T) err
 	if len(entities) == 0 {
 		return nil
 	}
+	r.normalizeJSONStringEntities(entities)
 	return r.db.GetDB().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		for _, entity := range entities {
 			if entity != nil {
@@ -877,6 +964,7 @@ func (r *BaseRepository[T]) UpdateByFilters(ctx context.Context, entity *T, filt
 	if len(filters) == 0 {
 		return errorx.NewError(errors.ErrorCodeInvalidInput)
 	}
+	r.normalizeJSONStringEntity(entity)
 	return ApplyFilters(r.newDB(ctx), filters).Updates(entity).Error
 }
 
@@ -934,7 +1022,7 @@ func (r *BaseRepository[T]) Transaction(ctx context.Context, fn func(tx Transact
 		if err != nil {
 			return err
 		}
-		txWrapper := &transactionWrapper[T]{db: txHandler, table: r.table}
+		txWrapper := &transactionWrapper[T]{db: txHandler, table: r.table, repo: r}
 		return fn(txWrapper)
 	})
 }
@@ -1003,6 +1091,7 @@ func (r *BaseRepository[T]) UpdateFields(ctx context.Context, id interface{}, fi
 	if len(fields) == 0 {
 		return nil
 	}
+	r.normalizeJSONStringFieldMap(fields)
 	return r.newDB(ctx).Where("id = ?", id).Updates(fields).Error
 }
 
@@ -1014,6 +1103,7 @@ func (r *BaseRepository[T]) UpdateFieldsByFilters(ctx context.Context, fields ma
 	if len(filters) == 0 {
 		return errorx.NewError(errors.ErrorCodeInvalidInput)
 	}
+	r.normalizeJSONStringFieldMap(fields)
 	return ApplyFilters(r.newDB(ctx), filters).Updates(fields).Error
 }
 
@@ -1198,10 +1288,14 @@ func (r *BaseRepository[T]) GetModelFields() []string {
 type transactionWrapper[T any] struct {
 	db    db.Handler
 	table string
+	repo  *BaseRepository[T] // 引用原始仓储以共享归一化配置
 }
 
 // Create 在事务中创建
 func (t *transactionWrapper[T]) Create(ctx context.Context, entity *T) error {
+	if t.repo != nil {
+		t.repo.normalizeJSONStringEntity(entity)
+	}
 	return t.db.GetDB().WithContext(ctx).Table(t.table).Create(entity).Error
 }
 
@@ -1211,11 +1305,17 @@ func (t *transactionWrapper[T]) CreateBatch(ctx context.Context, entities ...*T)
 	if len(validEntities) == 0 {
 		return nil
 	}
+	if t.repo != nil {
+		t.repo.normalizeJSONStringEntities(validEntities)
+	}
 	return t.db.GetDB().WithContext(ctx).Table(t.table).CreateInBatches(validEntities, len(validEntities)).Error
 }
 
 // Update 在事务中更新
 func (t *transactionWrapper[T]) Update(ctx context.Context, entity *T) error {
+	if t.repo != nil {
+		t.repo.normalizeJSONStringEntity(entity)
+	}
 	return t.db.GetDB().WithContext(ctx).Table(t.table).Save(entity).Error
 }
 
@@ -1224,6 +1324,9 @@ func (t *transactionWrapper[T]) UpdateBatch(ctx context.Context, entities ...*T)
 	validEntities := filterNilEntities(entities)
 	if len(validEntities) == 0 {
 		return nil
+	}
+	if t.repo != nil {
+		t.repo.normalizeJSONStringEntities(validEntities)
 	}
 	db := t.db.GetDB().WithContext(ctx)
 	for _, entity := range validEntities {
