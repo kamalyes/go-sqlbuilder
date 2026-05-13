@@ -71,6 +71,128 @@ users, err := repo.List(ctx, scopedQuery)
 
 ***
 
+## 🔗 与 go-scope-provider 集成
+
+[go-scope-provider](https://github.com/kamalyes/go-scope-provider) 是独立的作用域提供者包，提供从 gRPC 上下文解析作用域数据的能力，不依赖任何业务 protobuf 定义。
+
+### 1. 安装依赖
+
+```bash
+go get github.com/kamalyes/go-scope-provider
+```
+
+### 2. 从 Context 提取作用域
+
+```go
+package main
+
+import (
+    "context"
+    
+    "github.com/kamalyes/go-scope-provider/provider"
+    "github.com/kamalyes/go-sqlbuilder/repository"
+    "github.com/kamalyes/go-sqlbuilder/scope"
+)
+
+func QueryWithScope(ctx context.Context) {
+    // 方式一：一步到位，从上下文解析并应用到查询
+    query := repository.NewQuery()
+    result := provider.ApplyScopeQuery(ctx, query)
+    
+    // 方式二：先解析再应用
+    data := provider.ResolveScopeData(ctx)
+    result = scope.ApplySQLScope(query, data)
+    
+    // ...
+}
+```
+
+### 3. 注入 Payload 到上下文
+
+```go
+// 方式一：直接注入 Payload 对象
+payload := &provider.Payload{
+    Domain:   1,
+    TenantID: "T001",
+    RoleCode: "owner",
+    ScopeBindings: []*provider.ScopeEntry{
+        {ScopeType: 2, RegionCodes: []string{"MM", "TH"}},
+    },
+}
+ctx := provider.WithPayload(context.Background(), payload)
+
+// 方式二：通过上下文键注入基础信息
+ctx := provider.WithScopeContext(context.Background(), 1, "T001", "owner")
+```
+
+### 4. gRPC 拦截器
+
+在 gRPC 服务端注册拦截器，自动从 metadata 中的 `x-auth-payload` 解析载荷：
+
+```go
+import (
+    "github.com/kamalyes/go-scope-provider/provider"
+    "google.golang.org/grpc"
+)
+
+func main() {
+    server := grpc.NewServer(
+        grpc.UnaryInterceptor(provider.UnaryPayloadInterceptor()),
+        grpc.StreamInterceptor(provider.StreamPayloadInterceptor()),
+    )
+    // ...
+}
+```
+
+### 5. Payload JSON 格式
+
+载荷以 base64 编码的 JSON 存放在 gRPC metadata 中，格式如下：
+
+```json
+{
+    "domain": 1,
+    "tenant_id": "T001",
+    "user_id": "U001",
+    "role_code": "owner",
+    "scope_bindings": [
+        {
+            "scope_type": 2,
+            "region_codes": ["MM", "TH"]
+        },
+        {
+            "scope_type": 3,
+            "region_platforms": [
+                {
+                    "region_code": "SG",
+                    "platform_ids": ["P1", "P2"]
+                }
+            ]
+        }
+    ]
+}
+```
+
+### 6. 自定义配置
+
+```go
+// 传递自定义 scope 选项
+data := provider.ResolveScopeData(ctx,
+    scope.WithTenantIDField("org_id"),
+    scope.WithRegionCodeField("rc"),
+)
+
+// 或在 ApplyScopeQuery 中使用
+result := provider.ApplyScopeQuery(ctx, query,
+    scope.WithFieldMapping(scope.FieldMapping{
+        TenantIDField:   "org_id",
+        PlatformIDField: "pid",
+        RegionCodeField: "rc",
+    }),
+)
+```
+
+***
+
 ## 📊 作用域层级
 
 | 作用域类型 | ScopeType 默认值 | 适用域          | 访问范围      |
