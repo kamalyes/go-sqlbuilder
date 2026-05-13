@@ -12,9 +12,10 @@ package types
 
 import (
 	"database/sql/driver"
-	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/kamalyes/go-toolbox/pkg/serializer"
 )
 
 // StringSlice 字符串切片，支持数据库 JSON 序列化
@@ -33,14 +34,14 @@ func (s *StringSlice) Scan(value interface{}) error {
 		*s = []string{}
 		return nil
 	}
-	return json.Unmarshal(b, s)
+	return serializer.JSONUnmarshal(b, s)
 }
 
 func (s StringSlice) Value() (driver.Value, error) {
 	if s == nil {
 		return nil, nil
 	}
-	return json.Marshal(s)
+	return serializer.JSONMarshal(s)
 }
 
 // Contains 检查是否包含指定元素

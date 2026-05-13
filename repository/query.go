@@ -218,7 +218,7 @@ func (q *Query) flattenFilters(group *FilterGroup) []*Filter {
 // 支持泛型自动处理不同类型的值，包括指针自动解引用
 // 规则: nil/nil指针 -> 跳过, 布尔/数字(含零值) -> 有效, 空字符串/空切片 -> 跳过, 非空切片 -> IN
 func (q *Query) AddFilterIfNotEmpty(field string, value interface{}) *Query {
-	deref, empty := validator.IsEmptyAfterDeref(value)
+	deref, empty := validator.NormalizeFilterValueIfNotEmpty(value)
 	if empty {
 		return q
 	}
@@ -254,7 +254,7 @@ func (q *Query) AddRawFilter(rawCondition string) *Query {
 // AddLikeFilterIfNotEmpty 添加 LIKE 过滤条件（仅当关键词不为空时）
 // keyword 支持 string 和 *string 类型
 func (q *Query) AddLikeFilterIfNotEmpty(field string, keyword interface{}) *Query {
-	deref, empty := validator.IsEmptyAfterDeref(keyword)
+	deref, empty := validator.NormalizeFilterValueIfNotEmpty(keyword)
 	if empty {
 		return q
 	}
@@ -277,7 +277,7 @@ func (q *Query) AddTimeRangeFilter(field string, startTime, endTime interface{})
 // AddInFilterIfNotEmpty 添加 IN 过滤条件(仅当切片不为空时)
 // values 支持任意切片类型（[]string、[]int 等）以及对应指针类型
 func (q *Query) AddInFilterIfNotEmpty(field string, values interface{}) *Query {
-	deref, empty := validator.IsEmptyAfterDeref(values)
+	deref, empty := validator.NormalizeFilterValueIfNotEmpty(values)
 	if empty {
 		return q
 	}
@@ -289,7 +289,7 @@ func (q *Query) AddInFilterIfNotEmpty(field string, values interface{}) *Query {
 
 // AddNeqFilterIfNotEmpty 添加不等于过滤条件（仅当值不为空时）
 func (q *Query) AddNeqFilterIfNotEmpty(field string, value interface{}) *Query {
-	deref, empty := validator.IsEmptyAfterDeref(value)
+	deref, empty := validator.NormalizeFilterValueIfNotEmpty(value)
 	if empty {
 		return q
 	}
@@ -299,7 +299,7 @@ func (q *Query) AddNeqFilterIfNotEmpty(field string, value interface{}) *Query {
 
 // AddGtFilterIfNotEmpty 添加大于过滤条件（仅当值不为空时）
 func (q *Query) AddGtFilterIfNotEmpty(field string, value interface{}) *Query {
-	deref, empty := validator.IsEmptyAfterDeref(value)
+	deref, empty := validator.NormalizeFilterValueIfNotEmpty(value)
 	if empty {
 		return q
 	}
@@ -309,7 +309,7 @@ func (q *Query) AddGtFilterIfNotEmpty(field string, value interface{}) *Query {
 
 // AddGteFilterIfNotEmpty 添加大于等于过滤条件（仅当值不为空时）
 func (q *Query) AddGteFilterIfNotEmpty(field string, value interface{}) *Query {
-	deref, empty := validator.IsEmptyAfterDeref(value)
+	deref, empty := validator.NormalizeFilterValueIfNotEmpty(value)
 	if empty {
 		return q
 	}
@@ -319,7 +319,7 @@ func (q *Query) AddGteFilterIfNotEmpty(field string, value interface{}) *Query {
 
 // AddLtFilterIfNotEmpty 添加小于过滤条件（仅当值不为空时）
 func (q *Query) AddLtFilterIfNotEmpty(field string, value interface{}) *Query {
-	deref, empty := validator.IsEmptyAfterDeref(value)
+	deref, empty := validator.NormalizeFilterValueIfNotEmpty(value)
 	if empty {
 		return q
 	}
@@ -329,7 +329,7 @@ func (q *Query) AddLtFilterIfNotEmpty(field string, value interface{}) *Query {
 
 // AddLteFilterIfNotEmpty 添加小于等于过滤条件（仅当值不为空时）
 func (q *Query) AddLteFilterIfNotEmpty(field string, value interface{}) *Query {
-	deref, empty := validator.IsEmptyAfterDeref(value)
+	deref, empty := validator.NormalizeFilterValueIfNotEmpty(value)
 	if empty {
 		return q
 	}
@@ -340,7 +340,7 @@ func (q *Query) AddLteFilterIfNotEmpty(field string, value interface{}) *Query {
 // AddCursorFilter 游标分页方向过滤（仅当 cursor 不为空时生效）
 // isPrev=true 时使用 <（向前翻页），否则使用 >（向后翻页）
 func (q *Query) AddCursorFilter(field string, cursor interface{}, isPrev bool) *Query {
-	deref, empty := validator.IsEmptyAfterDeref(cursor)
+	deref, empty := validator.NormalizeFilterValueIfNotEmpty(cursor)
 	if empty {
 		return q
 	}
@@ -355,7 +355,7 @@ func (q *Query) AddCursorFilter(field string, cursor interface{}, isPrev bool) *
 // values 支持任意切片类型（[]string、[]int 等）以及对应指针类型
 // 示例: query.AddEqOrInFilter("session_id", sessionIDs)
 func (q *Query) AddEqOrInFilter(field string, values interface{}) *Query {
-	deref, empty := validator.IsEmptyAfterDeref(values)
+	deref, empty := validator.NormalizeFilterValueIfNotEmpty(values)
 	if empty {
 		return q
 	}
@@ -373,7 +373,7 @@ func (q *Query) AddEqOrInFilter(field string, values interface{}) *Query {
 // AddNotInFilterIfNotEmpty 添加 NOT IN 过滤条件（仅当切片不为空时）
 // values 支持任意切片类型（[]string、[]int 等）以及对应指针类型
 func (q *Query) AddNotInFilterIfNotEmpty(field string, values interface{}) *Query {
-	deref, empty := validator.IsEmptyAfterDeref(values)
+	deref, empty := validator.NormalizeFilterValueIfNotEmpty(values)
 	if empty {
 		return q
 	}
@@ -385,8 +385,8 @@ func (q *Query) AddNotInFilterIfNotEmpty(field string, values interface{}) *Quer
 
 // AddBetweenFilterIfNotEmpty 添加 BETWEEN 过滤条件（仅当最小值和最大值都不为空时）
 func (q *Query) AddBetweenFilterIfNotEmpty(field string, min, max interface{}) *Query {
-	minDeref, minEmpty := validator.IsEmptyAfterDeref(min)
-	maxDeref, maxEmpty := validator.IsEmptyAfterDeref(max)
+	minDeref, minEmpty := validator.NormalizeFilterValueIfNotEmpty(min)
+	maxDeref, maxEmpty := validator.NormalizeFilterValueIfNotEmpty(max)
 	if minEmpty || maxEmpty {
 		return q
 	}
@@ -397,7 +397,7 @@ func (q *Query) AddBetweenFilterIfNotEmpty(field string, min, max interface{}) *
 // AddStartsWithFilterIfNotEmpty 添加前缀匹配过滤条件（仅当值不为空时）
 // value 支持 string 和 *string 类型
 func (q *Query) AddStartsWithFilterIfNotEmpty(field string, value interface{}) *Query {
-	deref, empty := validator.IsEmptyAfterDeref(value)
+	deref, empty := validator.NormalizeFilterValueIfNotEmpty(value)
 	if empty {
 		return q
 	}
@@ -408,7 +408,7 @@ func (q *Query) AddStartsWithFilterIfNotEmpty(field string, value interface{}) *
 // AddEndsWithFilterIfNotEmpty 添加后缀匹配过滤条件（仅当值不为空时）
 // value 支持 string 和 *string 类型
 func (q *Query) AddEndsWithFilterIfNotEmpty(field string, value interface{}) *Query {
-	deref, empty := validator.IsEmptyAfterDeref(value)
+	deref, empty := validator.NormalizeFilterValueIfNotEmpty(value)
 	if empty {
 		return q
 	}
@@ -419,7 +419,7 @@ func (q *Query) AddEndsWithFilterIfNotEmpty(field string, value interface{}) *Qu
 // AddNotLikeFilterIfNotEmpty 添加 NOT LIKE 过滤条件（仅当值不为空时）
 // value 支持 string 和 *string 类型
 func (q *Query) AddNotLikeFilterIfNotEmpty(field string, value interface{}) *Query {
-	deref, empty := validator.IsEmptyAfterDeref(value)
+	deref, empty := validator.NormalizeFilterValueIfNotEmpty(value)
 	if empty {
 		return q
 	}
@@ -429,7 +429,7 @@ func (q *Query) AddNotLikeFilterIfNotEmpty(field string, value interface{}) *Que
 
 // AddFindInSetFilterIfNotEmpty 添加 FIND_IN_SET 过滤条件（仅当值不为空时，MySQL特定）
 func (q *Query) AddFindInSetFilterIfNotEmpty(field string, value interface{}) *Query {
-	deref, empty := validator.IsEmptyAfterDeref(value)
+	deref, empty := validator.NormalizeFilterValueIfNotEmpty(value)
 	if empty {
 		return q
 	}

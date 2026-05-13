@@ -16,6 +16,7 @@ import (
 
 	"github.com/kamalyes/go-sqlbuilder/constants"
 	"github.com/stretchr/testify/assert"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 type TestStatus int32
@@ -207,6 +208,27 @@ func TestFilterConstructors(t *testing.T) {
 		assert.Equal(t, "field", f.Field)
 		assert.Equal(t, constants.OP_EQ, f.Operator)
 		assert.Equal(t, "value", f.Value)
+	})
+
+	t.Run("protobuf wrappers", func(t *testing.T) {
+		f := NewEqFilter("group_id", wrapperspb.String("g1"))
+		assert.Equal(t, "g1", f.Value)
+
+		stringValue := wrapperspb.StringValue{Value: "g2"}
+		f = NewEqFilter("group_id", stringValue)
+		assert.Equal(t, "g2", f.Value)
+
+		f = NewEqFilter("enabled", wrapperspb.Bool(false))
+		assert.Equal(t, false, f.Value)
+
+		f = NewInFilter("group_id", wrapperspb.String("g1"), wrapperspb.String("g2"))
+		values := f.Value.([]interface{})
+		assert.Equal(t, []interface{}{"g1", "g2"}, values)
+
+		f = NewBetweenFilter("age", wrapperspb.Int32(1), wrapperspb.Int32(2))
+		values = f.Value.([]interface{})
+		assert.Equal(t, int32(1), values[0])
+		assert.Equal(t, int32(2), values[1])
 	})
 
 	t.Run("NewSubQuery", func(t *testing.T) {
@@ -2696,4 +2718,59 @@ func TestBuildFilterConditionWithNewOperators(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestProtobufWrapperFilterValues(t *testing.T) {
+	t.Run("AddFilterIfNotEmpty", func(t *testing.T) {
+		q := NewQuery()
+		q.AddFilterIfNotEmpty("group_id", wrapperspb.String("g1"))
+		assert.Equal(t, 1, len(q.Filters))
+		assert.Equal(t, "g1", q.Filters[0].Value)
+
+		q = NewQuery()
+		q.AddFilterIfNotEmpty("group_id", wrapperspb.String(""))
+		assert.Equal(t, 0, len(q.Filters))
+
+		q = NewQuery()
+		q.AddFilterIfNotEmpty("enabled", wrapperspb.Bool(false))
+		assert.Equal(t, 1, len(q.Filters))
+		assert.Equal(t, false, q.Filters[0].Value)
+
+		q = NewQuery()
+		q.AddFilterIfNotEmpty("sort_order", wrapperspb.Int32(0))
+		assert.Equal(t, 1, len(q.Filters))
+		assert.Equal(t, int32(0), q.Filters[0].Value)
+
+		q = NewQuery()
+		q.AddFilterIfNotEmpty("code", wrapperspb.StringValue{Value: "TENANT"})
+		assert.Equal(t, 1, len(q.Filters))
+		assert.Equal(t, "TENANT", q.Filters[0].Value)
+	})
+
+	t.Run("AddInFilterIfNotEmpty", func(t *testing.T) {
+		q := NewQuery()
+		q.AddInFilterIfNotEmpty("group_id", []*wrapperspb.StringValue{wrapperspb.String("g1"), wrapperspb.String("g2")})
+		assert.Equal(t, 1, len(q.Filters))
+		assert.Equal(t, []interface{}{"g1", "g2"}, q.Filters[0].Value)
+	})
+
+	t.Run("direct filter condition", func(t *testing.T) {
+		condition, arg := buildFilterCondition(&Filter{
+			Field:    "group_id",
+			Operator: constants.OP_EQ,
+			Value:    wrapperspb.String("g1"),
+		})
+
+		assert.Equal(t, "group_id = ?", condition)
+		assert.Equal(t, "g1", arg)
+
+		condition, arg = buildFilterCondition(&Filter{
+			Field:    "code",
+			Operator: constants.OP_LIKE,
+			Value:    wrapperspb.StringValue{Value: "%tenant%"},
+		})
+
+		assert.Equal(t, "code LIKE ?", condition)
+		assert.Equal(t, "%tenant%", arg)
+	})
 }

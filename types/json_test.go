@@ -15,6 +15,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 func TestJSON(t *testing.T) {
@@ -56,4 +58,75 @@ func TestJSON(t *testing.T) {
 
 	// Test with driver.Valuer interface
 	var _ driver.Valuer = (*JSON[Person])(nil)
+}
+
+func driverValueBytes(t *testing.T, value driver.Value) []byte {
+	t.Helper()
+	switch v := value.(type) {
+	case []byte:
+		return v
+	case string:
+		return []byte(v)
+	default:
+		t.Fatalf("unexpected driver value type %T", value)
+		return nil
+	}
+}
+
+type protoPayload struct {
+	Name   *wrapperspb.StringValue `json:"name"`
+	Age    *wrapperspb.Int32Value  `json:"age"`
+	Active *wrapperspb.BoolValue   `json:"active"`
+}
+
+func TestJSONProtoMessage(t *testing.T) {
+	j := JSON[*wrapperspb.StringValue]{Data: wrapperspb.String("hello")}
+
+	val, err := j.Value()
+	require.NoError(t, err)
+	assert.Equal(t, `"hello"`, string(driverValueBytes(t, val)))
+
+	var restored JSON[*wrapperspb.StringValue]
+	err = restored.Scan(val)
+	require.NoError(t, err)
+	assert.Equal(t, "hello", restored.Data.GetValue())
+}
+
+func TestJSONProtoStruct(t *testing.T) {
+	j := JSON[protoPayload]{
+		Data: protoPayload{
+			Name:   wrapperspb.String("test"),
+			Age:    wrapperspb.Int32(25),
+			Active: wrapperspb.Bool(true),
+		},
+	}
+
+	val, err := j.Value()
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"name":"test","age":25,"active":true}`, string(driverValueBytes(t, val)))
+
+	var restored JSON[protoPayload]
+	err = restored.Scan(val)
+	require.NoError(t, err)
+	assert.Equal(t, "test", restored.Data.Name.GetValue())
+	assert.Equal(t, int32(25), restored.Data.Age.GetValue())
+	assert.True(t, restored.Data.Active.GetValue())
+}
+
+func TestJSONSliceProtoMessage(t *testing.T) {
+	s := Slice[*wrapperspb.StringValue]{
+		wrapperspb.String("alpha"),
+		wrapperspb.String("beta"),
+	}
+
+	val, err := s.Value()
+	require.NoError(t, err)
+	assert.JSONEq(t, `["alpha","beta"]`, string(driverValueBytes(t, val)))
+
+	var restored Slice[*wrapperspb.StringValue]
+	err = restored.Scan(val)
+	require.NoError(t, err)
+	require.Len(t, restored, 2)
+	assert.Equal(t, "alpha", restored[0].GetValue())
+	assert.Equal(t, "beta", restored[1].GetValue())
 }

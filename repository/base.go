@@ -2,7 +2,7 @@
  * @Author: kamalyes 501893067@qq.com
  * @Date: 2025-11-11 21:13:15
  * @LastEditors: kamalyes 501893067@qq.com
- * @LastEditTime: 2025-12-04 09:15:32
+ * @LastEditTime: 2026-05-13 17:59:23
  * @FilePath: \go-sqlbuilder\repository\base.go
  * @Description:
  *
@@ -24,6 +24,7 @@ import (
 	"github.com/kamalyes/go-toolbox/pkg/errorx"
 	"github.com/kamalyes/go-toolbox/pkg/mathx"
 	"github.com/kamalyes/go-toolbox/pkg/types"
+	"github.com/kamalyes/go-toolbox/pkg/validator"
 	"gorm.io/gorm"
 )
 
@@ -1107,8 +1108,10 @@ func ApplyFilter(dbQuery *gorm.DB, filter *Filter) *gorm.DB {
 		return dbQuery
 	}
 
+	value := validator.NormalizeFilterValue(filter.Value)
+
 	// 检查是否为子查询
-	if subQuery, ok := filter.Value.(*SubQuery); ok {
+	if subQuery, ok := value.(*SubQuery); ok {
 		// 处理子查询情况
 		return dbQuery.Where(fmt.Sprintf("%s %s (%s)", filter.Field, string(filter.Operator), subQuery.SQL), subQuery.Args...)
 	}
@@ -1117,24 +1120,24 @@ func ApplyFilter(dbQuery *gorm.DB, filter *Filter) *gorm.DB {
 	case constants.OP_EQ, constants.OP_NEQ, constants.OP_GT, constants.OP_GTE,
 		constants.OP_LT, constants.OP_LTE, constants.OP_IN, constants.OP_NOT_IN,
 		constants.OP_LIKE, constants.OP_NOT_LIKE:
-		return dbQuery.Where(fmt.Sprintf("%s %s ?", filter.Field, string(filter.Operator)), filter.Value)
+		return dbQuery.Where(fmt.Sprintf("%s %s ?", filter.Field, string(filter.Operator)), value)
 	case constants.OP_STARTS_WITH:
 		// 前缀匹配: value%
-		if valueStr, ok := filter.Value.(string); ok {
-			return dbQuery.Where(fmt.Sprintf("%s LIKE ?", filter.Field), valueStr+"%")
+		if valueStr, ok := value.(string); ok {
+			return dbQuery.Where(fmt.Sprintf(constants.SQL_LIKE, filter.Field), valueStr+"%")
 		}
 	case constants.OP_ENDS_WITH:
 		// 后缀匹配: %value
-		if valueStr, ok := filter.Value.(string); ok {
-			return dbQuery.Where(fmt.Sprintf("%s LIKE ?", filter.Field), "%"+valueStr)
+		if valueStr, ok := value.(string); ok {
+			return dbQuery.Where(fmt.Sprintf(constants.SQL_LIKE, filter.Field), "%"+valueStr)
 		}
 	case constants.OP_CONTAINS:
 		// 包含匹配: %value%
-		if valueStr, ok := filter.Value.(string); ok {
-			return dbQuery.Where(fmt.Sprintf("%s LIKE ?", filter.Field), "%"+valueStr+"%")
+		if valueStr, ok := value.(string); ok {
+			return dbQuery.Where(fmt.Sprintf(constants.SQL_LIKE, filter.Field), "%"+valueStr+"%")
 		}
 	case constants.OP_BETWEEN:
-		values, ok := filter.Value.([]interface{})
+		values, ok := value.([]interface{})
 		if ok && len(values) == 2 {
 			return dbQuery.Where(fmt.Sprintf("%s BETWEEN ? AND ?", filter.Field), values[0], values[1])
 		}
@@ -1144,7 +1147,7 @@ func ApplyFilter(dbQuery *gorm.DB, filter *Filter) *gorm.DB {
 		return dbQuery.Where(fmt.Sprintf("%s IS NOT NULL", filter.Field))
 	case constants.OP_FIND_IN_SET:
 		// 修复参数顺序：FIND_IN_SET(value, field_list)
-		return dbQuery.Where("FIND_IN_SET(?, ?)", filter.Value, filter.Field)
+		return dbQuery.Where("FIND_IN_SET(?, ?)", value, filter.Field)
 	}
 
 	return dbQuery
@@ -1426,6 +1429,10 @@ func buildFilterCondition(filter *Filter) (string, interface{}) {
 	if filter == nil {
 		return "", nil
 	}
+
+	normalized := *filter
+	normalized.Value = validator.NormalizeFilterValue(filter.Value)
+	filter = &normalized
 
 	// 处理特殊操作符
 	switch filter.Operator {

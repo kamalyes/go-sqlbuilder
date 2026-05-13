@@ -12,8 +12,9 @@ package types
 
 import (
 	"database/sql/driver"
-	"encoding/json"
 	"fmt"
+
+	"github.com/kamalyes/go-toolbox/pkg/serializer"
 )
 
 // JSON 泛型 JSON 类型，支持任意可序列化类型
@@ -32,11 +33,11 @@ func (j *JSON[T]) Scan(value interface{}) error {
 	if len(b) == 0 {
 		return nil
 	}
-	return json.Unmarshal(b, &j.Data)
+	return serializer.JSONUnmarshal(b, &j.Data)
 }
 
 func (j JSON[T]) Value() (driver.Value, error) {
-	return json.Marshal(j.Data)
+	return serializer.JSONMarshal(j.Data)
 }
 
 // Get 获取数据

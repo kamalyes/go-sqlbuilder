@@ -12,8 +12,9 @@ package types
 
 import (
 	"database/sql/driver"
-	"encoding/json"
 	"fmt"
+
+	"github.com/kamalyes/go-toolbox/pkg/serializer"
 )
 
 // Slice 泛型切片类型
@@ -32,14 +33,14 @@ func (s *Slice[T]) Scan(value interface{}) error {
 		*s = []T{}
 		return nil
 	}
-	return json.Unmarshal(b, s)
+	return serializer.JSONUnmarshal(b, s)
 }
 
 func (s Slice[T]) Value() (driver.Value, error) {
 	if s == nil {
 		return nil, nil
 	}
-	return json.Marshal(s)
+	return serializer.JSONMarshal(s)
 }
 
 // Len 获取长度

@@ -31,7 +31,7 @@ type SubQuery struct {
 func NewSubQuery(sql string, args ...interface{}) *SubQuery {
 	return &SubQuery{
 		SQL:  sql,
-		Args: args,
+		Args: validator.NormalizeFilterValueSlice(args),
 	}
 }
 
@@ -133,7 +133,7 @@ func (fg *FilterGroup) AddFilterIfValueNotEmpty(filter *Filter) *FilterGroup {
 	if filter == nil {
 		return fg
 	}
-	deref, empty := validator.IsEmptyAfterDeref(filter.Value)
+	deref, empty := validator.NormalizeFilterValueIfNotEmpty(filter.Value)
 	if empty {
 		return fg
 	}
@@ -145,7 +145,7 @@ func (fg *FilterGroup) AddFilterIfValueNotEmpty(filter *Filter) *FilterGroup {
 // AddFilterIfNotEmpty 当值不为空时添加过滤条件
 // 支持指针自动解引用，string, slice, map 等类型的空值判断
 func (fg *FilterGroup) AddFilterIfNotEmpty(field string, operator constants.Operator, value interface{}) *FilterGroup {
-	deref, empty := validator.IsEmptyAfterDeref(value)
+	deref, empty := validator.NormalizeFilterValueIfNotEmpty(value)
 	if empty {
 		return fg
 	}
@@ -186,7 +186,7 @@ func (fg *FilterGroup) AddLteFilterIfNotEmpty(field string, value interface{}) *
 // AddLikeFilterIfNotEmpty 当值不为空时添加 LIKE 过滤条件
 // value 支持 string 和 *string 类型
 func (fg *FilterGroup) AddLikeFilterIfNotEmpty(field string, value interface{}) *FilterGroup {
-	deref, empty := validator.IsEmptyAfterDeref(value)
+	deref, empty := validator.NormalizeFilterValueIfNotEmpty(value)
 	if empty {
 		return fg
 	}
@@ -197,7 +197,7 @@ func (fg *FilterGroup) AddLikeFilterIfNotEmpty(field string, value interface{}) 
 // AddInFilterIfNotEmpty 当切片不为空时添加 IN 过滤条件
 // values 支持任意切片类型（[]string、[]int 等）以及对应指针类型
 func (fg *FilterGroup) AddInFilterIfNotEmpty(field string, values interface{}) *FilterGroup {
-	deref, empty := validator.IsEmptyAfterDeref(values)
+	deref, empty := validator.NormalizeFilterValueIfNotEmpty(values)
 	if empty {
 		return fg
 	}
@@ -210,7 +210,7 @@ func (fg *FilterGroup) AddInFilterIfNotEmpty(field string, values interface{}) *
 // AddNotInFilterIfNotEmpty 当切片不为空时添加 NOT IN 过滤条件
 // values 支持任意切片类型（[]string、[]int 等）以及对应指针类型
 func (fg *FilterGroup) AddNotInFilterIfNotEmpty(field string, values interface{}) *FilterGroup {
-	deref, empty := validator.IsEmptyAfterDeref(values)
+	deref, empty := validator.NormalizeFilterValueIfNotEmpty(values)
 	if empty {
 		return fg
 	}
@@ -222,8 +222,8 @@ func (fg *FilterGroup) AddNotInFilterIfNotEmpty(field string, values interface{}
 
 // AddBetweenFilterIfNotEmpty 当最小值和最大值都不为空时添加 BETWEEN 过滤条件
 func (fg *FilterGroup) AddBetweenFilterIfNotEmpty(field string, min, max interface{}) *FilterGroup {
-	minDeref, minEmpty := validator.IsEmptyAfterDeref(min)
-	maxDeref, maxEmpty := validator.IsEmptyAfterDeref(max)
+	minDeref, minEmpty := validator.NormalizeFilterValueIfNotEmpty(min)
+	maxDeref, maxEmpty := validator.NormalizeFilterValueIfNotEmpty(max)
 	if minEmpty || maxEmpty {
 		return fg
 	}
@@ -234,7 +234,7 @@ func (fg *FilterGroup) AddBetweenFilterIfNotEmpty(field string, min, max interfa
 // AddStartsWithFilterIfNotEmpty 当值不为空时添加前缀匹配过滤条件
 // value 支持 string 和 *string 类型
 func (fg *FilterGroup) AddStartsWithFilterIfNotEmpty(field string, value interface{}) *FilterGroup {
-	deref, empty := validator.IsEmptyAfterDeref(value)
+	deref, empty := validator.NormalizeFilterValueIfNotEmpty(value)
 	if empty {
 		return fg
 	}
@@ -245,7 +245,7 @@ func (fg *FilterGroup) AddStartsWithFilterIfNotEmpty(field string, value interfa
 // AddEndsWithFilterIfNotEmpty 当值不为空时添加后缀匹配过滤条件
 // value 支持 string 和 *string 类型
 func (fg *FilterGroup) AddEndsWithFilterIfNotEmpty(field string, value interface{}) *FilterGroup {
-	deref, empty := validator.IsEmptyAfterDeref(value)
+	deref, empty := validator.NormalizeFilterValueIfNotEmpty(value)
 	if empty {
 		return fg
 	}
@@ -256,7 +256,7 @@ func (fg *FilterGroup) AddEndsWithFilterIfNotEmpty(field string, value interface
 // AddRegexpFilterIfNotEmpty 当值不为空时添加正则匹配过滤条件（仅MySQL/PostgreSQL）
 // pattern 支持 string 和 *string 类型
 func (fg *FilterGroup) AddRegexpFilterIfNotEmpty(field string, pattern interface{}) *FilterGroup {
-	deref, empty := validator.IsEmptyAfterDeref(pattern)
+	deref, empty := validator.NormalizeFilterValueIfNotEmpty(pattern)
 	if empty {
 		return fg
 	}
@@ -267,7 +267,7 @@ func (fg *FilterGroup) AddRegexpFilterIfNotEmpty(field string, pattern interface
 // AddNotLikeFilterIfNotEmpty 当值不为空时添加 NOT LIKE 过滤条件
 // value 支持 string 和 *string 类型
 func (fg *FilterGroup) AddNotLikeFilterIfNotEmpty(field string, value interface{}) *FilterGroup {
-	deref, empty := validator.IsEmptyAfterDeref(value)
+	deref, empty := validator.NormalizeFilterValueIfNotEmpty(value)
 	if empty {
 		return fg
 	}
@@ -277,7 +277,7 @@ func (fg *FilterGroup) AddNotLikeFilterIfNotEmpty(field string, value interface{
 
 // AddFindInSetFilterIfNotEmpty 当值不为空时添加 FIND_IN_SET 过滤条件（MySQL特定）
 func (fg *FilterGroup) AddFindInSetFilterIfNotEmpty(field string, value interface{}) *FilterGroup {
-	deref, empty := validator.IsEmptyAfterDeref(value)
+	deref, empty := validator.NormalizeFilterValueIfNotEmpty(value)
 	if empty {
 		return fg
 	}
@@ -323,11 +323,7 @@ func (fg *FilterGroup) cloneWithDepth(depth int) *FilterGroup {
 
 	// 克隆过滤条件
 	for _, f := range fg.Filters {
-		newFilter := &Filter{
-			Field:    f.Field,
-			Operator: f.Operator,
-			Value:    f.Value,
-		}
+		newFilter := NewFilter(f.Field, f.Operator, f.Value)
 		newGroup.Filters = append(newGroup.Filters, newFilter)
 	}
 
@@ -364,27 +360,27 @@ type Query struct {
 
 // NewEqFilter 创建等于过滤条件
 func NewEqFilter(field string, value interface{}) *Filter {
-	return &Filter{Field: field, Operator: constants.OP_EQ, Value: value}
+	return NewFilter(field, constants.OP_EQ, value)
 }
 
 // NewGtFilter 创建大于过滤条件
 func NewGtFilter(field string, value interface{}) *Filter {
-	return &Filter{Field: field, Operator: constants.OP_GT, Value: value}
+	return NewFilter(field, constants.OP_GT, value)
 }
 
 // NewLtFilter 创建小于过滤条件
 func NewLtFilter(field string, value interface{}) *Filter {
-	return &Filter{Field: field, Operator: constants.OP_LT, Value: value}
+	return NewFilter(field, constants.OP_LT, value)
 }
 
 // NewGteFilter 创建大于等于过滤条件
 func NewGteFilter(field string, value interface{}) *Filter {
-	return &Filter{Field: field, Operator: constants.OP_GTE, Value: value}
+	return NewFilter(field, constants.OP_GTE, value)
 }
 
 // NewLteFilter 创建小于等于过滤条件
 func NewLteFilter(field string, value interface{}) *Filter {
-	return &Filter{Field: field, Operator: constants.OP_LTE, Value: value}
+	return NewFilter(field, constants.OP_LTE, value)
 }
 
 // NewInFilter 创建 IN 过滤条件
@@ -392,7 +388,7 @@ func NewInFilter(field string, values ...interface{}) *Filter {
 	if values == nil || (len(values) == 1 && values[0] == nil) {
 		return &Filter{Field: field, Operator: constants.OP_IN, Value: nil}
 	}
-	return &Filter{Field: field, Operator: constants.OP_IN, Value: values}
+	return NewFilter(field, constants.OP_IN, validator.NormalizeFilterValueSlice(values))
 }
 
 // NewInFilterSlice 创建 IN 过滤条件（使用切片参数）
@@ -400,22 +396,22 @@ func NewInFilterSlice(field string, values []interface{}) *Filter {
 	if values == nil {
 		values = make([]interface{}, 0)
 	}
-	return &Filter{Field: field, Operator: constants.OP_IN, Value: values}
+	return NewFilter(field, constants.OP_IN, validator.NormalizeFilterValueSlice(values))
 }
 
 // NewLikeFilter 创建 LIKE 过滤条件
 func NewLikeFilter(field string, value string) *Filter {
-	return &Filter{Field: field, Operator: constants.OP_LIKE, Value: "%" + value + "%"}
+	return NewFilter(field, constants.OP_LIKE, "%"+value+"%")
 }
 
 // NewNeqFilter 创建不等于过滤条件
 func NewNeqFilter(field string, value interface{}) *Filter {
-	return &Filter{Field: field, Operator: constants.OP_NEQ, Value: value}
+	return NewFilter(field, constants.OP_NEQ, value)
 }
 
 // NewBetweenFilter 创建 BETWEEN 过滤条件
 func NewBetweenFilter(field string, min, max interface{}) *Filter {
-	return &Filter{Field: field, Operator: constants.OP_BETWEEN, Value: []interface{}{min, max}}
+	return NewFilter(field, constants.OP_BETWEEN, []interface{}{min, max})
 }
 
 // NewNotInFilter 创建 NOT IN 过滤条件
@@ -423,7 +419,7 @@ func NewNotInFilter(field string, values ...interface{}) *Filter {
 	if values == nil || (len(values) == 1 && values[0] == nil) {
 		return &Filter{Field: field, Operator: constants.OP_NOT_IN, Value: nil}
 	}
-	return &Filter{Field: field, Operator: constants.OP_NOT_IN, Value: values}
+	return NewFilter(field, constants.OP_NOT_IN, validator.NormalizeFilterValueSlice(values))
 }
 
 // NewNotInFilterSlice 创建 NOT IN 过滤条件（使用切片参数）
@@ -431,7 +427,7 @@ func NewNotInFilterSlice(field string, values []interface{}) *Filter {
 	if values == nil {
 		values = make([]interface{}, 0)
 	}
-	return &Filter{Field: field, Operator: constants.OP_NOT_IN, Value: values}
+	return NewFilter(field, constants.OP_NOT_IN, validator.NormalizeFilterValueSlice(values))
 }
 
 // NewIsNullFilter 创建 IS NULL 过滤条件
@@ -446,30 +442,30 @@ func NewIsNotNullFilter(field string) *Filter {
 
 // NewStartsWithFilter 创建前缀匹配过滤条件
 func NewStartsWithFilter(field string, value string) *Filter {
-	return &Filter{Field: field, Operator: constants.OP_STARTS_WITH, Value: value}
+	return NewFilter(field, constants.OP_STARTS_WITH, value)
 }
 
 // NewEndsWithFilter 创建后缀匹配过滤条件
 func NewEndsWithFilter(field string, value string) *Filter {
-	return &Filter{Field: field, Operator: constants.OP_ENDS_WITH, Value: value}
+	return NewFilter(field, constants.OP_ENDS_WITH, value)
 }
 
 // NewNotLikeFilter 创建 NOT LIKE 过滤条件
 func NewNotLikeFilter(field string, value string) *Filter {
-	return &Filter{Field: field, Operator: constants.OP_NOT_LIKE, Value: "%" + value + "%"}
+	return NewFilter(field, constants.OP_NOT_LIKE, "%"+value+"%")
 }
 
 // NewRegexpFilter 创建正则匹配过滤条件（仅MySQL/PostgreSQL）
 func NewRegexpFilter(field string, pattern string) *Filter {
-	return &Filter{Field: field, Operator: constants.OP_REGEX, Value: pattern}
+	return NewFilter(field, constants.OP_REGEX, pattern)
 }
 
 // NewFindInSetFilter 创建 FIND_IN_SET 过滤条件（MySQL特定）
 func NewFindInSetFilter(field string, value interface{}) *Filter {
-	return &Filter{Field: field, Operator: constants.OP_FIND_IN_SET, Value: value}
+	return NewFilter(field, constants.OP_FIND_IN_SET, value)
 }
 
 // NewFilter 创建通用过滤条件(支持任意操作符)
 func NewFilter(field string, operator constants.Operator, value interface{}) *Filter {
-	return &Filter{Field: field, Operator: operator, Value: value}
+	return &Filter{Field: field, Operator: operator, Value: validator.NormalizeFilterValue(value)}
 }

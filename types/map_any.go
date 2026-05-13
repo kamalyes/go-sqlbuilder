@@ -12,8 +12,9 @@ package types
 
 import (
 	"database/sql/driver"
-	"encoding/json"
 	"fmt"
+
+	"github.com/kamalyes/go-toolbox/pkg/serializer"
 )
 
 // MapAny 任意类型的 Map，支持数据库 JSON 序列化
@@ -32,14 +33,14 @@ func (m *MapAny) Scan(value interface{}) error {
 		*m = make(MapAny)
 		return nil
 	}
-	return json.Unmarshal(b, m)
+	return serializer.JSONUnmarshal(b, m)
 }
 
 func (m MapAny) Value() (driver.Value, error) {
 	if m == nil {
 		return nil, nil
 	}
-	return json.Marshal(m)
+	return serializer.JSONMarshal(m)
 }
 
 // Get 获取指定 key 的值，支持默认值
