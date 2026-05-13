@@ -104,7 +104,11 @@ activeUsers, err := repo.FindWhere(ctx, "status", "active")
 
 ## 下一步
 
-- 📖 [CRUD 操作](./CRUD-OPERATIONS.md) - 完整的创建、读取、更新、删除方法
-- 🚀 [便捷查询方法](./CONVENIENCE-METHODS.md) - 简化的查询 API
-- 🔍 [过滤条件](./FILTERS.md) - 构建复杂查询条件
-- 📊 [排序和分页](./SORTING-AND-PAGINATION.md) - 数据排序和分页
+- 📖 [创建操作](./CREATE.md) - Create、CreateBatch 完整指南
+- 📖 [查询操作](./READ.md) - Get、List、分页查询基础
+- 📖 [更新操作](./UPDATE.md) - Update、UpdateBatch、字段自增
+- 📖 [删除操作](./DELETE.md) - Delete、软删除、批量删除
+- 🚀 [便捷查询方法](./CONVENIENCE.md) - 简化的查询 API
+- 🔍 [过滤条件](./FILTER.md) - 构建复杂查询条件
+- � [条件组合](./FILTER-GROUP.md) - AND/OR 逻辑、复杂条件
+- 📊 [排序和分页](./PAGINATION.md) - 数据排序和分页

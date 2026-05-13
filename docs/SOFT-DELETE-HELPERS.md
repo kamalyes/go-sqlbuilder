@@ -1,11 +1,13 @@
 # 软删除辅助函数
 
 ## 概述
+
 除了 Repository 方法外，go-sqlbuilder 还提供独立的软删除辅助函数，适用于更灵活的操作场景。
 
 ## 独立辅助函数
 
 ### GetDeleted - 获取已删除记录
+
 ```go
 // 获取所有已删除的记录（deleted_at 不为空）
 deletedUsers, err := repository.GetDeleted[User](ctx, db, nil)
@@ -17,6 +19,7 @@ deletedUsers, err := repository.GetDeleted[User](ctx, db, query)
 ```
 
 ### GetNonDeleted - 获取未删除记录
+
 ```go
 // 获取所有未删除的记录（deleted_at 为空）
 activeUsers, err := repository.GetNonDeleted[User](ctx, db, nil)
@@ -28,12 +31,14 @@ nonDeletedUsers, err := repository.GetNonDeleted[User](ctx, db, query)
 ```
 
 ### RestoreDeleted - 恢复单个记录
+
 ```go
 // 将指定 ID 的已删除记录的 deleted_at 设为 NULL
 err := repository.RestoreDeleted[User](ctx, db, 1)
 ```
 
 ### RestoreDeletedBatch - 批量恢复
+
 ```go
 // 批量恢复已删除记录
 ids := []interface{}{1, 2, 3, 4, 5}
@@ -41,6 +46,7 @@ err := repository.RestoreDeletedBatch[User](ctx, db, ids)
 ```
 
 ### PermanentlyDelete - 永久删除
+
 ```go
 // 从数据库中永久删除记录（无视软删除）
 err := repository.PermanentlyDelete[User](ctx, db, 1)
@@ -49,6 +55,7 @@ err := repository.PermanentlyDelete[User](ctx, db, 1)
 ```
 
 ### PermanentlyDeleteBatch - 批量永久删除
+
 ```go
 // 批量永久删除记录
 ids := []interface{}{1, 2, 3, 4, 5}
@@ -60,12 +67,14 @@ err := repository.PermanentlyDeleteBatch[User](ctx, db, ids)
 ## RepositoryWithSoftDelete 辅助类型
 
 ### 创建
+
 ```go
 baseRepo := repository.NewBaseRepository[User](handler, logger, "users")
 repo := repository.NewRepositoryWithSoftDelete(baseRepo)
 ```
 
 ### deleted_at 字段方法
+
 ```go
 // 软删除
 err := repo.SoftDeleteWithDeletedAt(ctx, 1)
@@ -86,6 +95,7 @@ err := repo.RestoreBatchWithDeletedAt(ctx, []interface{}{1, 2, 3})
 ```
 
 ### is_deleted 字段方法
+
 ```go
 // 软删除（设置 is_deleted = 1）
 err := repo.SoftDeleteWithIsDeleted(ctx, 1)
@@ -106,6 +116,7 @@ err := repo.RestoreBatchWithIsDeleted(ctx, []interface{}{1, 2, 3})
 ```
 
 ### 查询已删除/未删除记录
+
 ```go
 // 查询未删除记录（deleted_at 方式）
 query := repository.NewQuery().AddFilter(repository.NewEqFilter("status", "active"))
@@ -124,6 +135,7 @@ deletedUsers, err := repo.ListDeletedByIsDeleted(ctx, nil)
 ## 字段处理辅助函数
 
 ### GetStructFields - 获取结构体字段
+
 ```go
 // 获取结构体的所有数据库字段名
 var user User
@@ -134,6 +146,7 @@ fields := repository.GetStructFields(user)
 ```
 
 ### FilterFields - 字段过滤
+
 ```go
 allFields := []string{"id", "name", "email", "password", "salt"}
 selectFields := []string{"id", "name", "email"}
@@ -153,6 +166,7 @@ filtered := repository.FilterFields(allFields, nil, nil)
 ```
 
 ### BuildSelectClause - 构建 SELECT 子句
+
 ```go
 fields := []string{"id", "name", "email"}
 

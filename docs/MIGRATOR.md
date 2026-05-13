@@ -719,6 +719,7 @@ err := migrator.AutoMigrate()
 ## 📚 相关文档
 
 - 📘 [快速开始](./QUICKSTART.md) - 5 分钟上手指南
-- 📖 [仓储基础](./REPOSITORY-BASICS.md) - 学习基础 CRUD 操作
+- 📖 [创建操作](./CREATE.md) - Create、CreateBatch 完整指南
+- 📖 [查询操作](./READ.md) - Get、List、分页查询基础
 - 🏗️ [模型定义](./MODELS.md) - 定义数据模型
 - 📒 [错误处理](./ERROR-HANDLING.md) - 错误管理和日志记录

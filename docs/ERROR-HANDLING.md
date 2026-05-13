@@ -411,6 +411,7 @@ if err != nil {
 
 ## 📚 相关文档
 
-- 📖 [Repository 基础](./REPOSITORY-BASICS.md) - 学习基础操作
+- 📖 [创建操作](./CREATE.md) - Create、CreateBatch 完整指南
+- 📖 [查询操作](./READ.md) - Get、List、分页查询基础
 - 🔍 [Logger 文档](https://github.com/kamalyes/go-logger) - 日志库详细文档
 - 🎯 [errorx 文档](https://github.com/kamalyes/go-toolbox) - 错误处理库文档

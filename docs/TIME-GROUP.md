@@ -1,11 +1,13 @@
 # 时间分组统计
 
 ## 概述
+
 go-sqlbuilder 提供了强大的时间分组统计功能，支持按小时、天、周、月、年分组。
 
 ## MultiTableStatsBuilder 多表统计
 
 ### 基础用法
+
 ```go
 import "github.com/kamalyes/go-sqlbuilder/repository"
 
@@ -34,6 +36,7 @@ totalRevenue := results["total_revenue"].(float64)
 ## TimeGroupBuilder 时间分组
 
 ### 按天统计
+
 ```go
 // 按天统计订单
 builder := repository.NewTimeGroupBuilder(db, "orders", repository.GroupByDay).
@@ -55,6 +58,7 @@ for _, row := range results {
 ```
 
 ### 按小时统计
+
 ```go
 // 按小时统计访问量
 builder := repository.NewTimeGroupBuilder(db, "visits", repository.GroupByHour).
@@ -67,6 +71,7 @@ results, err := builder.Execute()
 ```
 
 ### 按周/月/年统计
+
 ```go
 // 按周统计
 builder := repository.NewTimeGroupBuilder(db, "orders", repository.GroupByWeek).

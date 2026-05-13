@@ -10,7 +10,10 @@
 |------|------|---------|
 | [1. 快速入门](./QUICKSTART.md) | 5分钟上手，创建你的第一个仓储 | 5 min |
 | [2. 模型定义](./MODELS.md) | 选择适合你业务的模型基础 | 10 min |
-| [3. 基础 CRUD](./CRUD-GUIDE.md) | 创建、查询、更新、删除完整指南 | 15 min |
+| [3. 创建操作](./CREATE.md) | Create、CreateBatch 完整指南 | 10 min |
+| [4. 查询操作](./READ.md) | Get、List、分页查询基础 | 15 min |
+| [5. 更新操作](./UPDATE.md) | Update、UpdateBatch、字段自增 | 10 min |
+| [6. 删除操作](./DELETE.md) | Delete、软删除、批量删除 | 10 min |
 
 ### 🎯 查询核心（重点掌握）
 
@@ -89,20 +92,23 @@
 ```
 1. 快速入门 (5min)
 2. 模型定义 → 选择 BaseModel (10min)
-3. 基础 CRUD → 掌握 Create/Get/Update/Delete (15min)
-4. 条件过滤 → 学会 NewEqFilter/NewLikeFilter (10min)
-5. 条件组合 → 掌握 AND/OR 用法 (15min)
-6. Query 对象 → 排序和分页 (10min)
+3. 创建操作 → 掌握 Create/CreateBatch (10min)
+4. 查询操作 → 掌握 Get/List/分页 (15min)
+5. 条件过滤 → 学会 NewEqFilter/NewLikeFilter (10min)
+6. 条件组合 → 掌握 AND/OR 用法 (15min)
+7. Query 对象 → 排序和分页 (10min)
 ```
 
 ### 路径二：业务开发（2小时）
 适合：能独立开发业务功能
 
 ```
-第一阶段：基础 (30min)
+第一阶段：基础 (40min)
 ├── 快速入门
 ├── 模型定义
-├── 基础 CRUD
+├── 创建操作
+├── 查询操作
+├── 更新操作
 └── 条件过滤
 
 第二阶段：查询进阶 (40min)
@@ -123,6 +129,7 @@
 ```
 
 ### 路径三：精通掌握（半天）
+
 适合：深入理解所有特性
 
 ```
@@ -142,47 +149,43 @@
 docs/
 ├── README.md                    # 本文档（导航中心）
 │
-├── 01-入门指南/
-│   ├── QUICKSTART.md            # 快速入门
-│   ├── MODELS.md                # 模型定义
-│   └── CRUD-GUIDE.md            # CRUD 完整指南
+├── QUICKSTART.md                # 快速入门
+├── MODELS.md                    # 模型定义
+├── CREATE.md                    # 创建操作
+├── READ.md                      # 查询操作
+├── UPDATE.md                    # 更新操作
+├── DELETE.md                    # 删除操作
 │
-├── 02-查询核心/
-│   ├── READ.md                  # 查询基础
-│   ├── FILTER.md                # 条件过滤
-│   ├── FILTER-GROUP.md          # 条件组合（高级）
-│   ├── QUERY.md                 # Query 对象
-│   └── PAGINATION.md            # 分页指南
+├── FILTER.md                    # 条件过滤
+├── FILTER-GROUP.md              # 条件组合（高级）
+├── QUERY.md                     # Query 对象
+├── PAGINATION.md                # 分页指南
 │
-├── 03-业务实战/
-│   ├── RECIPES-SEARCH.md        # 搜索功能
-│   ├── RECIPES-PAGINATION.md    # 分页列表
-│   ├── RECIPES-SOFT-DELETE.md   # 软删除
-│   ├── RECIPES-BATCH.md         # 批量操作
-│   └── RECIPES-STATS.md         # 统计报表
+├── RECIPES-SEARCH.md            # 搜索功能
+├── RECIPES-PAGINATION.md        # 分页列表
+├── RECIPES-SOFT-DELETE.md       # 软删除
+├── RECIPES-BATCH.md             # 批量操作
+├── RECIPES-STATS.md             # 统计报表
 │
-├── 04-便捷方法/
-│   ├── CONVENIENCE.md           # 便捷查询
-│   ├── ENHANCED.md              # 增强版仓储
-│   └── TIME-QUERIES.md          # 时间查询
+├── CONVENIENCE.md               # 便捷查询
+├── ENHANCED.md                  # 增强版仓储
+├── TIME-QUERIES.md              # 时间查询
 │
-├── 05-高级特性/
-│   ├── TRANSACTION.md           # 事务处理
-│   ├── CONCURRENT.md            # 并发查询
-│   ├── STATS.md                 # 统计聚合
-│   ├── CONDITIONAL-AGGREGATE.md # 条件聚合
-│   └── TIME-GROUP.md            # 时间分组
+├── TRANSACTION.md               # 事务处理
+├── CONCURRENT.md                # 并发查询
+├── STATS.md                     # 统计聚合
+├── CONDITIONAL-AGGREGATE.md     # 条件聚合
+├── TIME-GROUP.md                # 时间分组
 │
-├── 06-配置与工具/
-│   ├── REPOSITORY-OPTIONS.md    # 仓储配置
-│   ├── SOFT-DELETE-HELPERS.md   # 软删除辅助
-│   ├── JSON-HELPER.md           # JSON 辅助
-│   ├── ERROR-HANDLING.md        # 错误处理
-│   ├── CONTEXT-USAGE.md         # 上下文使用
-│   └── MIGRATOR.md              # 数据库迁移
+├── REPOSITORY-OPTIONS.md        # 仓储配置
+├── SOFT-DELETE-HELPERS.md       # 软删除辅助
+├── JSON-HELPER.md               # JSON 辅助
+├── ERROR-HANDLING.md            # 错误处理
+├── CONTEXT-USAGE.md             # 上下文使用
+├── MIGRATOR.md                  # 数据库迁移
 │
-└── 07-架构设计/
-    └── ADVANCED-PATTERNS.md     # 高级模式
+├── SCOPE-USAGE.md               # 多租户作用域
+└── ADVANCED-PATTERNS.md         # 高级模式
 ```
 
 ---
@@ -191,7 +194,7 @@ docs/
 
 | 业务需求 | 推荐文档 | 关键方法 |
 |---------|---------|---------|
-| 用户注册/登录 | CRUD-GUIDE | Create, GetByFilter |
+| 用户注册/登录 | CREATE, READ | Create, GetByFilter |
 | 用户列表+搜索 | RECIPES-SEARCH | FilterGroup, AddXxxIfNotEmpty |
 | 分页展示 | RECIPES-PAGINATION | ListWithPagination |
 | 数据软删除 | RECIPES-SOFT-DELETE | SoftDeleteWithDeletedAt |
@@ -209,6 +212,7 @@ docs/
 ## 💡 使用建议
 
 ### 1. 优先使用高级写法
+
 ```go
 // ❌ 避免 - 繁琐的手动判断
 if status != "" {
@@ -220,6 +224,7 @@ query.AddFilterIfNotEmpty("status", status)
 ```
 
 ### 2. 复用 Query 构建逻辑
+
 ```go
 // 封装通用的搜索条件构建
 func BuildSearchQuery(params SearchParams) *repository.Query {
@@ -231,6 +236,7 @@ func BuildSearchQuery(params SearchParams) *repository.Query {
 ```
 
 ### 3. 业务分层建议
+
 ```
 handler/     # HTTP 接口层
 ├── user_handler.go

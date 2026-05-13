@@ -81,5 +81,6 @@ records, err := repo.List(ctx, query)
 
 ## 📚 相关文档
 
-- [过滤条件](./FILTERS.md) - Between 查询
-- [业务场景示例](./BUSINESS-EXAMPLES.md) - 实战示例
+- [过滤条件](./FILTER.md) - Between 查询
+- [条件组合](./FILTER-GROUP.md) - 复杂条件构建
+- [统计报表](./RECIPES-STATS.md) - 实战示例

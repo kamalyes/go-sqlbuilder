@@ -1,11 +1,13 @@
 # 统计方法
 
 ## 概述
+
 BaseRepository 提供了丰富的统计方法，用于数据分析和聚合操作。
 
 ## 计数方法
 
 ### Count - 统计记录数
+
 ```go
 // 统计所有记录
 count, err := repo.Count(ctx)
@@ -21,6 +23,7 @@ count, err := repo.Count(ctx,
 ```
 
 ### CountByField - 按字段分组统计
+
 ```go
 // 按状态统计用户数
 stats, err := repo.CountByField(ctx, "status")
@@ -34,6 +37,7 @@ stats, err := repo.CountByFieldWithQuery(ctx, "status", query)
 ## 聚合方法
 
 ### Sum - 求和
+
 ```go
 // 计算所有订单的总金额
 total, err := repo.Sum(ctx, "amount")
@@ -44,6 +48,7 @@ total, err := repo.SumWithQuery(ctx, "amount", query)
 ```
 
 ### Avg - 平均值
+
 ```go
 // 计算平均年龄
 avg, err := repo.Avg(ctx, "age")
@@ -54,6 +59,7 @@ avg, err := repo.AvgWithQuery(ctx, "age", query)
 ```
 
 ### Max - 最大值
+
 ```go
 // 获取最大年龄
 maxAge, err := repo.Max(ctx, "age")
@@ -64,6 +70,7 @@ maxAge, err := repo.MaxWithQuery(ctx, "age", query)
 ```
 
 ### Min - 最小值
+
 ```go
 // 获取最小年龄
 minAge, err := repo.Min(ctx, "age")
@@ -76,6 +83,7 @@ minAge, err := repo.MinWithQuery(ctx, "age", query)
 ## 数据提取
 
 ### Pluck - 提取字段值
+
 ```go
 // 提取所有用户的邮箱
 emails, err := repo.Pluck(ctx, "email")
