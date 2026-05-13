@@ -126,3 +126,37 @@ func saveUserProfile(ctx context.Context, repo repository.IRepository[User], use
     })
 }
 ```
+
+## types.Slice - JSON 数组字段
+
+`types.Slice[T]` 适合映射数据库 JSON 数组列，会在写入时序列化为 JSON 数组，在读取时反序列化为 Go 切片。
+
+```go
+import sqltypes "github.com/kamalyes/go-sqlbuilder/types"
+
+type CustomerServiceModule struct {
+    ID           string              `gorm:"column:id;primaryKey"`
+    DisplayPages sqltypes.Slice[int] `gorm:"column:display_pages;type:json"`
+}
+```
+
+写入示例：
+
+```go
+module := &CustomerServiceModule{
+    ID:           "module_1",
+    DisplayPages: sqltypes.Slice[int]{1, 2, 3},
+}
+```
+
+局部更新 JSON 数组字段时，推荐先序列化为 JSON 数组字符串，例如配合 `go-pbmo`：
+
+```go
+import pbmo "github.com/kamalyes/go-pbmo"
+
+updates := pbmo.NewUpdates().
+    SetJSONSlice("display_pages", req.DisplayPages).
+    Build()
+```
+
+读取兼容：如果历史数据中已有单个 JSON 标量（例如 `1`）被写入数组列，`types.Slice[int]` 会按单元素数组 `[1]` 兼容读取，便于平滑修复旧数据。新写入的数据仍应保持数组 JSON 格式。

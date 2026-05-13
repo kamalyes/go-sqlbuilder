@@ -18,6 +18,7 @@
 | 📊 **性能优化** | 批量操作、游标分页、原子字段更新 | [📓 增强版仓储](docs/ENHANCED.md) |
 | 🔐 **错误处理** | 集成 go-toolbox/errorx 的结构化错误管理 | [📒 错误处理](docs/ERROR-HANDLING.md) |
 | 📝 **审计追踪** | 内置审计字段（created_by, updated_by） | [📔 模型定义](docs/MODELS.md) |
+| 🧩 **JSON 字段** | JSON 辅助函数、`types.Slice` 数组字段和历史标量兼容读取 | [🧩 JSON 辅助](docs/JSON-HELPER.md) |
 | 🗄️ **数据库迁移** | 自动迁移、索引创建、表注释 | [🗄️ 数据库迁移](docs/MIGRATOR.md) |
 | 🔄 **上下文支持** | 超时控制、日志追踪、请求隔离 | [🔄 Context 使用](docs/CONTEXT-USAGE.md) |
 | 🎛️ **复杂条件** | Filter 和 FilterGroup 构建复杂 WHERE 条件 | [📕 条件过滤](docs/FILTER.md) |

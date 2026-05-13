@@ -117,6 +117,25 @@ func TestSlice_ComplexTypes(t *testing.T) {
 	assert.Equal(t, "Bob", names[1])
 }
 
+func TestSlice_ScanScalarJSONAsSingleItem(t *testing.T) {
+	s := &Slice[int]{}
+	err := s.Scan([]byte(`1`))
+	assert.NoError(t, err)
+	assert.Equal(t, Slice[int]{1}, *s)
+}
+
+func TestSlice_ScanObjectJSONAsSingleItem(t *testing.T) {
+	type User struct {
+		ID   int    `json:"id"`
+		Name string `json:"name"`
+	}
+
+	s := &Slice[User]{}
+	err := s.Scan([]byte(`{"id":1,"name":"Alice"}`))
+	assert.NoError(t, err)
+	assert.Equal(t, Slice[User]{{ID: 1, Name: "Alice"}}, *s)
+}
+
 func TestSlice_ValuerInterface(t *testing.T) {
 	var _ driver.Valuer = Slice[int](nil)
 }

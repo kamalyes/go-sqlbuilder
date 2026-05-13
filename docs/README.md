@@ -65,7 +65,7 @@
 |------|------|
 | [1. 仓储配置 (REPOSITORY-OPTIONS)](./REPOSITORY-OPTIONS.md) | 批处理大小、超时、预加载 |
 | [2. 软删除辅助 (SOFT-DELETE-HELPERS)](./SOFT-DELETE-HELPERS.md) | 独立函数、灵活操作 |
-| [3. JSON 辅助 (JSON-HELPER)](./JSON-HELPER.md) | 序列化/反序列化 |
+| [3. JSON 辅助 (JSON-HELPER)](./JSON-HELPER.md) | 序列化/反序列化、JSON Slice 字段 |
 | [4. 错误处理 (ERROR-HANDLING)](./ERROR-HANDLING.md) | 错误类型、处理方法 |
 | [5. 上下文使用 (CONTEXT-USAGE)](./CONTEXT-USAGE.md) | Context 最佳实践 |
 | [6. 数据库迁移 (MIGRATOR)](./MIGRATOR.md) | Schema 迁移工具 |

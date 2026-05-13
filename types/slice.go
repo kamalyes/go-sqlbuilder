@@ -11,6 +11,7 @@
 package types
 
 import (
+	"bytes"
 	"database/sql/driver"
 	"fmt"
 
@@ -33,7 +34,20 @@ func (s *Slice[T]) Scan(value interface{}) error {
 		*s = []T{}
 		return nil
 	}
+	b = normalizeSliceJSON(b)
 	return serializer.JSONUnmarshal(b, s)
+}
+
+func normalizeSliceJSON(data []byte) []byte {
+	data = bytes.TrimSpace(data)
+	if len(data) == 0 || data[0] == '[' || bytes.EqualFold(data, []byte("null")) {
+		return data
+	}
+	wrapped := make([]byte, 0, len(data)+2)
+	wrapped = append(wrapped, '[')
+	wrapped = append(wrapped, data...)
+	wrapped = append(wrapped, ']')
+	return wrapped
 }
 
 func (s Slice[T]) Value() (driver.Value, error) {
