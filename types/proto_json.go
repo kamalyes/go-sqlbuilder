@@ -20,7 +20,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	tbtypes "github.com/kamalyes/go-toolbox/pkg/types"
-	"github.com/kamalyes/go-toolbox/pkg/validator"
+	"github.com/kamalyes/go-argus"
 )
 
 const (

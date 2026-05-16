@@ -15,7 +15,7 @@ import (
 
 	"github.com/kamalyes/go-sqlbuilder/constants"
 	"github.com/kamalyes/go-toolbox/pkg/convert"
-	"github.com/kamalyes/go-toolbox/pkg/validator"
+	"github.com/kamalyes/go-argus"
 )
 
 // MaxFilterGroupDepth 过滤条件组最大嵌套深度，防止无限嵌套导致内存溢出

@@ -26,7 +26,7 @@ import (
 	"github.com/kamalyes/go-toolbox/pkg/safe"
 	"github.com/kamalyes/go-toolbox/pkg/serializer"
 	"github.com/kamalyes/go-toolbox/pkg/types"
-	"github.com/kamalyes/go-toolbox/pkg/validator"
+	"github.com/kamalyes/go-argus"
 	"gorm.io/gorm"
 )
 

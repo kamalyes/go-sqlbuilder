@@ -21,7 +21,7 @@ import (
 	"github.com/kamalyes/go-toolbox/pkg/mathx"
 	"github.com/kamalyes/go-toolbox/pkg/stringx"
 	"github.com/kamalyes/go-toolbox/pkg/syncx"
-	"github.com/kamalyes/go-toolbox/pkg/validator"
+	"github.com/kamalyes/go-argus"
 )
 
 type QueryCondition struct {
