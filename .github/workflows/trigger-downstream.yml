@@ -52,7 +52,6 @@ jobs:
       matrix:
         repo:
           - kamalyes/go-casbin-gorm-adapter
-          - kamalyes/go-rpc-gateway
           - kamalyes/go-scope-provider
           - kamalyes/go-wsc
     steps:
