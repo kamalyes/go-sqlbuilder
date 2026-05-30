@@ -12,10 +12,12 @@ package types
 
 import (
 	"encoding/json"
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
@@ -302,4 +304,235 @@ func TestProtoJSONMap_ScanValue(t *testing.T) {
 		err := pjm.Scan(123)
 		assert.Error(t, err)
 	})
+}
+
+type nestedProtoPayload struct {
+	Child   *TestPayload `json:"child"`
+	Inline  TestPayload  `json:"inline"`
+	Ignored string       `json:"-"`
+	Plain   string       `json:"plain"`
+}
+
+func TestJSONScanEmptyBytes(t *testing.T) {
+	var j JSON[map[string]string]
+	require.NoError(t, j.Scan([]byte{}))
+	assert.Empty(t, j.Data)
+}
+
+func TestMapAnyScanEmptyAndNumericBranches(t *testing.T) {
+	m := MapAny{"float": float64(42)}
+	assert.Equal(t, 42, m.GetInt("float"))
+	m = MapAny{"int32": int32(32)}
+	assert.Equal(t, 32, m.GetInt("int32"))
+
+	require.NoError(t, m.Scan([]byte{}))
+	assert.Empty(t, m)
+}
+
+func TestJSONScanInvalidJSON(t *testing.T) {
+	var j JSON[map[string]string]
+	assert.Error(t, j.Scan([]byte(`{`)))
+}
+
+func TestMapAnyScanInvalidJSON(t *testing.T) {
+	var m MapAny
+	assert.Error(t, m.Scan([]byte(`{`)))
+}
+
+func TestSliceScanInvalidJSON(t *testing.T) {
+	var s Slice[string]
+	require.NoError(t, s.Scan(nil))
+	assert.Empty(t, s)
+	require.NoError(t, s.Scan([]byte{}))
+	assert.Empty(t, s)
+	assert.Error(t, s.Scan([]byte(`{`)))
+}
+
+func TestStringSliceScanInvalidJSON(t *testing.T) {
+	var s StringSlice
+	require.NoError(t, s.Scan(nil))
+	assert.Empty(t, s)
+	require.NoError(t, s.Scan([]byte{}))
+	assert.Empty(t, s)
+	assert.Error(t, s.Scan([]byte(`{`)))
+}
+
+func TestProtoToMapMarshalError(t *testing.T) {
+	msg := wrapperspb.String(string([]byte{0xff}))
+	result := ProtoToMap(msg)
+	assert.True(t, result.Has("marshal_error"))
+}
+
+func TestProtoJSONUnsupportedTypes(t *testing.T) {
+	var pj ProtoJSON[int]
+	assert.Error(t, pj.Scan([]byte(`1`)))
+
+	_, err := pj.Value()
+	assert.Error(t, err)
+}
+
+func TestProtoJSONScanStructBranches(t *testing.T) {
+	var invalid ProtoJSON[TestPayload]
+	assert.Error(t, invalid.Scan([]byte(`[]`)))
+	assert.Error(t, invalid.Scan([]byte(`{"name":{}}`)))
+
+	var partial ProtoJSON[TestPayload]
+	require.NoError(t, partial.Scan([]byte(`{"name":null}`)))
+	assert.Equal(t, "", partial.Data.Name.GetValue())
+
+	var nested ProtoJSON[nestedProtoPayload]
+	err := nested.Scan([]byte(`{
+		"child":{"name":"child","age":2},
+		"inline":{"name":"inline","active":true},
+		"plain":"ignored",
+		"-":"ignored"
+	}`))
+	require.NoError(t, err)
+	assert.Equal(t, "child", nested.Data.Child.Name.GetValue())
+	assert.Equal(t, int32(2), nested.Data.Child.Age.GetValue())
+	assert.Equal(t, "inline", nested.Data.Inline.Name.GetValue())
+	assert.True(t, nested.Data.Inline.Active.GetValue())
+}
+
+func TestProtoJSONDirectScanFieldBranches(t *testing.T) {
+	var p ProtoJSON[nestedProtoPayload]
+	payload := nestedProtoPayload{}
+	v := reflect.ValueOf(&payload).Elem()
+
+	err := p.scanField(v.FieldByName("Child"), json.RawMessage(`{"name":"direct-child"}`), "child")
+	require.NoError(t, err)
+	assert.Equal(t, "direct-child", payload.Child.Name.GetValue())
+
+	err = p.scanField(v.FieldByName("Inline"), json.RawMessage(`{"name":"direct-inline"}`), "inline")
+	require.NoError(t, err)
+	assert.Equal(t, "direct-inline", payload.Inline.Name.GetValue())
+
+	err = p.scanField(v.FieldByName("Plain"), json.RawMessage(`"plain"`), "plain")
+	require.NoError(t, err)
+
+	protoPayload := TestPayload{}
+	protoValue := reflect.ValueOf(&protoPayload).Elem()
+	err = p.scanField(protoValue.FieldByName("Name"), json.RawMessage(`{}`), "name")
+	assert.Error(t, err)
+}
+
+func TestProtoJSONValueStructBranches(t *testing.T) {
+	pj := ProtoJSON[nestedProtoPayload]{Data: nestedProtoPayload{
+		Child: &TestPayload{
+			Name: wrapperspb.String("child"),
+		},
+		Inline: TestPayload{
+			Name: wrapperspb.String("inline"),
+		},
+		Plain:   "ignored",
+		Ignored: "ignored",
+	}}
+
+	val, err := pj.Value()
+	require.NoError(t, err)
+
+	var raw map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal([]byte(val.(string)), &raw))
+	assert.Contains(t, raw, "child")
+	assert.Contains(t, raw, "inline")
+	assert.NotContains(t, raw, "plain")
+	assert.NotContains(t, raw, "-")
+
+	emptyNested := ProtoJSON[nestedProtoPayload]{Data: nestedProtoPayload{
+		Child: &TestPayload{},
+	}}
+	val, err = emptyNested.Value()
+	require.NoError(t, err)
+	assert.Equal(t, "{}", val)
+}
+
+func TestProtoJSONDirectValueBranches(t *testing.T) {
+	var p ProtoJSON[nestedProtoPayload]
+	payload := nestedProtoPayload{
+		Child: &TestPayload{Name: wrapperspb.String("direct-child")},
+		Inline: TestPayload{
+			Name: wrapperspb.String("direct-inline"),
+		},
+		Plain: "plain",
+	}
+	v := reflect.ValueOf(&payload).Elem()
+
+	val, err := p.valueOf(v)
+	require.NoError(t, err)
+	assert.Contains(t, val.(string), "direct-child")
+
+	childRaw, err := p.valueField(v.FieldByName("Child"), "child")
+	require.NoError(t, err)
+	assert.Contains(t, string(childRaw), "direct-child")
+
+	inlineRaw, err := p.valueField(v.FieldByName("Inline"), "inline")
+	require.NoError(t, err)
+	assert.Contains(t, string(inlineRaw), "direct-inline")
+
+	plainRaw, err := p.valueField(v.FieldByName("Plain"), "plain")
+	require.NoError(t, err)
+	assert.Nil(t, plainRaw)
+
+	emptyStruct := ProtoJSON[*structpb.Struct]{Data: &structpb.Struct{
+		Fields: map[string]*structpb.Value{},
+	}}
+	val, err = emptyStruct.Value()
+	require.NoError(t, err)
+	assert.Nil(t, val)
+
+	emptyMessage := ProtoJSON[*emptypb.Empty]{Data: &emptypb.Empty{}}
+	val, err = emptyMessage.Value()
+	require.NoError(t, err)
+	assert.Nil(t, val)
+
+	zeroPayload := nestedProtoPayload{}
+	zeroValue := reflect.ValueOf(&zeroPayload).Elem()
+	childRaw, err = p.valueField(zeroValue.FieldByName("Child"), "child")
+	require.NoError(t, err)
+	assert.Nil(t, childRaw)
+
+	invalid := wrapperspb.String(string([]byte{0xff}))
+	invalidChild := nestedProtoPayload{Child: &TestPayload{Name: invalid}}
+	_, err = p.valueField(reflect.ValueOf(&invalidChild).Elem().FieldByName("Child"), "child")
+	assert.Error(t, err)
+
+	invalidInline := nestedProtoPayload{Inline: TestPayload{Name: invalid}}
+	_, err = p.valueField(reflect.ValueOf(&invalidInline).Elem().FieldByName("Inline"), "inline")
+	assert.Error(t, err)
+}
+
+func TestProtoJSONValueMarshalErrors(t *testing.T) {
+	invalid := wrapperspb.String(string([]byte{0xff}))
+
+	pj := ProtoJSON[*wrapperspb.StringValue]{Data: invalid}
+	_, err := pj.Value()
+	assert.Error(t, err)
+
+	payload := ProtoJSON[TestPayload]{Data: TestPayload{Name: invalid}}
+	_, err = payload.Value()
+	assert.Error(t, err)
+}
+
+func TestProtoJSONMapErrorAndEmptyBranches(t *testing.T) {
+	pjm := NewProtoJSONMap[*wrapperspb.StringValue]()
+	assert.Error(t, pjm.Scan([]byte(`{`)))
+	assert.Error(t, pjm.Scan([]byte(`{"bad":123}`)))
+
+	require.NoError(t, pjm.Scan([]byte(`{"skip":null,"ok":"hello"}`)))
+	assert.Len(t, pjm.Fields, 1)
+	assert.Equal(t, "hello", pjm.Get("ok").GetValue())
+
+	pjm = NewProtoJSONMap[*wrapperspb.StringValue]()
+	pjm.Set("empty", &wrapperspb.StringValue{})
+	val, err := pjm.Value()
+	require.NoError(t, err)
+	assert.Nil(t, val)
+
+	var nilMap ProtoJSONMap[*wrapperspb.StringValue]
+	nilMap.Set("created", wrapperspb.String("value"))
+	assert.Equal(t, "value", nilMap.Get("created").GetValue())
+
+	pjm.Set("invalid", wrapperspb.String(string([]byte{0xff})))
+	_, err = pjm.Value()
+	assert.Error(t, err)
 }

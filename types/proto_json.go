@@ -203,10 +203,7 @@ func (p *ProtoJSON[T]) valueStruct(v reflect.Value, emitEmpty bool) (driver.Valu
 		return nil, nil
 	}
 
-	b, err := json.Marshal(result)
-	if err != nil {
-		return nil, err
-	}
+	b, _ := json.Marshal(result)
 	return string(b), nil
 }
 
