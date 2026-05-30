@@ -18,15 +18,38 @@ import (
 
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
-	tbtypes "github.com/kamalyes/go-toolbox/pkg/types"
 	"github.com/kamalyes/go-argus"
+	tbtypes "github.com/kamalyes/go-toolbox/pkg/types"
 )
 
 const (
 	errFieldFormat = "field %s: %w"
 	errScanFormat  = "ProtoJSON scan: %w"
 )
+
+// ProtoToMap 将 protobuf 消息转换为 MapAny
+func ProtoToMap(message proto.Message) MapAny {
+	if message == nil {
+		return nil
+	}
+	if timestamp, ok := message.(*timestamppb.Timestamp); ok {
+		return MapAny{
+			"seconds": timestamp.GetSeconds(),
+			"nanos":   timestamp.GetNanos(),
+		}
+	}
+	data, err := protojson.MarshalOptions{UseProtoNames: true}.Marshal(message)
+	if err != nil {
+		return MapAny{"marshal_error": err.Error()}
+	}
+	var payload map[string]interface{}
+	if err := json.Unmarshal(data, &payload); err != nil {
+		return MapAny{"marshal_error": err.Error()}
+	}
+	return MapAny(payload)
+}
 
 // ProtoJSON 泛型 protobuf JSON 类型，支持 protobuf 消息的数据库存储
 type ProtoJSON[T any] struct {
@@ -144,14 +167,14 @@ func (p *ProtoJSON[T]) valueOf(v reflect.Value) (driver.Value, error) {
 	}
 
 	if v.Kind() == reflect.Struct {
-		return p.valueStruct(v)
+		return p.valueStruct(v, true)
 	}
 
 	return nil, fmt.Errorf("ProtoJSON: unsupported type %T", p.Data)
 }
 
 // valueStruct - 递归转换结构体字段为 JSON 字符串
-func (p *ProtoJSON[T]) valueStruct(v reflect.Value) (driver.Value, error) {
+func (p *ProtoJSON[T]) valueStruct(v reflect.Value, emitEmpty bool) (driver.Value, error) {
 	tbtypes.EnsureStructDefaults(v)
 	t := v.Type()
 	result := make(map[string]json.RawMessage)
@@ -174,6 +197,9 @@ func (p *ProtoJSON[T]) valueStruct(v reflect.Value) (driver.Value, error) {
 	}
 
 	if len(result) == 0 {
+		if emitEmpty {
+			return "{}", nil
+		}
 		return nil, nil
 	}
 
@@ -203,7 +229,7 @@ func (p *ProtoJSON[T]) valueField(field reflect.Value, jsonKey string) (json.Raw
 		if field.IsNil() {
 			return nil, nil
 		}
-		val, err := p.valueStruct(field.Elem())
+		val, err := p.valueStruct(field.Elem(), false)
 		if err != nil {
 			return nil, err
 		}
@@ -212,7 +238,7 @@ func (p *ProtoJSON[T]) valueField(field reflect.Value, jsonKey string) (json.Raw
 		}
 
 	case field.Kind() == reflect.Struct:
-		val, err := p.valueStruct(field)
+		val, err := p.valueStruct(field, false)
 		if err != nil {
 			return nil, err
 		}

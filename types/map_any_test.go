@@ -123,6 +123,48 @@ func TestMapAny_Operations(t *testing.T) {
 	assert.Equal(t, "Bob", clone["name"])
 }
 
+func TestMapAny_GetInt32(t *testing.T) {
+	m := MapAny{
+		"int32_val":  int32(42),
+		"int_val":    int(100),
+		"int64_val":  int64(200),
+		"float64_val": float64(300),
+		"string_val": "not_a_number",
+	}
+
+	assert.Equal(t, int32(42), m.GetInt32("int32_val"))
+	assert.Equal(t, int32(100), m.GetInt32("int_val"))
+	assert.Equal(t, int32(200), m.GetInt32("int64_val"))
+	assert.Equal(t, int32(300), m.GetInt32("float64_val"))
+	assert.Equal(t, int32(0), m.GetInt32("string_val"))
+	assert.Equal(t, int32(0), m.GetInt32("nonexist"))
+	assert.Equal(t, int32(-1), m.GetInt32("nonexist", -1))
+}
+
+func TestMapAny_GetMap(t *testing.T) {
+	m := MapAny{
+		"map_any_val": MapAny{"key": "value"},
+		"raw_map_val": map[string]interface{}{"foo": "bar"},
+		"string_val":  "not_a_map",
+	}
+
+	result := m.GetMap("map_any_val")
+	assert.Equal(t, MapAny{"key": "value"}, result)
+
+	result = m.GetMap("raw_map_val")
+	assert.Equal(t, MapAny{"foo": "bar"}, result)
+
+	result = m.GetMap("string_val")
+	assert.Equal(t, MapAny{}, result)
+
+	result = m.GetMap("nonexist")
+	assert.Equal(t, MapAny{}, result)
+
+	defaultMap := MapAny{"default": "yes"}
+	result = m.GetMap("nonexist", defaultMap)
+	assert.Equal(t, defaultMap, result)
+}
+
 func TestMapAny_ValuerInterface(t *testing.T) {
 	var _ driver.Valuer = MapAny(nil)
 }

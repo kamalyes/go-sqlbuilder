@@ -73,10 +73,32 @@ func (m MapAny) GetInt(key string, defaultValue ...int) int {
 		switch v := val.(type) {
 		case int:
 			return v
+		case int32:
+			return int(v)
 		case int64:
 			return int(v)
 		case float64:
 			return int(v)
+		}
+	}
+	if len(defaultValue) > 0 {
+		return defaultValue[0]
+	}
+	return 0
+}
+
+// GetInt32 获取 int32 值
+func (m MapAny) GetInt32(key string, defaultValue ...int32) int32 {
+	if val, ok := m[key]; ok {
+		switch v := val.(type) {
+		case int32:
+			return v
+		case int:
+			return int32(v)
+		case int64:
+			return int32(v)
+		case float64:
+			return int32(v)
 		}
 	}
 	if len(defaultValue) > 0 {
@@ -96,6 +118,22 @@ func (m MapAny) GetBool(key string, defaultValue ...bool) bool {
 		return defaultValue[0]
 	}
 	return false
+}
+
+// GetMap 获取 MapAny 值
+func (m MapAny) GetMap(key string, defaultValue ...MapAny) MapAny {
+	if val, ok := m[key]; ok {
+		switch v := val.(type) {
+		case MapAny:
+			return v
+		case map[string]interface{}:
+			return MapAny(v)
+		}
+	}
+	if len(defaultValue) > 0 {
+		return defaultValue[0]
+	}
+	return MapAny{}
 }
 
 // Set 设置值

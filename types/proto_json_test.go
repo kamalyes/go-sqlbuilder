@@ -16,8 +16,42 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/structpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
+
+func TestProtoToMap(t *testing.T) {
+	t.Run("nil message returns nil", func(t *testing.T) {
+		result := ProtoToMap(nil)
+		assert.Nil(t, result)
+	})
+
+	t.Run("Struct message", func(t *testing.T) {
+		msg, err := structpb.NewStruct(map[string]interface{}{
+			"name":  "hello",
+			"count": 42,
+		})
+		require.NoError(t, err)
+		result := ProtoToMap(msg)
+		assert.Equal(t, "hello", result.GetString("name"))
+		assert.Equal(t, 42, result.GetInt("count"))
+	})
+
+	t.Run("Timestamp message", func(t *testing.T) {
+		msg := timestamppb.Now()
+		result := ProtoToMap(msg)
+		assert.NotNil(t, result)
+		assert.True(t, result.Has("seconds"))
+	})
+
+	t.Run("wrapper types produce non-object JSON, returns error map", func(t *testing.T) {
+		msg := wrapperspb.String("hello")
+		result := ProtoToMap(msg)
+		assert.NotNil(t, result)
+		assert.True(t, result.Has("marshal_error"))
+	})
+}
 
 func TestProtoJSON_ProtoMessage(t *testing.T) {
 	t.Run("scan and value roundtrip", func(t *testing.T) {
