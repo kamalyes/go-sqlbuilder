@@ -3413,6 +3413,136 @@ func TestFieldSelectionWithPagination(t *testing.T) {
 	}
 }
 
+func TestListWithPaginationOmit(t *testing.T) {
+	gormDB, err := setupTestDB()
+	assert.NoError(t, err)
+
+	dbHandler := newTestDBHandler(gormDB)
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
+
+	ctx := context.Background()
+
+	users := []*TestUser{
+		{Name: "OmitUser1", Email: "omit1@example.com", Age: 25, Status: "active"},
+		{Name: "OmitUser2", Email: "omit2@example.com", Age: 30, Status: "inactive"},
+	}
+	err = repo.CreateBatch(ctx, users...)
+	assert.NoError(t, err)
+
+	query := NewQuery().Omit("age", "status")
+	pagination := &Pagination{Page: 1, PageSize: 10}
+
+	results, page, err := repo.ListWithPagination(ctx, query, pagination)
+
+	assert.NoError(t, err, "分页Omit查询不应出错")
+	assert.NotEmpty(t, results, "结果不应为空")
+	assert.Equal(t, int64(2), page.Total, "总数应为2")
+
+	for _, user := range results {
+		assert.NotZero(t, user.ID, "ID应有值")
+		assert.NotEmpty(t, user.Name, "Name应有值")
+		assert.NotEmpty(t, user.Email, "Email应有值")
+		assert.Zero(t, user.Age, "Age应被排除为零值")
+		assert.Empty(t, user.Status, "Status应被排除为空值")
+	}
+}
+
+func TestListWithPaginationSelect(t *testing.T) {
+	gormDB, err := setupTestDB()
+	assert.NoError(t, err)
+
+	dbHandler := newTestDBHandler(gormDB)
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
+
+	ctx := context.Background()
+
+	users := []*TestUser{
+		{Name: "SelectUser1", Email: "sel1@example.com", Age: 25, Status: "active"},
+		{Name: "SelectUser2", Email: "sel2@example.com", Age: 30, Status: "inactive"},
+	}
+	err = repo.CreateBatch(ctx, users...)
+	assert.NoError(t, err)
+
+	query := NewQuery().Select("id", "name", "email")
+	pagination := &Pagination{Page: 1, PageSize: 10}
+
+	results, page, err := repo.ListWithPagination(ctx, query, pagination)
+
+	assert.NoError(t, err, "分页Select查询不应出错")
+	assert.NotEmpty(t, results, "结果不应为空")
+	assert.Equal(t, int64(2), page.Total, "总数应为2")
+
+	for _, user := range results {
+		assert.NotZero(t, user.ID, "ID应有值")
+		assert.NotEmpty(t, user.Name, "Name应有值")
+		assert.NotEmpty(t, user.Email, "Email应有值")
+	}
+}
+
+func TestListWithPaginationSelectAndOmit(t *testing.T) {
+	gormDB, err := setupTestDB()
+	assert.NoError(t, err)
+
+	dbHandler := newTestDBHandler(gormDB)
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
+
+	ctx := context.Background()
+
+	user := &TestUser{
+		Name: "PriorityUser", Email: "priority@example.com", Age: 25, Status: "active",
+	}
+	_, err = repo.Create(ctx, user)
+	assert.NoError(t, err)
+
+	query := NewQuery().
+		Select("id", "name").
+		Omit("age", "status", "email")
+	pagination := &Pagination{Page: 1, PageSize: 10}
+
+	results, page, err := repo.ListWithPagination(ctx, query, pagination)
+
+	assert.NoError(t, err, "分页Select+Omit查询不应出错")
+	assert.NotEmpty(t, results, "结果不应为空")
+	assert.Equal(t, int64(1), page.Total, "总数应为1")
+
+	result := results[0]
+	assert.NotZero(t, result.ID, "ID应有值")
+	assert.NotEmpty(t, result.Name, "Name应有值")
+}
+
+func TestListWithPagination32Omit(t *testing.T) {
+	gormDB, err := setupTestDB()
+	assert.NoError(t, err)
+
+	dbHandler := newTestDBHandler(gormDB)
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
+
+	ctx := context.Background()
+
+	users := []*TestUser{
+		{Name: "P32Omit1", Email: "p32omit1@example.com", Age: 25, Status: "active"},
+		{Name: "P32Omit2", Email: "p32omit2@example.com", Age: 30, Status: "inactive"},
+	}
+	err = repo.CreateBatch(ctx, users...)
+	assert.NoError(t, err)
+
+	query := NewQuery().Omit("age", "status")
+	pagination := &Pagination32{Page: 1, PageSize: 10}
+
+	results, page, err := repo.ListWithPagination32(ctx, query, pagination)
+
+	assert.NoError(t, err, "ListWithPagination32 Omit查询不应出错")
+	assert.NotEmpty(t, results, "结果不应为空")
+	assert.Equal(t, int64(2), page.Total, "总数应为2")
+
+	for _, user := range results {
+		assert.NotZero(t, user.ID, "ID应有值")
+		assert.NotEmpty(t, user.Name, "Name应有值")
+		assert.Zero(t, user.Age, "Age应被排除为零值")
+		assert.Empty(t, user.Status, "Status应被排除为空值")
+	}
+}
+
 // TestToSnakeCase 测试驼峰转蛇形
 func TestToSnakeCase(t *testing.T) {
 	tests := []struct {

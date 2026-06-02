@@ -17,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	validator "github.com/kamalyes/go-argus"
 	"github.com/kamalyes/go-logger"
 	"github.com/kamalyes/go-sqlbuilder/constants"
 	"github.com/kamalyes/go-sqlbuilder/db"
@@ -26,7 +27,6 @@ import (
 	"github.com/kamalyes/go-toolbox/pkg/safe"
 	"github.com/kamalyes/go-toolbox/pkg/serializer"
 	"github.com/kamalyes/go-toolbox/pkg/types"
-	"github.com/kamalyes/go-argus"
 	"gorm.io/gorm"
 )
 
@@ -835,6 +835,9 @@ func ListWithPaginationT[T any, P types.Integer](r *BaseRepository[T], ctx conte
 
 	var entities []*T
 	db := r.db.GetDB().WithContext(ctx).Table(r.table)
+
+	// 应用字段选择（Select/Omit）
+	db = ApplyFieldSelection(db, query.SelectFields, query.OmitFields, r.modelFields, r.autoFields)
 
 	// 应用过滤条件
 	for _, filter := range query.Filters {
