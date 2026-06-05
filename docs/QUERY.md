@@ -1,11 +1,13 @@
 # Query 查询对象
 
 ## 概述
+
 Query 是查询条件的容器，支持过滤、排序、分页、字段选择等功能。
 
 ## 创建 Query
 
 ### 基础创建
+
 ```go
 // 创建空 Query
 query := repository.NewQuery()
@@ -20,12 +22,14 @@ query := repository.NewQuery().
 ## 添加过滤条件
 
 ### 单个条件
+
 ```go
 query := repository.NewQuery().
     AddFilter(repository.NewEqFilter("status", "active"))
 ```
 
 ### 多个条件
+
 ```go
 query := repository.NewQuery().
     AddFilters(
@@ -35,6 +39,7 @@ query := repository.NewQuery().
 ```
 
 ### 使用 FilterGroup
+
 ```go
 import "github.com/kamalyes/go-sqlbuilder/constants"
 
@@ -48,6 +53,7 @@ query := repository.NewQuery().WithFilterGroup(group)
 ## 排序
 
 ### 单字段排序
+
 ```go
 // 按创建时间倒序
 query := repository.NewQuery().
@@ -58,6 +64,7 @@ query.AddOrder("age", "ASC")
 ```
 
 ### 多字段排序
+
 ```go
 // ORDER BY status ASC, created_at DESC
 query := repository.NewQuery().
@@ -66,6 +73,7 @@ query := repository.NewQuery().
 ```
 
 ### 便捷方法
+
 ```go
 query := repository.NewQuery().
     OrderByAsc("status").
@@ -75,6 +83,7 @@ query := repository.NewQuery().
 ## 字段选择
 
 ### 选择特定字段
+
 ```go
 // SELECT id, name, email FROM users
 query := repository.NewQuery().
@@ -82,6 +91,7 @@ query := repository.NewQuery().
 ```
 
 ### 排除特定字段
+
 ```go
 // 查询但不包含 password 和 salt
 query := repository.NewQuery().
@@ -89,6 +99,7 @@ query := repository.NewQuery().
 ```
 
 ### 去重
+
 ```go
 // SELECT DISTINCT status FROM users
 query := repository.NewQuery().
@@ -98,6 +109,7 @@ query := repository.NewQuery().
 ## 便捷过滤方法
 
 ### AddFilterIfNotEmpty - 非空时添加
+
 ```go
 // 仅当值不为空时添加过滤条件
 query.AddFilterIfNotEmpty("name", name)
@@ -108,13 +120,24 @@ query.AddFilterIfNotEmpty("status", []string{"active", "pending"})
 ```
 
 ### AddLikeFilterIfNotEmpty - 非空时添加 LIKE
+
 ```go
 // 仅当关键词不为空时添加 LIKE 条件
 query.AddLikeFilterIfNotEmpty("name", keyword)
 // 生成: name LIKE '%keyword%'
 ```
 
+### AddJsonbLikeFilterIfNotEmpty - 非空时添加 jsonb 文本搜索 (PostgreSQL)
+
+```go
+// 对 PostgreSQL jsonb 字段进行文本模糊搜索，自动将字段转为 text 后匹配
+// 仅当关键词不为空时添加条件
+query.AddJsonbLikeFilterIfNotEmpty("translations", keyword)
+// 生成: translations::text LIKE '%keyword%'
+```
+
 ### AddInFilterIfNotEmpty - 非空时添加 IN
+
 ```go
 // 仅当切片不为空时添加 IN 条件
 query.AddInFilterIfNotEmpty("status", statuses)
@@ -122,6 +145,7 @@ query.AddInFilterIfNotEmpty("status", statuses)
 ```
 
 ### AddTimeRangeFilter - 时间范围
+
 ```go
 // 自动过滤掉 nil 和零值时间
 query.AddTimeRangeFilter("created_at", startTime, endTime)
@@ -129,12 +153,14 @@ query.AddTimeRangeFilter("created_at", startTime, endTime)
 ```
 
 ### AddRawFilter - 原始 SQL
+
 ```go
 // 添加原始 SQL 条件（注意 SQL 注入安全）
 query.AddRawFilter("to_agent_id IS NOT NULL AND to_agent_id != ''")
 ```
 
 ### AddCursorFilter - 游标分页
+
 ```go
 // 游标分页方向过滤
 // isPrev=true 使用 <（向前翻页）
@@ -143,6 +169,7 @@ query.AddCursorFilter("id", cursor, false)
 ```
 
 ### 其他便捷方法
+
 ```go
 // 比较操作符的非空版本
 query.AddNeqFilterIfNotEmpty("status", excludeStatus)
@@ -155,6 +182,7 @@ query.AddLteFilterIfNotEmpty("age", maxAge)
 ## 更多便捷过滤方法
 
 ### AddBetweenFilterIfNotEmpty - BETWEEN 条件
+
 ```go
 // 添加 BETWEEN 条件（仅当 min 和 max 都不为空时）
 query.AddBetweenFilterIfNotEmpty("age", 18, 60)
@@ -162,6 +190,7 @@ query.AddBetweenFilterIfNotEmpty("age", 18, 60)
 ```
 
 ### AddStartsWithFilterIfNotEmpty - 前缀匹配
+
 ```go
 // 添加前缀匹配（仅当值不为空时）
 query.AddStartsWithFilterIfNotEmpty("phone", "138")
@@ -169,6 +198,7 @@ query.AddStartsWithFilterIfNotEmpty("phone", "138")
 ```
 
 ### AddEndsWithFilterIfNotEmpty - 后缀匹配
+
 ```go
 // 添加后缀匹配（仅当值不为空时）
 query.AddEndsWithFilterIfNotEmpty("email", "@example.com")
@@ -176,6 +206,7 @@ query.AddEndsWithFilterIfNotEmpty("email", "@example.com")
 ```
 
 ### AddNotLikeFilterIfNotEmpty - NOT LIKE
+
 ```go
 // 添加 NOT LIKE 条件（仅当值不为空时）
 query.AddNotLikeFilterIfNotEmpty("status", "deleted")
@@ -183,6 +214,7 @@ query.AddNotLikeFilterIfNotEmpty("status", "deleted")
 ```
 
 ### AddFindInSetFilterIfNotEmpty - FIND_IN_SET (MySQL)
+
 ```go
 // 添加 FIND_IN_SET 条件（仅当值不为空时，MySQL 特定）
 query.AddFindInSetFilterIfNotEmpty("tags", "important")
@@ -190,6 +222,7 @@ query.AddFindInSetFilterIfNotEmpty("tags", "important")
 ```
 
 ### AddNotInFilterIfNotEmpty - NOT IN
+
 ```go
 // 添加 NOT IN 条件（仅当切片不为空时）
 query.AddNotInFilterIfNotEmpty("status", []string{"deleted", "banned"})
@@ -197,6 +230,7 @@ query.AddNotInFilterIfNotEmpty("status", []string{"deleted", "banned"})
 ```
 
 ### AddEqOrInFilter - 单值或多值自动选择
+
 ```go
 // 单值用 =，多值自动转 IN
 query.AddEqOrInFilter("id", 1)           // 生成: id = 1
@@ -206,6 +240,7 @@ query.AddEqOrInFilter("id", []int{1,2,3}) // 生成: id IN (1, 2, 3)
 ## 安全排序方法
 
 ### AddSafeOrder - 安全排序
+
 ```go
 // 参数:
 //   - sortBy: 排序字段(可选,为空时使用defaultField)
@@ -226,6 +261,7 @@ query.AddSafeOrder(
 ## 快捷过滤方法
 
 ### 基础比较方法
+
 ```go
 // 等于
 query.AddEqual("status", "active")
@@ -247,6 +283,7 @@ query.AddLessEqual("price", 100)
 ```
 
 ### 字符串匹配方法
+
 ```go
 // LIKE 包含匹配
 query.AddLike("name", "张")
@@ -259,6 +296,7 @@ query.AddEndsWith("email", "@gmail.com")
 ```
 
 ### 集合方法
+
 ```go
 // IN 查询
 query.AddIn("status", "active", "pending", "vip")
@@ -271,6 +309,7 @@ query.AddBetween("age", 18, 60)
 ```
 
 ### 空值判断方法
+
 ```go
 // IS NULL
 query.AddIsNull("deleted_at")
@@ -280,6 +319,7 @@ query.AddIsNotNull("email")
 ```
 
 ### 快捷排序方法
+
 ```go
 // 升序
 query.AddOrderAsc("name")
@@ -294,6 +334,7 @@ query.AddRawOrder("FIELD(status, 'active', 'pending', 'deleted')")
 ## 时间快捷方法
 
 ### 时间比较方法
+
 ```go
 // 时间晚于指定时间
 query.AddTimeAfter("created_at", yesterday)
@@ -311,6 +352,7 @@ query.AddToday("created_at")
 ## 限制和偏移
 
 ### Limit 和 Offset
+
 ```go
 // 设置查询限制数量
 query.Limit(10)
@@ -325,6 +367,7 @@ query.Limit(10).Offset(20) // 第3页，每页10条
 ## 分页
 
 ### 基础分页
+
 ```go
 // 第 1 页，每页 20 条
 query := repository.NewQuery().
@@ -336,7 +379,9 @@ query.SetPageSize(50)
 ```
 
 ### 分页参数说明
+
 `WithPaging`、`SetPage`、`SetPageSize`、`SetPagination` 的参数均为 `interface{}` 类型，内部自动转为 `int`，支持各种数字类型（int、int64、float64 等），无需手动类型转换：
+
 ```go
 var page int64 = 2
 var size uint = 50
@@ -344,7 +389,9 @@ query.WithPaging(page, size)  // 直接传入，无需 int(page)
 ```
 
 ### page 可选参数
+
 `ListWithPagination` 的 `page` 参数为可选参数。当使用 `WithPaging` 设置分页后，可以直接调用而无需再传 `page`：
+
 ```go
 // 在 Query 中设置分页，直接查询（无需额外传 page）
 query := repository.NewQuery().
@@ -357,6 +404,7 @@ users, pageInfo, err := repo.ListWithPagination(ctx, query, &repository.Paginati
 ```
 
 ### 使用 Pagination 对象
+
 ```go
 pagination := &repository.Pagination{
     Page:     1,
@@ -369,6 +417,7 @@ users, pageInfo, err := repo.ListWithPagination(ctx, query, pagination)
 ## 预加载
 
 ### 预加载关联
+
 ```go
 // 预加载 Profile
 query := repository.NewQuery().
