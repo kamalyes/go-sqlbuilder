@@ -2908,6 +2908,8 @@ func TestBuildFilterConditionVsApplyFilter(t *testing.T) {
 		{Field: "email", Operator: constants.OP_ENDS_WITH, Value: "@example.com"},
 		{Field: "description", Operator: constants.OP_CONTAINS, Value: "keyword"},
 		{Field: "tags", Operator: constants.OP_FIND_IN_SET, Value: "important"},
+		{Field: "age > 18", Operator: constants.OP_RAW, Value: nil},
+		{Field: "translations", Operator: constants.OP_JSONB_LIKE, Value: "%hello%"},
 	}
 
 	fmt.Println("\n=== 调试打印：比较 buildFilterCondition vs ApplyFilter ===")
@@ -2967,6 +2969,8 @@ func TestApplyFilterBehavior(t *testing.T) {
 		{Field: "email", Operator: constants.OP_ENDS_WITH, Value: "@example.com"},
 		{Field: "description", Operator: constants.OP_CONTAINS, Value: "keyword"},
 		{Field: "tags", Operator: constants.OP_FIND_IN_SET, Value: "important"},
+		{Field: "age > 18", Operator: constants.OP_RAW, Value: nil},
+		{Field: "translations", Operator: constants.OP_JSONB_LIKE, Value: "%hello%"},
 	}
 
 	fmt.Println("\n=== 调试打印：ApplyFilter 函数行为 ===")

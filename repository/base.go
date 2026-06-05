@@ -1241,6 +1241,12 @@ func ApplyFilter(dbQuery *gorm.DB, filter *Filter) *gorm.DB {
 	case constants.OP_FIND_IN_SET:
 		// 修复参数顺序：FIND_IN_SET(value, field_list)
 		return dbQuery.Where("FIND_IN_SET(?, ?)", value, filter.Field)
+	case constants.OP_RAW:
+		// 原始 SQL 条件，Field 直接作为 WHERE 子句
+		return dbQuery.Where(filter.Field)
+	case constants.OP_JSONB_LIKE:
+		// jsonb 字段文本搜索：field::text LIKE ?，参数化防注入
+		return dbQuery.Where(fmt.Sprintf("%s::text LIKE ?", filter.Field), value)
 	}
 
 	return dbQuery

@@ -71,6 +71,7 @@ const (
 	OpSimilarTo    Operator = "SIMILAR TO"     // PostgreSQL SIMILAR TO
 	OpNotSimilarTo Operator = "NOT SIMILAR TO" // PostgreSQL NOT SIMILAR TO
 	OpRaw          Operator = "RAW"            // 原始 SQL 条件（直接使用 Field 作为条件）
+	OpJsonbLike    Operator = "JSONB_LIKE"     // jsonb 字段文本搜索（PostgreSQL: field::text LIKE ?）
 )
 
 // ==================== 逻辑操作符 ====================
@@ -110,7 +111,8 @@ const (
 	OP_NOT_ILIKE      = OpNotILike
 	OP_SIMILAR_TO     = OpSimilarTo
 	OP_NOT_SIMILAR_TO = OpNotSimilarTo
-	OP_RAW            = OpRaw // 原始 SQL 条件
+	OP_RAW            = OpRaw       // 原始 SQL 条件
+	OP_JSONB_LIKE     = OpJsonbLike // jsonb 字段文本搜索
 	OP_ALL            = OpAll
 	OP_ANY            = OpAny
 	OP_SOME           = OpSome

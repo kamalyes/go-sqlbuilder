@@ -262,6 +262,18 @@ func (q *Query) AddLikeFilterIfNotEmpty(field string, keyword interface{}) *Quer
 	return q
 }
 
+// AddJsonbLikeFilterIfNotEmpty 添加 jsonb 字段文本搜索过滤条件（仅当关键词不为空时）
+// 用于对 PostgreSQL jsonb 类型字段进行模糊搜索，自动将字段转为 text 后匹配
+// keyword 支持 string 和 *wrapperspb.StringValue 等类型
+func (q *Query) AddJsonbLikeFilterIfNotEmpty(field string, keyword interface{}) *Query {
+	deref, empty := validator.NormalizeFilterValueIfNotEmpty(keyword)
+	if empty {
+		return q
+	}
+	q.AddFilter(NewJsonbLikeFilter(field, fmt.Sprintf("%v", deref)))
+	return q
+}
+
 // AddTimeRangeFilter 添加时间范围过滤条件
 // 自动过滤掉nil和零值时间，避免生成无效的SQL条件
 func (q *Query) AddTimeRangeFilter(field string, startTime, endTime interface{}) *Query {

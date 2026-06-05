@@ -465,6 +465,12 @@ func NewFindInSetFilter(field string, value interface{}) *Filter {
 	return NewFilter(field, constants.OP_FIND_IN_SET, value)
 }
 
+// NewJsonbLikeFilter 创建 jsonb 字段文本搜索过滤条件（PostgreSQL: field::text LIKE ?）
+// 用于对 jsonb 类型字段进行模糊搜索，自动将字段转为 text 后匹配
+func NewJsonbLikeFilter(field string, value string) *Filter {
+	return NewFilter(field, constants.OP_JSONB_LIKE, "%"+value+"%")
+}
+
 // NewFilter 创建通用过滤条件(支持任意操作符)
 func NewFilter(field string, operator constants.Operator, value interface{}) *Filter {
 	return &Filter{Field: field, Operator: operator, Value: validator.NormalizeFilterValue(value)}
