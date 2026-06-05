@@ -56,7 +56,7 @@ type ConcurrentQueryExecutor struct {
 func NewConcurrentQueryExecutor(db *gorm.DB) *ConcurrentQueryExecutor {
 	return &ConcurrentQueryExecutor{
 		db:      db,
-		timeout: constants.DefaultQueryTimeout, // 默认30秒超时
+		timeout: time.Duration(constants.DefaultQueryTimeout) * time.Second, // 默认30秒超时
 		workers: constants.DefaultWorkerCount,  // 默认0表示不限制（根据任务数动态创建）
 	}
 }
