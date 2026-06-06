@@ -80,7 +80,7 @@ func (a *SQLScopeAdapter) buildFilterGroup() *repository.FilterGroup {
 	if a.data.IsTenant() {
 		return a.buildTenantFilterGroup()
 	}
-	return nil
+	return denyAllFilterGroup()
 }
 
 // buildOpsFilterGroup 构建 OPS 域过滤条件：
@@ -88,17 +88,13 @@ func (a *SQLScopeAdapter) buildFilterGroup() *repository.FilterGroup {
 // - 租户管理员：添加 tenant_id IN (指定租户列表)
 func (a *SQLScopeAdapter) buildOpsFilterGroup() *repository.FilterGroup {
 	mapping := a.data.Config.Mapping
-	if len(a.data.ScopeEntries) == 0 {
-		return nil
-	}
-
 	if a.data.HasGlobalScope() {
 		return nil
 	}
 
 	tenantIds := a.collectOpsTenantIds()
 	if len(tenantIds) == 0 || mapping.TenantIDField == "" {
-		return nil
+		return denyAllFilterGroup()
 	}
 
 	return newTenantIdFilterGroup(mapping.TenantIDField, tenantIds)
@@ -126,7 +122,7 @@ func (a *SQLScopeAdapter) collectOpsTenantIds() []string {
 // - 受限用户：tenant_id = 'xxx' AND (地区/平台 OR 条件)
 func (a *SQLScopeAdapter) buildTenantFilterGroup() *repository.FilterGroup {
 	if a.data.TenantID == "" {
-		return nil
+		return denyAllFilterGroup()
 	}
 
 	if a.data.HasGlobalScope() {
@@ -139,33 +135,37 @@ func (a *SQLScopeAdapter) buildTenantFilterGroup() *repository.FilterGroup {
 // buildTenantGlobalGroup 构建租户全局过滤：仅添加 tenant_id 条件
 func (a *SQLScopeAdapter) buildTenantGlobalGroup() *repository.FilterGroup {
 	mapping := a.data.Config.Mapping
-	group := repository.NewFilterGroup(constants.LOGIC_AND)
-	if mapping.TenantIDField != "" {
-		group.AddFilter(&repository.Filter{
-			Field:    mapping.TenantIDField,
-			Operator: constants.OP_EQ,
-			Value:    a.data.TenantID,
-		})
+	if mapping.TenantIDField == "" {
+		return denyAllFilterGroup()
 	}
+	group := repository.NewFilterGroup(constants.LOGIC_AND)
+	group.AddFilter(&repository.Filter{
+		Field:    mapping.TenantIDField,
+		Operator: constants.OP_EQ,
+		Value:    a.data.TenantID,
+	})
 	return group
 }
 
 // buildTenantScopedGroup 构建租户受限过滤：tenant_id + 地区/平台 OR 条件组
 func (a *SQLScopeAdapter) buildTenantScopedGroup() *repository.FilterGroup {
 	mapping := a.data.Config.Mapping
+	if mapping.TenantIDField == "" {
+		return denyAllFilterGroup()
+	}
 	outerGroup := repository.NewFilterGroup(constants.LOGIC_AND)
 
-	if mapping.TenantIDField != "" {
-		outerGroup.AddFilter(&repository.Filter{
-			Field:    mapping.TenantIDField,
-			Operator: constants.OP_EQ,
-			Value:    a.data.TenantID,
-		})
-	}
+	outerGroup.AddFilter(&repository.Filter{
+		Field:    mapping.TenantIDField,
+		Operator: constants.OP_EQ,
+		Value:    a.data.TenantID,
+	})
 
 	scopeOrGroup := a.buildScopeOrGroup()
 	if scopeOrGroup != nil && !scopeOrGroup.IsEmpty() {
 		outerGroup.AddGroup(scopeOrGroup)
+	} else {
+		outerGroup.AddGroup(denyAllFilterGroup())
 	}
 
 	return outerGroup
@@ -324,6 +324,15 @@ func addValueFilter(group *repository.FilterGroup, field string, values []string
 func newTenantIdFilterGroup(field string, tenantIds []string) *repository.FilterGroup {
 	group := repository.NewFilterGroup(constants.LOGIC_AND)
 	addValueFilter(group, field, tenantIds)
+	return group
+}
+
+func denyAllFilterGroup() *repository.FilterGroup {
+	group := repository.NewFilterGroup(constants.LOGIC_AND)
+	group.AddFilter(&repository.Filter{
+		Field:    "1 = 0",
+		Operator: constants.OP_RAW,
+	})
 	return group
 }
 

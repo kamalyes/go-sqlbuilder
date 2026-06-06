@@ -18,6 +18,16 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func assertDenyAllScope(t *testing.T, group *sqlrepo.FilterGroup) {
+	t.Helper()
+	if !assert.NotNil(t, group) {
+		return
+	}
+	assert.Len(t, group.Filters, 1)
+	assert.Equal(t, sqlconstants.OP_RAW, group.Filters[0].Operator)
+	assert.Equal(t, "1 = 0", group.Filters[0].Field)
+}
+
 // ==============================================================================
 // OPS 域
 // ==============================================================================
@@ -73,7 +83,7 @@ func TestSQLScopeAdapter_OpsTenantMultiple(t *testing.T) {
 }
 
 // 场景：OPS域但 ScopeEntries 为空
-// 预期：无法构建任何过滤条件，FilterGroup 为 nil
+// 预期：权限缺失时默认拒绝，避免退化成全量查询
 func TestSQLScopeAdapter_OpsNoEntries(t *testing.T) {
 	data := NewScopeData()
 	data.Domain = 2
@@ -81,7 +91,16 @@ func TestSQLScopeAdapter_OpsNoEntries(t *testing.T) {
 
 	query := sqlrepo.NewQuery()
 	result := ApplySQLScope(query, data)
-	assert.Nil(t, result.FilterGroup)
+	assertDenyAllScope(t, result.FilterGroup)
+}
+
+func TestSQLScopeAdapter_UnknownDomainDenyAll(t *testing.T) {
+	data := NewScopeData()
+	data.Domain = 0
+
+	query := sqlrepo.NewQuery()
+	result := ApplySQLScope(query, data)
+	assertDenyAllScope(t, result.FilterGroup)
 }
 
 // 场景：OPS域有租户条目但显式清空 TenantIDField（模拟未配置字段映射）
@@ -95,7 +114,7 @@ func TestSQLScopeAdapter_OpsNoTenantIdField(t *testing.T) {
 
 	query := sqlrepo.NewQuery()
 	result := ApplySQLScope(query, data)
-	assert.Nil(t, result.FilterGroup)
+	assertDenyAllScope(t, result.FilterGroup)
 }
 
 // 场景：OPS域多条租户条目存在重复的租户ID（T1,T2 和 T2,T3）
@@ -145,7 +164,7 @@ func TestSQLScopeAdapter_TenantGlobal(t *testing.T) {
 }
 
 // 场景：租户全局管理员但显式清空 TenantIDField
-// 预期：全局作用域下没有可映射的字段，生成的空 FilterGroup 被 ApplyScope 过滤，最终为 nil
+// 预期：无法映射租户字段时默认拒绝，避免跨租户查询
 func TestSQLScopeAdapter_TenantGlobalNoTenantIdField(t *testing.T) {
 	data := NewScopeData(WithFieldMapping(FieldMapping{}))
 	data.Domain = 1
@@ -154,7 +173,17 @@ func TestSQLScopeAdapter_TenantGlobalNoTenantIdField(t *testing.T) {
 
 	query := sqlrepo.NewQuery()
 	result := ApplySQLScope(query, data)
-	assert.Nil(t, result.FilterGroup)
+	assertDenyAllScope(t, result.FilterGroup)
+}
+
+func TestSQLScopeAdapter_TenantNoTenantIDDenyAll(t *testing.T) {
+	data := NewScopeData()
+	data.Domain = 1
+	data.ScopeEntries = []*ScopeEntry{{ScopeType: 1}}
+
+	query := sqlrepo.NewQuery()
+	result := ApplySQLScope(query, data)
+	assertDenyAllScope(t, result.FilterGroup)
 }
 
 // ==============================================================================
@@ -450,7 +479,7 @@ func TestSQLScopeAdapter_UnknownDomain(t *testing.T) {
 
 	query := sqlrepo.NewQuery()
 	result := ApplySQLScope(query, data)
-	assert.Nil(t, result.FilterGroup)
+	assertDenyAllScope(t, result.FilterGroup)
 }
 
 // 场景：租户域但 TenantID 为空字符串
@@ -462,7 +491,7 @@ func TestSQLScopeAdapter_EmptyTenantID(t *testing.T) {
 
 	query := sqlrepo.NewQuery()
 	result := ApplySQLScope(query, data)
-	assert.Nil(t, result.FilterGroup)
+	assertDenyAllScope(t, result.FilterGroup)
 }
 
 // 场景：租户域有地区级条目但显式清空所有字段映射
@@ -475,7 +504,7 @@ func TestSQLScopeAdapter_NoFieldMapping(t *testing.T) {
 
 	query := sqlrepo.NewQuery()
 	result := ApplySQLScope(query, data)
-	assert.Nil(t, result.FilterGroup)
+	assertDenyAllScope(t, result.FilterGroup)
 }
 
 // 场景：平台级条目，只配置了 PlatformIDField 没有配置 RegionCodeField
@@ -534,7 +563,7 @@ func TestSQLScopeAdapter_PlatformSinglePlatformId(t *testing.T) {
 }
 
 // 场景：平台级条目但 RegionPlatforms 为空切片
-// 预期：buildPlatformCondition 返回 nil，仅保留 tenant_id 条件，无 OR 子组
+// 预期：受限作用域无有效平台范围时默认拒绝
 func TestSQLScopeAdapter_PlatformEmptyRegionPlatforms(t *testing.T) {
 	data := NewScopeData()
 	data.Domain = 1
@@ -550,11 +579,12 @@ func TestSQLScopeAdapter_PlatformEmptyRegionPlatforms(t *testing.T) {
 	fg := result.FilterGroup
 	assert.Len(t, fg.Filters, 1)
 	assert.Equal(t, "tenant_id", fg.Filters[0].Field)
-	assert.Len(t, fg.Groups, 0)
+	assert.Len(t, fg.Groups, 1)
+	assertDenyAllScope(t, fg.Groups[0])
 }
 
 // 场景：平台级条目但显式清空所有字段映射（hasAnyField=false）
-// 预期：buildPlatformCondition 直接返回 nil，整个 FilterGroup 为 nil
+// 预期：无法映射租户字段时默认拒绝，避免跨租户查询
 func TestSQLScopeAdapter_PlatformNoFieldMappingAtAll(t *testing.T) {
 	data := NewScopeData(WithFieldMapping(FieldMapping{}))
 	data.Domain = 1
@@ -570,11 +600,11 @@ func TestSQLScopeAdapter_PlatformNoFieldMappingAtAll(t *testing.T) {
 
 	query := sqlrepo.NewQuery()
 	result := ApplySQLScope(query, data)
-	assert.Nil(t, result.FilterGroup)
+	assertDenyAllScope(t, result.FilterGroup)
 }
 
 // 场景：租户受限作用域但显式清空 TenantIDField，仅保留 RegionCodeField
-// 预期：外层 AND 无 tenant_id filter，仅有 OR 子组包含地区条件
+// 预期：无法映射租户字段时默认拒绝，避免只按地区跨租户查询
 func TestSQLScopeAdapter_TenantScopedNoTenantIdField(t *testing.T) {
 	data := NewScopeData(
 		WithTenantIDField(""),
@@ -587,11 +617,7 @@ func TestSQLScopeAdapter_TenantScopedNoTenantIdField(t *testing.T) {
 
 	query := sqlrepo.NewQuery()
 	result := ApplySQLScope(query, data)
-	assert.NotNil(t, result.FilterGroup)
-
-	fg := result.FilterGroup
-	assert.Len(t, fg.Filters, 0)
-	assert.Len(t, fg.Groups, 1)
+	assertDenyAllScope(t, result.FilterGroup)
 }
 
 // 场景：租户域但 ScopeEntries 中只有全局条目（ScopeType=1）
@@ -646,7 +672,7 @@ func TestSQLScopeAdapter_MultiRegionPlatformWithEmptyPlatformIds(t *testing.T) {
 }
 
 // 场景：地区级条目但 RegionCodes 为空切片
-// 预期：buildRegionCondition 返回 nil，仅保留 tenant_id 条件，无 OR 子组
+// 预期：受限作用域无有效地区范围时默认拒绝
 func TestSQLScopeAdapter_RegionConditionEmptyRegionCodes(t *testing.T) {
 	data := NewScopeData()
 	data.Domain = 1
@@ -662,7 +688,8 @@ func TestSQLScopeAdapter_RegionConditionEmptyRegionCodes(t *testing.T) {
 	fg := result.FilterGroup
 	assert.Len(t, fg.Filters, 1)
 	assert.Equal(t, "tenant_id", fg.Filters[0].Field)
-	assert.Len(t, fg.Groups, 0)
+	assert.Len(t, fg.Groups, 1)
+	assertDenyAllScope(t, fg.Groups[0])
 }
 
 // 场景：单地区平台级条目，只配置了 RegionCodeField 没有配置 PlatformIDField
@@ -761,7 +788,7 @@ func TestSQLScopeAdapter_NewTenantIdFilterGroup(t *testing.T) {
 
 // 场景：多地区平台级，所有地区的 PlatformIds 均为空，且只配置了 PlatformIDField（无 RegionCodeField）
 // 预期：每个 buildRegionPlatformAndGroup 都生成空 AND 组，buildMultiRegionPlatformGroup 返回 nil
-// 最终仅保留 tenant_id 条件，无 OR 子组
+// 最终追加拒绝条件，避免仅凭 tenant_id 放大平台受限权限
 func TestSQLScopeAdapter_MultiRegionPlatformAllEmptyPlatformIds(t *testing.T) {
 	data := NewScopeData(
 		WithRegionCodeField(""),
@@ -785,5 +812,6 @@ func TestSQLScopeAdapter_MultiRegionPlatformAllEmptyPlatformIds(t *testing.T) {
 	fg := result.FilterGroup
 	assert.Len(t, fg.Filters, 1)
 	assert.Equal(t, "tenant_id", fg.Filters[0].Field)
-	assert.Len(t, fg.Groups, 0)
+	assert.Len(t, fg.Groups, 1)
+	assertDenyAllScope(t, fg.Groups[0])
 }
