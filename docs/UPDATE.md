@@ -1,7 +1,7 @@
 # 更新操作 (Update)
 
 ## 概述
-更新操作用于修改数据库中的记录，支持单条更新、批量更新和条件更新。
+更新操作用于修改数据库中的记录，支持单条更新、批量更新和条件更新
 
 ## 单条更新
 
@@ -64,7 +64,7 @@ if err != nil {
 
 ## 条件更新
 
-### UpdateByQuery
+### UpdateFieldsByQuery
 ```go
 // 更新满足条件的所有记录
 updates := map[string]interface{}{
@@ -76,7 +76,7 @@ query := repository.NewQuery().
     AddFilter(repository.NewLtFilter("last_login_at", "2023-01-01"))
 
 // 将所有2023年前未登录的用户状态改为 inactive
-err := repo.UpdateByQuery(ctx, query, updates)
+err := repo.UpdateFieldsByQuery(ctx, updates, query)
 ```
 
 ### 更新特定字段
@@ -85,10 +85,12 @@ err := repo.UpdateByQuery(ctx, query, updates)
 query := repository.NewQuery().
     AddFilter(repository.NewEqFilter("id", 1))
 
-err := repo.UpdateByQuery(ctx, query, map[string]interface{}{
+err := repo.UpdateFieldsByQuery(ctx, map[string]interface{}{
     "status": "active",
-})
+}, query)
 ```
+
+`UpdateFieldsByQuery` 会复用 `Query` 中的过滤条件和 `FilterGroup`为避免误更新整表，`query` 不能为空，并且必须包含过滤条件；空字段 map 会直接返回 nil，不执行 SQL
 
 ## 原子更新
 
@@ -174,9 +176,9 @@ func disableInactiveUsers(ctx context.Context, repo repository.IRepository[User]
     query := repository.NewQuery().
         AddFilter(repository.NewLtFilter("last_login_at", before))
     
-    return repo.UpdateByQuery(ctx, query, map[string]interface{}{
+    return repo.UpdateFieldsByQuery(ctx, map[string]interface{}{
         "status":     "inactive",
         "updated_at": time.Now(),
-    })
+    }, query)
 }
 ```

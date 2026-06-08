@@ -2,7 +2,7 @@
 
 ## 📖 概述
 
-Scope 模块提供了多租户场景下的数据访问控制能力，支持 OPS 域和租户域两种访问模式，以及全局、地区级、平台级、租户级四种作用域。
+Scope 模块提供了多租户场景下的数据访问控制能力，支持 OPS 域和租户域两种访问模式，以及全局、地区级、平台级、租户级四种作用域
 
 ### 核心能力
 
@@ -73,7 +73,7 @@ users, err := repo.List(ctx, scopedQuery)
 
 ## 🔗 与 go-scope-provider 集成
 
-[go-scope-provider](https://github.com/kamalyes/go-scope-provider) 是独立的作用域提供者包，提供从 gRPC 上下文解析作用域数据的能力，不依赖任何业务 protobuf 定义。
+[go-scope-provider](https://github.com/kamalyes/go-scope-provider) 是独立的作用域提供者包，提供从 gRPC 上下文解析作用域数据的能力，不依赖任何业务 protobuf 定义
 
 ### 1. 安装依赖
 
@@ -300,6 +300,8 @@ result := scope.ApplySQLScope(query, data)
 // 生成：AND { tenant_id IN ('T1', 'T2') }
 ```
 
+> 注意：OPS 域不会因为 `IsOwner=true` 自动获得全局权限OPS 用户必须显式拥有全局作用域条目，或通过租户级条目声明可访问的租户；否则会生成拒绝全部的条件
+
 ### 租户全局用户
 
 ```go
@@ -307,14 +309,14 @@ result := scope.ApplySQLScope(query, data)
 data := scope.NewScopeData()
 data.Domain = 1  // 租户域
 data.TenantID = "T001"
-data.ScopeEntries = []*scope.ScopeEntry{
-    {ScopeType: 1},  // 全局作用域
-}
+data.IsOwner = true
 
 query := repository.NewQuery()
 result := scope.ApplySQLScope(query, data)
 // 生成：AND { tenant_id = 'T001' }
 ```
+
+租户域下的 Owner 即使没有显式 `ScopeEntries`，也会被视为租户内全局用户；普通租户全局用户则可以通过 `{ScopeType: 1}` 声明全局作用域
 
 ### 租户地区级用户
 
@@ -459,11 +461,13 @@ type RegionPlatformEntry struct {
 type ScopeData struct {
     Domain       int32          // 当前域值
     TenantID     string         // 当前租户ID
-    IsOwner      bool           // 是否为租户 Owner
+    IsOwner      bool           // 是否为租户 Owner（仅租户域自动视为租户内全局）
     ScopeEntries []*ScopeEntry  // 作用域条目列表
     Config       Config         // 作用域配置
 }
 ```
+
+`ScopeEntries` 中的 `nil` 条目会被跳过，`IsGlobalScope`、`IsRegionScope`、`IsPlatformScope`、`IsTenantScope` 传入 `nil` 时均返回 `false`
 
 ***
 
@@ -515,7 +519,7 @@ data := scope.NewScopeData(
 
 ### Q: 平台级条目的 PlatformIds 为空是什么意思？
 
-表示该地区所有平台，生成的条件仅包含 `region_code = 'X'`。
+表示该地区所有平台，生成的条件仅包含 `region_code = 'X'`
 
 ### Q: 如何判断当前用户是否有全局权限？
 
@@ -525,10 +529,11 @@ if data.HasGlobalScope() {
 }
 ```
 
+在租户域中，`IsOwner=true` 会让 `HasGlobalScope()` 返回 `true`，最终只保留 `tenant_id = 当前租户` 的过滤；在 OPS 域中，`IsOwner=true` 不会自动返回 `true`，仍需显式配置全局作用域条目
+
 ### Q: 如何获取用户可访问的所有地区/平台？
 
 ```go
 regionCodes := data.AllRegionCodes()   // 所有地区编码
 platformIds := data.AllPlatformIds()   // 所有平台ID
 ```
-

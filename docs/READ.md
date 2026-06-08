@@ -1,7 +1,7 @@
 # 查询操作 (Read)
 
 ## 概述
-查询操作用于从数据库检索记录，支持主键查询、条件查询、列表查询和分页查询。
+查询操作用于从数据库检索记录，支持主键查询、条件查询、列表查询和分页查询
 
 ## 主键查询
 
@@ -116,10 +116,14 @@ first, err := repo.First(ctx)
 // 指定排序字段
 first, err := repo.First(ctx, "created_at")
 
-// 带条件的 First
-query := repository.NewQuery().AddFilter(repository.NewEqFilter("status", "active"))
-first, err := repo.FirstWithQuery(ctx, query, "created_at")
+// 使用 Query 查询第一条记录（过滤、排序、FilterGroup 等条件都来自 Query）
+query := repository.NewQuery().
+    AddFilter(repository.NewEqFilter("status", "active")).
+    AddOrder("created_at", "DESC")
+first, err := repo.FirstWithQuery(ctx, query)
 ```
+
+`FirstWithQuery` 适合在读取单条记录时复用列表查询里的 `Query` 条件它会应用 Query 中的过滤条件、条件组、排序等设置，并自动限制为 1 条记录
 
 ### Last
 ```go

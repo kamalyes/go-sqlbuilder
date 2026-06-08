@@ -6,12 +6,13 @@
 |------|-----------|-----------|-------------------|----------------|
 | Ops 全局管理员 | GLOBAL | Domain=OPS, TenantID="" | scope_type=GLOBAL, tenant_ids=[] | 无（不加任何过滤） |
 | Ops 租户管理员 | TENANT | Domain=OPS, TenantID="" | scope_type=TENANT, tenant_ids=["T1","T2"] | tenant_id IN ('T1','T2') |
+| Ops Owner（无作用域条目） | - | Domain=OPS, TenantID="", IsOwner=true | 空 | 拒绝全部（1 = 0） |
 
 ### Tenant 域（Domain=TENANT）
 
 | 角色 | ScopeType | ctx 中的值 | ScopeBindings 数据 | 生成的 SQL 条件 |
 |------|-----------|-----------|-------------------|----------------|
-| Tenant Owner | GLOBAL | Domain=TENANT, TenantID="T1", IsOwner=true | scope_type=GLOBAL, region_codes=[], platform_ids=[] | tenant_id = 'T1' |
+| Tenant Owner | GLOBAL | Domain=TENANT, TenantID="T1", IsOwner=true | 可为空；IsOwner=true 即租户内全局 | tenant_id = 'T1' |
 | Tenant 全局用户 | GLOBAL | Domain=TENANT, TenantID="T1" | scope_type=GLOBAL, region_codes=[], platform_ids=[] | tenant_id = 'T1' |
 | Tenant 地区级 | REGION | Domain=TENANT, TenantID="T1" | scope_type=REGION, region_codes=["MM","TH"], platform_ids=[] | tenant_id = 'T1' AND region_code IN ('MM','TH') |
 | Tenant 平台级（单地区） | PLATFORM | Domain=TENANT, TenantID="T1" | scope_type=PLATFORM, region_platforms=[{region_code:"MM", platform_ids:["P1","P2"]}] | tenant_id = 'T1' AND region_code = 'MM' AND platform_id IN ('P1','P2') |
@@ -25,6 +26,8 @@
 | SQL 影响 | 无 WHERE 条件 | WHERE tenant_id = 'xxx' |
 | 数据范围 | 全局 | 租户内全局 |
 
+Tenant Owner 的自动全局权限只在 Tenant 域生效；OPS 域即使 `IsOwner=true`，也必须显式拥有 GLOBAL 或 TENANT 作用域条目，否则按拒绝全部处理
+
 ### 作用域决策流程
 
 ```mermaid
@@ -34,11 +37,11 @@ flowchart TD
     B -->|OPS| C{HasGlobalScope?}
     C -->|是| D[无过滤条件]
     C -->|否| E{有 TenantScope 条目?}
-    E -->|否| D
+    E -->|否| X[拒绝全部 1 = 0]
     E -->|是| F[tenant_id IN 租户列表]
 
     B -->|Tenant| G{TenantID 为空?}
-    G -->|是| D
+    G -->|是| X
     G -->|否| H{HasGlobalScope?}
     H -->|是| I[tenant_id = TenantID]
     H -->|否| J[tenant_id = TenantID AND 作用域OR组]
@@ -119,7 +122,7 @@ flowchart TD
 | 代码复杂度 | 低，一个 Filter | 高，需构建多个 Filter + OR 组 |
 | 大列表风险 | 列表超过 ~200 个值时可能退化 | 同理，OR 过多也会退化 |
 
-> **结论**：地区编码通常 2~5 个值，`IN` 是最优选择。若列表超过 200 个值，建议在业务层分批查询。
+> **结论**：地区编码通常 2~5 个值，`IN` 是最优选择若列表超过 200 个值，建议在业务层分批查询
 
 #### 单地区优化路径
 
@@ -137,4 +140,4 @@ flowchart TD
 展平后：OR [ AND_MM, AND_SG ]            ← 扁平结构
 ```
 
-这减少了 SQL 生成时的括号嵌套深度，对数据库解析更友好。
+这减少了 SQL 生成时的括号嵌套深度，对数据库解析更友好

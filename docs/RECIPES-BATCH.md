@@ -1,6 +1,6 @@
 # 业务实战：批量操作
 
-复制即用的批量操作代码。
+复制即用的批量操作代码
 
 ## 批量创建
 
@@ -79,9 +79,9 @@ func (s *UserService) UpdateUserStatus(ctx context.Context, userIDs []uint, stat
     for i, id := range userIDs {
         ids[i] = id
     }
-    return s.repo.UpdateByQuery(ctx, 
-        repository.NewQuery().AddIn("id", ids...),
-        map[string]interface{}{"status": status})
+    return s.repo.UpdateFieldsByQuery(ctx,
+        map[string]interface{}{"status": status},
+        repository.NewQuery().AddIn("id", ids...))
 }
 
 // BatchUpdate 批量更新多个字段
@@ -90,9 +90,9 @@ func (s *UserService) BatchUpdate(ctx context.Context, userIDs []uint, updates m
     for i, id := range userIDs {
         ids[i] = id
     }
-    return s.repo.UpdateByQuery(ctx,
-        repository.NewQuery().AddIn("id", ids...),
-        updates)
+    return s.repo.UpdateFieldsByQuery(ctx,
+        updates,
+        repository.NewQuery().AddIn("id", ids...))
 }
 ```
 

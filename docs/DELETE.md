@@ -1,7 +1,7 @@
 # 删除操作 (Delete)
 
 ## 概述
-删除操作用于从数据库移除记录，支持物理删除、软删除、批量删除和条件删除。
+删除操作用于从数据库移除记录，支持物理删除、软删除、批量删除和条件删除
 
 ## 物理删除
 
@@ -32,6 +32,8 @@ query := repository.NewQuery().
 err := repo.DeleteByQuery(ctx, query)
 // 生成: DELETE FROM users WHERE status = 'inactive'
 ```
+
+`DeleteByQuery` 会复用 `Query` 中的过滤条件和 `FilterGroup`为避免误删整表，`query` 不能为空，并且必须包含过滤条件；如果需要按多个条件或 OR 组合删除，可以在 Query 中使用 `WithFilterGroup`
 
 ## 软删除
 

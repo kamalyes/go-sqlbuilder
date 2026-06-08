@@ -2,15 +2,13 @@ on:
   push:
     branches:
       - master
-    paths:
-      - "**"
-      - "!docs/**"
-      - "!**.md"
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
   pull_request:
-    paths:
-      - "**"
-      - "!docs/**"
-      - "!**.md"
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
 
 name: Test
 jobs:
