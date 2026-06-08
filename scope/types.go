@@ -80,7 +80,13 @@ func (d ScopeData) IsTenant() bool {
 
 // HasGlobalScope 判断是否拥有全局作用域（OPS 全局管理员或 Tenant Owner/全局用户）
 func (d ScopeData) HasGlobalScope() bool {
+	if d.IsOwner && d.IsTenant() {
+		return true
+	}
 	for _, e := range d.ScopeEntries {
+		if e == nil {
+			continue
+		}
 		if e.ScopeType == d.Config.ScopeType.GlobalValue {
 			return true
 		}
@@ -93,6 +99,9 @@ func (d ScopeData) AllRegionCodes() []string {
 	seen := make(map[string]struct{})
 	var result []string
 	for _, e := range d.ScopeEntries {
+		if e == nil {
+			continue
+		}
 		for _, rc := range e.RegionCodes {
 			if _, ok := seen[rc]; !ok {
 				seen[rc] = struct{}{}
@@ -114,6 +123,9 @@ func (d ScopeData) AllPlatformIds() []string {
 	seen := make(map[string]struct{})
 	var result []string
 	for _, e := range d.ScopeEntries {
+		if e == nil {
+			continue
+		}
 		for _, pid := range e.AllPlatformIds() {
 			if _, ok := seen[pid]; !ok {
 				seen[pid] = struct{}{}
@@ -126,20 +138,32 @@ func (d ScopeData) AllPlatformIds() []string {
 
 // IsGlobalScope 判断指定条目是否为全局作用域
 func (d ScopeData) IsGlobalScope(entry *ScopeEntry) bool {
+	if entry == nil {
+		return false
+	}
 	return entry.ScopeType == d.Config.ScopeType.GlobalValue
 }
 
 // IsRegionScope 判断指定条目是否为地区级作用域
 func (d ScopeData) IsRegionScope(entry *ScopeEntry) bool {
+	if entry == nil {
+		return false
+	}
 	return entry.ScopeType == d.Config.ScopeType.RegionValue
 }
 
 // IsPlatformScope 判断指定条目是否为平台级作用域
 func (d ScopeData) IsPlatformScope(entry *ScopeEntry) bool {
+	if entry == nil {
+		return false
+	}
 	return entry.ScopeType == d.Config.ScopeType.PlatformValue
 }
 
 // IsTenantScope 判断指定条目是否为租户级作用域
 func (d ScopeData) IsTenantScope(entry *ScopeEntry) bool {
+	if entry == nil {
+		return false
+	}
 	return entry.ScopeType == d.Config.ScopeType.TenantValue
 }

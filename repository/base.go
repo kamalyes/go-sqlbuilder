@@ -808,6 +808,19 @@ func (r *BaseRepository[T]) ListWithPreloads(ctx context.Context, query *Query, 
 	return entities, nil
 }
 
+// FirstWithQuery 根据 Query 查询第一条记录
+func (r *BaseRepository[T]) FirstWithQuery(ctx context.Context, query *Query) (*T, error) {
+	var entity T
+	db := r.db.GetDB().WithContext(ctx).Table(r.table)
+	db = ApplyQueryConditions(r, db, query).Limit(1)
+
+	if result := db.First(&entity); result.Error != nil {
+		return nil, r.handleErrorWithContext(ctx, result.Error, "first with query")
+	}
+	
+	return &entity, nil
+}
+
 // ListWithPagination 分页列表查询（泛型版本，支持任意整数类型的分页参数）
 // page 可选，不传时优先使用 query.Pagination；若 query 也为 nil 或无分页，则使用默认值
 // 优先级：显式传入的 page > query.Pagination > 默认值
@@ -992,6 +1005,14 @@ func (r *BaseRepository[T]) DeleteByFilters(ctx context.Context, filters ...*Fil
 	return ApplyFilters(r.newDB(ctx), filters).Delete(new(T)).Error
 }
 
+// DeleteByQuery 按 Query 过滤条件删除记录
+func (r *BaseRepository[T]) DeleteByQuery(ctx context.Context, query *Query) error {
+	if query == nil || !query.HasFilters() {
+		return errorx.NewError(errors.ErrorCodeInvalidInput)
+	}
+	return ApplyQueryFilters(r.newDB(ctx), query).Delete(new(T)).Error
+}
+
 // DeleteByFiltersWithCount 按过滤条件删除记录并返回删除数量
 // 这是一个高效的方法，先COUNT再DELETE，避免查询所有记录
 func (r *BaseRepository[T]) DeleteByFiltersWithCount(ctx context.Context, filters ...*Filter) (int64, error) {
@@ -1108,6 +1129,18 @@ func (r *BaseRepository[T]) UpdateFieldsByFilters(ctx context.Context, fields ma
 	}
 	r.normalizeJSONStringFieldMap(fields)
 	return ApplyFilters(r.newDB(ctx), filters).Updates(fields).Error
+}
+
+// UpdateFieldsByQuery 按 Query 过滤条件更新指定字段
+func (r *BaseRepository[T]) UpdateFieldsByQuery(ctx context.Context, fields map[string]interface{}, query *Query) error {
+	if len(fields) == 0 {
+		return nil
+	}
+	if query == nil || !query.HasFilters() {
+		return errorx.NewError(errors.ErrorCodeInvalidInput)
+	}
+	r.normalizeJSONStringFieldMap(fields)
+	return ApplyQueryFilters(r.newDB(ctx), query).Updates(fields).Error
 }
 
 // SoftDelete 软删除（需要指定删除标记字段和值）

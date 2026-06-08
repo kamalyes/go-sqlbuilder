@@ -201,12 +201,14 @@
       "predeclared",
       "Proba",
       "promlinter",
+      "protojson",
       "Randu",
       "randx",
       "rsday",
       "sday",
       "sqlbuilder",
       "sqlbuilderx",
+      "sqlrepo",
       "stretchr",
       "strftime",
       "stringx",
@@ -223,7 +225,6 @@
       "varchar",
       "webp",
       "Wechat",
-      "zipx",
-      "protojson"
+      "zipx"
     ]
 }

@@ -40,6 +40,7 @@ type Repository[T any] interface {
 	First(ctx context.Context, filters ...*Filter) (*T, error)
 	Last(ctx context.Context, filters ...*Filter) (*T, error)
 	FindOne(ctx context.Context, filters ...*Filter) (*T, error)
+	FirstWithQuery(ctx context.Context, query *Query) (*T, error)
 	List(ctx context.Context, query *Query) ([]*T, error)
 	ListWithPagination(ctx context.Context, query *Query, page ...*Pagination) ([]*T, *Pagination, error)
 
@@ -49,11 +50,13 @@ type Repository[T any] interface {
 	UpdateByFilters(ctx context.Context, entity *T, filters ...*Filter) error
 	UpdateFields(ctx context.Context, id interface{}, fields map[string]interface{}) error
 	UpdateFieldsByFilters(ctx context.Context, fields map[string]interface{}, filters ...*Filter) error
+	UpdateFieldsByQuery(ctx context.Context, fields map[string]interface{}, query *Query) error
 
 	// 删除
 	Delete(ctx context.Context, id interface{}) error
 	DeleteBatch(ctx context.Context, ids ...interface{}) error
 	DeleteByFilters(ctx context.Context, filters ...*Filter) error
+	DeleteByQuery(ctx context.Context, query *Query) error
 	SoftDelete(ctx context.Context, id interface{}, field string, value interface{}) error
 	SoftDeleteBatch(ctx context.Context, ids []interface{}, field string, value interface{}) error
 	SoftDeleteByFilters(ctx context.Context, field string, value interface{}, filters ...*Filter) error

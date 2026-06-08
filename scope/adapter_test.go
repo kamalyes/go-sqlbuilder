@@ -2,7 +2,7 @@
  * @Author: kamalyes 501893067@qq.com
  * @Date: 2026-05-11 00:00:00
  * @LastEditors: kamalyes 501893067@qq.com
- * @LastEditTime: 2026-05-11 10:01:52
+ * @LastEditTime: 2026-06-08 10:19:48
  * @FilePath: \go-sqlbuilder\scope\adapter_test.go
  * @Description: Scope SQL 适配器测试 - 覆盖 OPS/租户域各种作用域场景
  *
@@ -42,6 +42,16 @@ func TestSQLScopeAdapter_OpsGlobal(t *testing.T) {
 	query := sqlrepo.NewQuery()
 	result := ApplySQLScope(query, data)
 	assert.Nil(t, result.FilterGroup)
+}
+
+func TestSQLScopeAdapter_OpsOwnerWithoutScopeEntries(t *testing.T) {
+	data := NewScopeData()
+	data.Domain = 2
+	data.IsOwner = true
+
+	query := sqlrepo.NewQuery()
+	result := ApplySQLScope(query, data)
+	assertDenyAllScope(t, result.FilterGroup)
 }
 
 // 场景：OPS租户管理员，仅管理单个租户T1
@@ -151,6 +161,23 @@ func TestSQLScopeAdapter_TenantGlobal(t *testing.T) {
 	data.Domain = 1
 	data.TenantID = "T001"
 	data.ScopeEntries = []*ScopeEntry{{ScopeType: 1}}
+
+	query := sqlrepo.NewQuery()
+	result := ApplySQLScope(query, data)
+	assert.NotNil(t, result.FilterGroup)
+
+	fg := result.FilterGroup
+	assert.Equal(t, sqlconstants.LOGIC_AND, fg.LogicOp)
+	assert.Len(t, fg.Filters, 1)
+	assert.Equal(t, "tenant_id", fg.Filters[0].Field)
+	assert.Equal(t, "T001", fg.Filters[0].Value)
+}
+
+func TestSQLScopeAdapter_TenantOwnerWithoutScopeEntries(t *testing.T) {
+	data := NewScopeData()
+	data.Domain = 1
+	data.TenantID = "T001"
+	data.IsOwner = true
 
 	query := sqlrepo.NewQuery()
 	result := ApplySQLScope(query, data)

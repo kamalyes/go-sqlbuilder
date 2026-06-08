@@ -125,6 +125,20 @@ func TestScopeData_HasGlobalScope(t *testing.T) {
 		assert.False(t, data.HasGlobalScope())
 	})
 
+	t.Run("TenantOwner", func(t *testing.T) {
+		data := NewScopeData()
+		data.Domain = 1
+		data.IsOwner = true
+		assert.True(t, data.HasGlobalScope())
+	})
+
+	t.Run("OpsOwnerWithoutGlobalScope", func(t *testing.T) {
+		data := NewScopeData()
+		data.Domain = 2
+		data.IsOwner = true
+		assert.False(t, data.HasGlobalScope())
+	})
+
 	t.Run("自定义ScopeTypeConfig", func(t *testing.T) {
 		data := NewScopeData(WithScopeTypeConfig(10, 20, 30, 40))
 		data.ScopeEntries = []*ScopeEntry{{ScopeType: 10}}

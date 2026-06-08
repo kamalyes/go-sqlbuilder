@@ -8506,3 +8506,78 @@ func TestUpdateWhereOp(t *testing.T) {
 		})
 	}
 }
+
+func TestBaseRepositoryFirstWithQuery(t *testing.T) {
+	gormDB, err := setupTestDB()
+	require.NoError(t, err)
+
+	dbHandler := newTestDBHandler(gormDB)
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
+	ctx := context.Background()
+
+	users := []*TestUser{
+		{Name: "User1", Email: "user1@example.com", Age: 25, Status: "active"},
+		{Name: "User2", Email: "user2@example.com", Age: 30, Status: "inactive"},
+		{Name: "User3", Email: "user3@example.com", Age: 35, Status: "active"},
+	}
+	require.NoError(t, repo.CreateBatch(ctx, users...))
+
+	result, err := repo.FirstWithQuery(ctx, NewQuery().
+		AddEqual("status", "active").
+		AddOrder("age", "DESC"))
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, "User3", result.Name)
+	assert.Equal(t, 35, result.Age)
+
+	group := NewFilterGroup(constants.LOGIC_OR).
+		AddFilter(NewEqFilter("email", "user1@example.com")).
+		AddFilter(NewEqFilter("email", "user2@example.com"))
+	result, err = repo.FirstWithQuery(ctx, NewQuery().
+		WithFilterGroup(group).
+		AddOrder("age", "DESC"))
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, "User2", result.Name)
+
+	result, err = repo.FirstWithQuery(ctx, NewQuery().AddEqual("email", "missing@example.com"))
+	assert.Error(t, err)
+	assert.Nil(t, result)
+}
+
+func TestBaseRepositoryMutateWithQuery(t *testing.T) {
+	gormDB, err := setupTestDB()
+	require.NoError(t, err)
+
+	dbHandler := newTestDBHandler(gormDB)
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
+	ctx := context.Background()
+
+	users := []*TestUser{
+		{Name: "User1", Email: "user1@example.com", Age: 25, Status: "active"},
+		{Name: "User2", Email: "user2@example.com", Age: 30, Status: "inactive"},
+		{Name: "User3", Email: "user3@example.com", Age: 35, Status: "active"},
+	}
+	require.NoError(t, repo.CreateBatch(ctx, users...))
+
+	updateQuery := NewQuery().
+		AddEqual("status", "active").
+		WithFilterGroup(NewFilterGroup(constants.LOGIC_OR).
+			AddFilter(NewEqFilter("email", "user1@example.com")).
+			AddFilter(NewEqFilter("email", "user3@example.com")))
+	require.NoError(t, repo.UpdateFieldsByQuery(ctx, map[string]interface{}{"status": "archived"}, updateQuery))
+
+	count, err := repo.Count(ctx, NewEqFilter("status", "archived"))
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), count)
+
+	deleteQuery := NewQuery().AddEqual("status", "archived")
+	require.NoError(t, repo.DeleteByQuery(ctx, deleteQuery))
+
+	count, err = repo.Count(ctx, NewEqFilter("status", "archived"))
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), count)
+
+	assert.Error(t, repo.UpdateFieldsByQuery(ctx, map[string]interface{}{"status": "bad"}, nil))
+	assert.Error(t, repo.DeleteByQuery(ctx, nil))
+}
