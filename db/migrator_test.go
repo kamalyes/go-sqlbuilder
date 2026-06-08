@@ -13,6 +13,7 @@ package db
 import (
 	"fmt"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -2169,8 +2170,35 @@ type TestMySQLUserWithComment struct {
 	UpdatedAt time.Time `json:"updated_at" gorm:"column:updated_at;comment:更新时间"`
 }
 
+const defaultTestMySQLUserWithCommentTable = "test_mysql_users_with_comment"
+
+var (
+	testMySQLUserWithCommentTable = defaultTestMySQLUserWithCommentTable
+	testMySQLUserTableMu          sync.Mutex
+	testMySQLUserTableSeq         int
+	testMySQLUserTableRunID       = fmt.Sprintf("%x", time.Now().UnixNano())
+)
+
 func (TestMySQLUserWithComment) TableName() string {
-	return "test_mysql_users_with_comment"
+	return testMySQLUserWithCommentTable
+}
+
+func setupMySQLTestTable(t *testing.T, gormDB *gorm.DB) string {
+	t.Helper()
+
+	testMySQLUserTableMu.Lock()
+	testMySQLUserTableSeq++
+
+	tableName := fmt.Sprintf("test_mysql_user_%s_%02d", testMySQLUserTableRunID, testMySQLUserTableSeq)
+	testMySQLUserWithCommentTable = tableName
+
+	t.Cleanup(func() {
+		gormDB.Exec("DROP TABLE IF EXISTS " + tableName)
+		testMySQLUserWithCommentTable = defaultTestMySQLUserWithCommentTable
+		testMySQLUserTableMu.Unlock()
+	})
+
+	return tableName
 }
 
 // TestMySQLSyncColumnComments_RealDB 真实 MySQL 数据库测试 - 字段注释同步
@@ -2185,14 +2213,11 @@ func TestMySQLSyncColumnComments_RealDB(t *testing.T) {
 		t.Skipf("无法连接 MySQL 数据库，跳过测试: %v", err)
 	}
 
-	// 清理：测试结束后删除测试表
-	defer func() {
-		gormDB.Exec("DROP TABLE IF EXISTS test_mysql_users_with_comment")
-	}()
+	tableName := setupMySQLTestTable(t, gormDB)
 
 	// 1. 创建表（不带注释）
-	err = gormDB.Exec(`
-		CREATE TABLE IF NOT EXISTS test_mysql_users_with_comment (
+	err = gormDB.Exec(fmt.Sprintf(`
+		CREATE TABLE IF NOT EXISTS %s (
 			id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
 			name VARCHAR(100),
 			email VARCHAR(255),
@@ -2202,12 +2227,12 @@ func TestMySQLSyncColumnComments_RealDB(t *testing.T) {
 			created_at DATETIME,
 			updated_at DATETIME
 		)
-	`).Error
+	`, tableName)).Error
 	assert.NoError(t, err, "创建测试表失败")
 
 	// 2. 查看当前字段注释（应该为空）
 	migrator := NewMigrator(gormDB, nil)
-	commentsBefore, err := migrator.getColumnComments("test_mysql_users_with_comment", "mysql")
+	commentsBefore, err := migrator.getColumnComments(tableName, "mysql")
 	assert.NoError(t, err)
 	t.Logf("同步前字段注释: %+v", commentsBefore)
 
@@ -2216,7 +2241,7 @@ func TestMySQLSyncColumnComments_RealDB(t *testing.T) {
 	assert.NoError(t, err, "同步字段注释失败")
 
 	// 4. 再次查看字段注释（应该已更新）
-	commentsAfter, err := migrator.getColumnComments("test_mysql_users_with_comment", "mysql")
+	commentsAfter, err := migrator.getColumnComments(tableName, "mysql")
 	assert.NoError(t, err)
 	t.Logf("同步后字段注释: %+v", commentsAfter)
 
@@ -2239,9 +2264,7 @@ func TestMySQLSyncColumnComments_Idempotent(t *testing.T) {
 		t.Skipf("无法连接 MySQL 数据库，跳过测试: %v", err)
 	}
 
-	defer func() {
-		gormDB.Exec("DROP TABLE IF EXISTS test_mysql_users_with_comment")
-	}()
+	tableName := setupMySQLTestTable(t, gormDB)
 
 	// 创建表
 	err = gormDB.AutoMigrate(&TestMySQLUserWithComment{})
@@ -2253,13 +2276,13 @@ func TestMySQLSyncColumnComments_Idempotent(t *testing.T) {
 	err = migrator.SyncColumnComments(&TestMySQLUserWithComment{})
 	assert.NoError(t, err)
 
-	commentsFirst, _ := migrator.getColumnComments("test_mysql_users_with_comment", "mysql")
+	commentsFirst, _ := migrator.getColumnComments(tableName, "mysql")
 
 	// 第二次同步（幂等性测试）
 	err = migrator.SyncColumnComments(&TestMySQLUserWithComment{})
 	assert.NoError(t, err)
 
-	commentsSecond, _ := migrator.getColumnComments("test_mysql_users_with_comment", "mysql")
+	commentsSecond, _ := migrator.getColumnComments(tableName, "mysql")
 
 	// 验证两次结果一致
 	assert.Equal(t, commentsFirst, commentsSecond, "两次同步结果应一致")
@@ -2276,13 +2299,11 @@ func TestMySQLSyncColumnComments_PartialUpdate(t *testing.T) {
 		t.Skipf("无法连接 MySQL 数据库，跳过测试: %v", err)
 	}
 
-	defer func() {
-		gormDB.Exec("DROP TABLE IF EXISTS test_mysql_users_with_comment")
-	}()
+	tableName := setupMySQLTestTable(t, gormDB)
 
 	// 创建表并设置部分注释
-	err = gormDB.Exec(`
-		CREATE TABLE IF NOT EXISTS test_mysql_users_with_comment (
+	err = gormDB.Exec(fmt.Sprintf(`
+		CREATE TABLE IF NOT EXISTS %s (
 			id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
 			name VARCHAR(100) COMMENT '旧的名称注释',
 			email VARCHAR(255) COMMENT '用户邮箱地址',
@@ -2292,13 +2313,13 @@ func TestMySQLSyncColumnComments_PartialUpdate(t *testing.T) {
 			created_at DATETIME,
 			updated_at DATETIME
 		)
-	`).Error
+	`, tableName)).Error
 	assert.NoError(t, err)
 
 	migrator := NewMigrator(gormDB, nil)
 
 	// 查看同步前
-	commentsBefore, _ := migrator.getColumnComments("test_mysql_users_with_comment", "mysql")
+	commentsBefore, _ := migrator.getColumnComments(tableName, "mysql")
 	t.Logf("部分更新前: %+v", commentsBefore)
 	assert.Equal(t, "旧的名称注释", commentsBefore["name"])
 	assert.Equal(t, "用户邮箱地址", commentsBefore["email"])
@@ -2309,7 +2330,7 @@ func TestMySQLSyncColumnComments_PartialUpdate(t *testing.T) {
 	assert.NoError(t, err)
 
 	// 查看同步后
-	commentsAfter, _ := migrator.getColumnComments("test_mysql_users_with_comment", "mysql")
+	commentsAfter, _ := migrator.getColumnComments(tableName, "mysql")
 	t.Logf("部分更新后: %+v", commentsAfter)
 
 	// name 应该被更新为新注释
@@ -2331,19 +2352,21 @@ func TestMySQLCreateIndexes_RealDB(t *testing.T) {
 		t.Skipf("无法连接 MySQL 数据库，跳过测试: %v", err)
 	}
 
-	defer func() {
-		gormDB.Exec("DROP TABLE IF EXISTS test_mysql_users_with_comment")
-	}()
+	tableName := setupMySQLTestTable(t, gormDB)
 
 	// 创建表
 	err = gormDB.AutoMigrate(&TestMySQLUserWithComment{})
 	assert.NoError(t, err)
 
+	statusIndex := NewIndex(tableName, "status")
+	nameAgeIndex := NewIndex(tableName, "name", "age")
+	emailIndex := NewUniqueIndex(tableName, "email")
+
 	config := &MigratorConfig{
 		Indexes: []IndexDefinition{
-			NewIndex("test_mysql_users_with_comment", "status"),
-			NewIndex("test_mysql_users_with_comment", "name", "age"),
-			NewUniqueIndex("test_mysql_users_with_comment", "email"),
+			statusIndex,
+			nameAgeIndex,
+			emailIndex,
 		},
 		SkipIndexOnError: false,
 	}
@@ -2355,9 +2378,9 @@ func TestMySQLCreateIndexes_RealDB(t *testing.T) {
 	assert.NoError(t, err, "创建索引失败")
 
 	// 验证索引存在
-	assert.True(t, migrator.hasIndex("test_mysql_users_with_comment", "idx_test_mysql_users_with_comment_status"))
-	assert.True(t, migrator.hasIndex("test_mysql_users_with_comment", "idx_test_mysql_users_with_comment_name_age"))
-	assert.True(t, migrator.hasIndex("test_mysql_users_with_comment", "idx_test_mysql_users_with_comment_email_unique"))
+	assert.True(t, migrator.hasIndex(tableName, statusIndex.GenerateIndexName()))
+	assert.True(t, migrator.hasIndex(tableName, nameAgeIndex.GenerateIndexName()))
+	assert.True(t, migrator.hasIndex(tableName, emailIndex.GenerateIndexName()))
 
 	// 第二次创建（幂等性）- 应该跳过已存在的索引
 	err = migrator.CreateIndexes()
@@ -2375,18 +2398,16 @@ func TestMySQLAutoMigrate_FullFlow(t *testing.T) {
 		t.Skipf("无法连接 MySQL 数据库，跳过测试: %v", err)
 	}
 
-	defer func() {
-		gormDB.Exec("DROP TABLE IF EXISTS test_mysql_users_with_comment")
-	}()
+	tableName := setupMySQLTestTable(t, gormDB)
 
 	config := &MigratorConfig{
 		Models: []interface{}{&TestMySQLUserWithComment{}},
 		Indexes: []IndexDefinition{
-			NewIndex("test_mysql_users_with_comment", "status"),
-			NewIndex("test_mysql_users_with_comment", "created_at"),
+			NewIndex(tableName, "status"),
+			NewIndex(tableName, "created_at"),
 		},
 		Comments: []TableComment{
-			{Table: "test_mysql_users_with_comment", Comment: "MySQL测试用户表"},
+			{Table: tableName, Comment: "MySQL测试用户表"},
 		},
 		SkipIndexOnError:   true,
 		SkipCommentOnError: true,
@@ -2399,14 +2420,14 @@ func TestMySQLAutoMigrate_FullFlow(t *testing.T) {
 	assert.NoError(t, err, "完整迁移失败")
 
 	// 验证表存在
-	assert.True(t, migrator.HasTable("test_mysql_users_with_comment"))
+	assert.True(t, migrator.HasTable(tableName))
 
 	// 同步字段注释
 	err = migrator.SyncColumnCommentsWithModels()
 	assert.NoError(t, err, "同步字段注释失败")
 
 	// 验证字段注释
-	comments, _ := migrator.getColumnComments("test_mysql_users_with_comment", "mysql")
+	comments, _ := migrator.getColumnComments(tableName, "mysql")
 	assert.Equal(t, "用户姓名", comments["name"])
 
 	t.Log("✅ MySQL 完整流程测试通过")
