@@ -12,9 +12,11 @@ package types
 
 import (
 	"database/sql/driver"
+	"encoding/json"
 	"fmt"
 
 	"github.com/kamalyes/go-toolbox/pkg/serializer"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 // MapAny 任意类型的 Map，支持数据库 JSON 序列化
@@ -187,4 +189,116 @@ func (m MapAny) Clone() MapAny {
 		clone[k] = v
 	}
 	return clone
+}
+
+// MapAnyToStruct 将 MapAny 转换为 structpb.Struct
+func MapAnyToStruct(payload MapAny) *structpb.Struct {
+	if len(payload) == 0 {
+		result, _ := structpb.NewStruct(map[string]interface{}{})
+		return result
+	}
+
+	// 将 MapAny 转换为 map[string]interface{}，并处理嵌套的 MapAny
+	converted := convertMapAnyToInterfaceMap(payload)
+	result, err := structpb.NewStruct(converted)
+	if err != nil {
+		return &structpb.Struct{}
+	}
+	return result
+}
+
+// convertMapAnyToInterfaceMap 将 MapAny 转换为 map[string]interface{}，处理嵌套的 MapAny
+func convertMapAnyToInterfaceMap(m MapAny) map[string]interface{} {
+	result := make(map[string]interface{})
+	for k, v := range m {
+		result[k] = convertValue(v)
+	}
+	return result
+}
+
+// convertValue 转换单个值，处理各种嵌套类型
+func convertValue(v interface{}) interface{} {
+	switch val := v.(type) {
+	case MapAny:
+		return convertMapAnyToInterfaceMap(val)
+	case map[string]interface{}:
+		return convertInterfaceMap(val)
+	case []interface{}:
+		// 处理数组中的嵌套 MapAny
+		convertedSlice := make([]interface{}, len(val))
+		for i, item := range val {
+			convertedSlice[i] = convertValue(item)
+		}
+		return convertedSlice
+	default:
+		return v
+	}
+}
+
+// convertInterfaceMap 递归处理 map[string]interface{} 中的嵌套 MapAny
+func convertInterfaceMap(m map[string]interface{}) map[string]interface{} {
+	result := make(map[string]interface{})
+	for k, v := range m {
+		result[k] = convertValue(v)
+	}
+	return result
+}
+
+// StructToMapAny 将 structpb.Struct 转换为 MapAny
+func StructToMapAny(payload *structpb.Struct) MapAny {
+	if payload == nil {
+		return MapAny{}
+	}
+	return MapAny(payload.AsMap())
+}
+
+// MapAnyToJSONString 将 MapAny 转换为 JSON 字符串
+func MapAnyToJSONString(payload MapAny) string {
+	if len(payload) == 0 {
+		return "{}"
+	}
+	b, err := serializer.JSONMarshal(payload)
+	if err != nil {
+		return "{}"
+	}
+	return string(b)
+}
+
+// StructToMapAny 将 Go struct 转换为 MapAny
+// 使用 JSON 序列化/反序列化实现，支持任意 struct 类型
+func StructToMapAnyFromStruct(v interface{}) MapAny {
+	if v == nil {
+		return MapAny{}
+	}
+
+	// 先序列化为 JSON
+	jsonBytes, err := serializer.JSONMarshal(v)
+	if err != nil {
+		return MapAny{}
+	}
+
+	// 再反序列化为 MapAny
+	var result MapAny
+	if err := serializer.JSONUnmarshal(jsonBytes, &result); err != nil {
+		return MapAny{}
+	}
+
+	return result
+}
+
+// MapAnyToStructTarget 将 MapAny 转换为 Go struct
+// target 必须是指针类型
+func MapAnyToStructTarget(m MapAny, target interface{}) error {
+	if len(m) == 0 {
+		return nil
+	}
+
+	// 先序列化为 JSON
+	jsonBytes, err := serializer.JSONMarshal(m)
+	if err != nil {
+		return fmt.Errorf("failed to marshal MapAny: %w", err)
+	}
+
+	// 再反序列化为 struct，使用标准库 json.Unmarshal 处理任意类型
+	return json.Unmarshal(jsonBytes, target)
 }
