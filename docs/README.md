@@ -70,12 +70,6 @@
 | [5. 上下文使用 (CONTEXT-USAGE)](./CONTEXT-USAGE.md) | Context 最佳实践 |
 | [6. 数据库迁移 (MIGRATOR)](./MIGRATOR.md) | Schema 迁移工具 |
 
-### 🔐 多租户作用域
-
-| 文档 | 说明 | 使用频率 |
-|------|------|---------|
-| [1. 作用域使用指南 (SCOPE-USAGE)](./SCOPE-USAGE.md) | OPS/租户域、全局/地区/平台级作用域 | ⭐⭐⭐⭐⭐ |
-
 ### 🏗️ 架构设计
 
 | 文档 | 说明 |
@@ -183,8 +177,6 @@ docs/
 ├── ERROR-HANDLING.md            # 错误处理
 ├── CONTEXT-USAGE.md             # 上下文使用
 ├── MIGRATOR.md                  # 数据库迁移
-│
-├── SCOPE-USAGE.md               # 多租户作用域
 └── ADVANCED-PATTERNS.md         # 高级模式
 ```
 

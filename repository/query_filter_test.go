@@ -869,11 +869,35 @@ func TestAddLikeFilterIfNotEmpty(t *testing.T) {
 // ==============================================================================
 
 func TestAddJsonbLikeFilterIfNotEmpty(t *testing.T) {
-	t.Run("非空关键词", func(t *testing.T) { q := NewQuery(); q.AddJsonbLikeFilterIfNotEmpty("translations", "hello"); assert.Equal(t, 1, len(q.Filters)); assert.Equal(t, constants.OP_JSONB_LIKE, q.Filters[0].Operator); assert.Equal(t, "%hello%", q.Filters[0].Value) })
-	t.Run("空关键词", func(t *testing.T) { q := NewQuery(); q.AddJsonbLikeFilterIfNotEmpty("translations", ""); assert.Equal(t, 0, len(q.Filters)) })
-	t.Run("nil关键词", func(t *testing.T) { q := NewQuery(); q.AddJsonbLikeFilterIfNotEmpty("translations", nil); assert.Equal(t, 0, len(q.Filters)) })
-	t.Run("链式调用", func(t *testing.T) { q := NewQuery(); result := q.AddJsonbLikeFilterIfNotEmpty("data", "keyword"); assert.Equal(t, q, result); assert.Equal(t, "%keyword%", q.Filters[0].Value) })
-	t.Run("protobuf StringValue", func(t *testing.T) { q := NewQuery(); q.AddJsonbLikeFilterIfNotEmpty("translations", wrapperspb.String("test")); assert.Equal(t, 1, len(q.Filters)); assert.Equal(t, "%test%", q.Filters[0].Value) })
+	t.Run("非空关键词", func(t *testing.T) {
+		q := NewQuery()
+		q.AddJsonbLikeFilterIfNotEmpty("translations", "hello")
+		assert.Equal(t, 1, len(q.Filters))
+		assert.Equal(t, constants.OP_JSONB_LIKE, q.Filters[0].Operator)
+		assert.Equal(t, "%hello%", q.Filters[0].Value)
+	})
+	t.Run("空关键词", func(t *testing.T) {
+		q := NewQuery()
+		q.AddJsonbLikeFilterIfNotEmpty("translations", "")
+		assert.Equal(t, 0, len(q.Filters))
+	})
+	t.Run("nil关键词", func(t *testing.T) {
+		q := NewQuery()
+		q.AddJsonbLikeFilterIfNotEmpty("translations", nil)
+		assert.Equal(t, 0, len(q.Filters))
+	})
+	t.Run("链式调用", func(t *testing.T) {
+		q := NewQuery()
+		result := q.AddJsonbLikeFilterIfNotEmpty("data", "keyword")
+		assert.Equal(t, q, result)
+		assert.Equal(t, "%keyword%", q.Filters[0].Value)
+	})
+	t.Run("protobuf StringValue", func(t *testing.T) {
+		q := NewQuery()
+		q.AddJsonbLikeFilterIfNotEmpty("translations", wrapperspb.String("test"))
+		assert.Equal(t, 1, len(q.Filters))
+		assert.Equal(t, "%test%", q.Filters[0].Value)
+	})
 }
 
 // ==============================================================================
@@ -2792,4 +2816,13 @@ func TestProtobufWrapperFilterValues(t *testing.T) {
 		assert.Equal(t, "code LIKE ?", condition)
 		assert.Equal(t, "%tenant%", arg)
 	})
+}
+
+func TestQueryWithFiltersSkipsNilBuilders(t *testing.T) {
+	query := NewQuery().WithFilters(nil, func(q *Query) {
+		q.AddFilter(NewFilter("status", constants.OP_EQ, "active"))
+	})
+
+	assert.Len(t, query.Filters, 1)
+	assert.Equal(t, "status", query.Filters[0].Field)
 }
