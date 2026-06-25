@@ -20,7 +20,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/kamalyes/go-argus"
+	validator "github.com/kamalyes/go-argus"
 	tbtypes "github.com/kamalyes/go-toolbox/pkg/types"
 )
 
@@ -257,6 +257,30 @@ func (p *ProtoJSON[T]) Set(data T) {
 	p.Data = data
 }
 
+// IsEmpty 判断是否为空
+func (p *ProtoJSON[T]) IsEmpty() bool {
+	return validator.IsEmptyValue(reflect.ValueOf(p.Data))
+}
+
+// Clone 克隆数据
+func (p *ProtoJSON[T]) Clone() ProtoJSON[T] {
+	rv := reflect.ValueOf(p.Data)
+
+	// 处理 proto 消息
+	if rv.Kind() == reflect.Ptr && rv.Type().Implements(tbtypes.ProtoMessageType) {
+		if !rv.IsNil() {
+			cloned := proto.Clone(rv.Interface().(proto.Message))
+			return ProtoJSON[T]{Data: cloned.(T)}
+		}
+		return ProtoJSON[T]{}
+	}
+
+	// 处理普通结构体
+	clone := reflect.New(rv.Type()).Elem()
+	clone.Set(rv)
+	return ProtoJSON[T]{Data: clone.Interface().(T)}
+}
+
 // ProtoJSONMap - 泛型 protobuf JSON 类型，支持 protobuf 消息的数据库存储
 type ProtoJSONMap[T proto.Message] struct {
 	Fields map[string]ProtoJSON[T]
@@ -347,4 +371,39 @@ func (p *ProtoJSONMap[T]) Keys() []string {
 		keys = append(keys, k)
 	}
 	return keys
+}
+
+// Len 获取键值对数量
+func (p *ProtoJSONMap[T]) Len() int {
+	return len(p.Fields)
+}
+
+// IsEmpty 判断是否为空
+func (p *ProtoJSONMap[T]) IsEmpty() bool {
+	return len(p.Fields) == 0
+}
+
+// Has 检查键是否存在
+func (p *ProtoJSONMap[T]) Has(key string) bool {
+	_, ok := p.Fields[key]
+	return ok
+}
+
+// Delete 删除指定键
+func (p *ProtoJSONMap[T]) Delete(key string) {
+	delete(p.Fields, key)
+}
+
+// Clear 清空所有键值对
+func (p *ProtoJSONMap[T]) Clear() {
+	p.Fields = make(map[string]ProtoJSON[T])
+}
+
+// Clone 克隆一个新的映射
+func (p *ProtoJSONMap[T]) Clone() ProtoJSONMap[T] {
+	clone := ProtoJSONMap[T]{Fields: make(map[string]ProtoJSON[T], len(p.Fields))}
+	for k, v := range p.Fields {
+		clone.Fields[k] = v
+	}
+	return clone
 }

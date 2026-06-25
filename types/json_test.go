@@ -130,3 +130,83 @@ func TestJSONSliceProtoMessage(t *testing.T) {
 	assert.Equal(t, "alpha", restored[0].GetValue())
 	assert.Equal(t, "beta", restored[1].GetValue())
 }
+
+func TestJSONLen(t *testing.T) {
+	t.Run("slice of strings", func(t *testing.T) {
+		j := JSON[[]string]{Data: []string{"a", "b", "c"}}
+		assert.Equal(t, 3, j.Len())
+	})
+
+	t.Run("empty slice", func(t *testing.T) {
+		j := JSON[[]string]{Data: []string{}}
+		assert.Equal(t, 0, j.Len())
+	})
+
+	t.Run("nil slice", func(t *testing.T) {
+		j := JSON[[]string]{}
+		assert.Equal(t, 0, j.Len())
+	})
+
+	t.Run("slice of ints", func(t *testing.T) {
+		j := JSON[[]int]{Data: []int{1, 2, 3, 4}}
+		assert.Equal(t, 4, j.Len())
+	})
+
+	t.Run("slice of proto messages", func(t *testing.T) {
+		j := JSON[[]*wrapperspb.StringValue]{
+			Data: []*wrapperspb.StringValue{
+				wrapperspb.String("x"),
+				wrapperspb.String("y"),
+			},
+		}
+		assert.Equal(t, 2, j.Len())
+	})
+
+	t.Run("non-slice type returns 0", func(t *testing.T) {
+		j := JSON[string]{Data: "hello"}
+		assert.Equal(t, 0, j.Len())
+	})
+}
+
+func TestJSONIsEmpty(t *testing.T) {
+	t.Run("empty slice", func(t *testing.T) {
+		j := JSON[[]string]{Data: []string{}}
+		assert.True(t, j.IsEmpty())
+	})
+
+	t.Run("nil slice", func(t *testing.T) {
+		j := JSON[[]string]{}
+		assert.True(t, j.IsEmpty())
+	})
+
+	t.Run("non-empty slice", func(t *testing.T) {
+		j := JSON[[]string]{Data: []string{"a"}}
+		assert.False(t, j.IsEmpty())
+	})
+
+	t.Run("zero value struct", func(t *testing.T) {
+		type Person struct{ Name string }
+		j := JSON[Person]{}
+		assert.True(t, j.IsEmpty())
+	})
+
+	t.Run("non-zero struct", func(t *testing.T) {
+		type Person struct{ Name string }
+		j := JSON[Person]{Data: Person{Name: "Alice"}}
+		assert.False(t, j.IsEmpty())
+	})
+}
+
+func TestJSONAppend(t *testing.T) {
+	j := JSON[[]string]{Data: []string{"a", "b"}}
+	j.Append("c", "d")
+	assert.Equal(t, 4, j.Len())
+	assert.Equal(t, []string{"a", "b", "c", "d"}, j.Data)
+}
+
+func TestJSONClone(t *testing.T) {
+	j := JSON[[]string]{Data: []string{"x", "y"}}
+	cloned := j.Clone()
+	assert.Equal(t, j.Data, cloned.Data)
+	assert.NotSame(t, &j.Data, &cloned.Data)
+}

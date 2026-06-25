@@ -128,6 +128,53 @@ func TestProtoJSON_GetSet(t *testing.T) {
 	})
 }
 
+func TestProtoJSON_IsEmpty(t *testing.T) {
+	t.Run("nil proto is empty", func(t *testing.T) {
+		var pj ProtoJSON[*wrapperspb.StringValue]
+		assert.True(t, pj.IsEmpty())
+	})
+
+	t.Run("empty string value is empty", func(t *testing.T) {
+		pj := ProtoJSON[*wrapperspb.StringValue]{Data: wrapperspb.String("")}
+		assert.True(t, pj.IsEmpty())
+	})
+
+	t.Run("non-empty value is not empty", func(t *testing.T) {
+		pj := ProtoJSON[*wrapperspb.StringValue]{Data: wrapperspb.String("hello")}
+		assert.False(t, pj.IsEmpty())
+	})
+
+	t.Run("empty struct is empty", func(t *testing.T) {
+		pj := ProtoJSON[TestPayload]{Data: TestPayload{}}
+		assert.True(t, pj.IsEmpty())
+	})
+
+	t.Run("non-empty struct is not empty", func(t *testing.T) {
+		pj := ProtoJSON[TestPayload]{Data: TestPayload{Name: wrapperspb.String("test")}}
+		assert.False(t, pj.IsEmpty())
+	})
+}
+
+func TestProtoJSON_Clone(t *testing.T) {
+	t.Run("clone proto message", func(t *testing.T) {
+		original := wrapperspb.String("hello")
+		pj := ProtoJSON[*wrapperspb.StringValue]{Data: original}
+		cloned := pj.Clone()
+
+		assert.Equal(t, pj.Data.GetValue(), cloned.Data.GetValue())
+		assert.NotSame(t, &pj.Data, &cloned.Data)
+	})
+
+	t.Run("clone struct", func(t *testing.T) {
+		original := TestPayload{Name: wrapperspb.String("test"), Age: wrapperspb.Int32(25)}
+		pj := ProtoJSON[TestPayload]{Data: original}
+		cloned := pj.Clone()
+
+		assert.Equal(t, pj.Data.Name.GetValue(), cloned.Data.Name.GetValue())
+		assert.NotSame(t, &pj.Data, &cloned.Data)
+	})
+}
+
 type TestPayload struct {
 	Name   *wrapperspb.StringValue `json:"name"`
 	Age    *wrapperspb.Int32Value  `json:"age"`
@@ -297,6 +344,50 @@ func TestProtoJSONMap_ScanValue(t *testing.T) {
 		pjm.Set("b", wrapperspb.String("2"))
 		keys := pjm.Keys()
 		assert.Len(t, keys, 2)
+	})
+
+	t.Run("len and is empty", func(t *testing.T) {
+		pjm := NewProtoJSONMap[*wrapperspb.StringValue]()
+		assert.Equal(t, 0, pjm.Len())
+		assert.True(t, pjm.IsEmpty())
+
+		pjm.Set("key1", wrapperspb.String("test"))
+		assert.Equal(t, 1, pjm.Len())
+		assert.False(t, pjm.IsEmpty())
+	})
+
+	t.Run("has and delete", func(t *testing.T) {
+		pjm := NewProtoJSONMap[*wrapperspb.StringValue]()
+		pjm.Set("key1", wrapperspb.String("test"))
+
+		assert.True(t, pjm.Has("key1"))
+		assert.False(t, pjm.Has("nonexistent"))
+
+		pjm.Delete("key1")
+		assert.False(t, pjm.Has("key1"))
+		assert.Equal(t, 0, pjm.Len())
+	})
+
+	t.Run("clear", func(t *testing.T) {
+		pjm := NewProtoJSONMap[*wrapperspb.StringValue]()
+		pjm.Set("a", wrapperspb.String("1"))
+		pjm.Set("b", wrapperspb.String("2"))
+
+		pjm.Clear()
+		assert.Equal(t, 0, pjm.Len())
+		assert.True(t, pjm.IsEmpty())
+	})
+
+	t.Run("clone", func(t *testing.T) {
+		pjm := NewProtoJSONMap[*wrapperspb.StringValue]()
+		pjm.Set("key1", wrapperspb.String("test"))
+
+		cloned := pjm.Clone()
+		assert.Equal(t, pjm.Len(), cloned.Len())
+		assert.Equal(t, pjm.Get("key1").GetValue(), cloned.Get("key1").GetValue())
+
+		cloned.Set("key2", wrapperspb.String("new"))
+		assert.NotEqual(t, pjm.Len(), cloned.Len())
 	})
 
 	t.Run("unsupported scan type", func(t *testing.T) {

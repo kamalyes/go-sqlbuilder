@@ -302,3 +302,41 @@ func MapAnyToStructTarget(m MapAny, target interface{}) error {
 	// 再反序列化为 struct，使用标准库 json.Unmarshal 处理任意类型
 	return json.Unmarshal(jsonBytes, target)
 }
+
+// Len 获取 Map 长度
+func (m MapAny) Len() int {
+	return len(m)
+}
+
+// IsEmpty 判断 Map 是否为空
+func (m MapAny) IsEmpty() bool {
+	return len(m) == 0
+}
+
+// Filter 过滤键值对
+func (m MapAny) Filter(fn func(key string, value any) bool) MapAny {
+	result := make(MapAny)
+	for k, v := range m {
+		if fn(k, v) {
+			result[k] = v
+		}
+	}
+	return result
+}
+
+// Map 映射转换
+func (m MapAny) Map(fn func(key string, value any) (string, any)) MapAny {
+	result := make(MapAny)
+	for k, v := range m {
+		newKey, newValue := fn(k, v)
+		result[newKey] = newValue
+	}
+	return result
+}
+
+// Each 遍历所有键值对
+func (m MapAny) Each(fn func(key string, value any)) {
+	for k, v := range m {
+		fn(k, v)
+	}
+}

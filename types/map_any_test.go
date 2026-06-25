@@ -558,6 +558,88 @@ func TestMapAnyToStructTarget(t *testing.T) {
 	assert.Equal(t, true, extraResult.Active)
 }
 
+func TestMapAny_LenAndIsEmpty(t *testing.T) {
+	t.Run("empty map", func(t *testing.T) {
+		m := MapAny{}
+		assert.Equal(t, 0, m.Len())
+		assert.True(t, m.IsEmpty())
+	})
+
+	t.Run("non-empty map", func(t *testing.T) {
+		m := MapAny{"key": "value"}
+		assert.Equal(t, 1, m.Len())
+		assert.False(t, m.IsEmpty())
+	})
+
+	t.Run("nil map", func(t *testing.T) {
+		var m MapAny
+		assert.Equal(t, 0, m.Len())
+		assert.True(t, m.IsEmpty())
+	})
+}
+
+func TestMapAny_Filter(t *testing.T) {
+	m := MapAny{
+		"name":   "Alice",
+		"age":    30,
+		"active": true,
+		"email":  "alice@test.com",
+	}
+
+	filtered := m.Filter(func(key string, value any) bool {
+		return key == "name" || key == "email"
+	})
+
+	assert.Equal(t, 2, filtered.Len())
+	assert.Equal(t, "Alice", filtered["name"])
+	assert.Equal(t, "alice@test.com", filtered["email"])
+	assert.False(t, filtered.Has("age"))
+	assert.False(t, filtered.Has("active"))
+}
+
+func TestMapAny_Map(t *testing.T) {
+	m := MapAny{
+		"name":  "Alice",
+		"age":   30,
+		"email": "alice@test.com",
+	}
+
+	mapped := m.Map(func(key string, value any) (string, any) {
+		return "prefix_" + key, value
+	})
+
+	assert.Equal(t, 3, mapped.Len())
+	assert.Equal(t, "Alice", mapped["prefix_name"])
+	assert.Equal(t, 30, mapped["prefix_age"])
+	assert.Equal(t, "alice@test.com", mapped["prefix_email"])
+	assert.False(t, mapped.Has("name"))
+}
+
+func TestMapAny_Each(t *testing.T) {
+	m := MapAny{
+		"name":  "Alice",
+		"age":   30,
+		"email": "alice@test.com",
+	}
+
+	var keys []string
+	var values []any
+
+	m.Each(func(key string, value any) {
+		keys = append(keys, key)
+		values = append(values, value)
+	})
+
+	assert.Len(t, keys, 3)
+	assert.Len(t, values, 3)
+	assert.Contains(t, keys, "name")
+	assert.Contains(t, keys, "age")
+	assert.Contains(t, keys, "email")
+	assert.Contains(t, values, "Alice")
+	assert.Contains(t, values, 30)
+	assert.Contains(t, values, "alice@test.com")
+}
+
 func TestStructToMapAnyAndBack(t *testing.T) {
 	// Test round-trip conversion between struct and MapAny
 	type TestStruct struct {

@@ -13,6 +13,7 @@ package types
 import (
 	"database/sql/driver"
 	"fmt"
+	"reflect"
 
 	"github.com/kamalyes/go-toolbox/pkg/serializer"
 )
@@ -20,6 +21,43 @@ import (
 // JSON 泛型 JSON 类型，支持任意可序列化类型
 type JSON[T any] struct {
 	Data T
+}
+
+// Len 获取数据长度（仅对切片类型有效）
+func (j JSON[T]) Len() int {
+	rv := reflect.ValueOf(j.Data)
+	if rv.Kind() == reflect.Slice {
+		return rv.Len()
+	}
+	return 0
+}
+
+// IsEmpty 判断是否为空（切片长度为0或数据为零值）
+func (j JSON[T]) IsEmpty() bool {
+	rv := reflect.ValueOf(j.Data)
+	if rv.Kind() == reflect.Slice {
+		return rv.Len() == 0
+	}
+	return rv.IsZero()
+}
+
+// Append 追加元素（仅对切片类型有效）
+func (j *JSON[T]) Append(items ...any) {
+	rv := reflect.ValueOf(&j.Data)
+	if rv.Elem().Kind() != reflect.Slice {
+		return
+	}
+	for _, item := range items {
+		rv.Elem().Set(reflect.Append(rv.Elem(), reflect.ValueOf(item)))
+	}
+}
+
+// Clone 克隆数据
+func (j JSON[T]) Clone() JSON[T] {
+	rv := reflect.ValueOf(j.Data)
+	clone := reflect.New(rv.Type()).Elem()
+	clone.Set(rv)
+	return JSON[T]{Data: clone.Interface().(T)}
 }
 
 func (j *JSON[T]) Scan(value interface{}) error {
