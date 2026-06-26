@@ -374,6 +374,30 @@ func FilterFields(allFields, selectFields, omitFields []string) []string {
 	return result
 }
 
+// StructHasField 检查结构体是否包含指定的数据库字段
+// 字段匹配规则与 GetStructFields 一致：优先 gorm column tag，其次 json tag，最后蛇形字段名
+func StructHasField(model interface{}, field string) bool {
+	if field == "" {
+		return false
+	}
+	t := reflect.TypeOf(model)
+	if t == nil {
+		return false
+	}
+	if t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+	if t.Kind() != reflect.Struct {
+		return false
+	}
+	for _, f := range GetStructFields(model) {
+		if f == field {
+			return true
+		}
+	}
+	return false
+}
+
 // BuildSelectClause 构建 SELECT 子句
 func BuildSelectClause(tableName string, fields []string) string {
 	if len(fields) == 0 {

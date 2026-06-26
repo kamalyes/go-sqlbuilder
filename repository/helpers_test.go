@@ -667,3 +667,68 @@ func TestGormHandler_IsConnected(t *testing.T) {
 		assert.Nil(t, nilHandler)
 	})
 }
+
+// scopeFieldProbeModel 用于测试 StructHasField 的探针模型
+// 模拟客服模块表：只有 tenant_id/platform_id，没有 region_code
+type scopeFieldProbeModel struct {
+	TenantID   string `gorm:"column:tenant_id;type:varchar(36);not null" json:"tenant_id"`
+	PlatformID string `gorm:"column:platform_id;type:varchar(36);not null" json:"platform_id"`
+	Module     int    `gorm:"column:module;type:smallint;not null;default:0" json:"module"`
+}
+
+func (scopeFieldProbeModel) TableName() string {
+	return "scope_field_probe"
+}
+
+// fullScopeModel 拥有全部作用域字段的模型
+type fullScopeModel struct {
+	TenantID   string `gorm:"column:tenant_id" json:"tenant_id"`
+	PlatformID string `gorm:"column:platform_id" json:"platform_id"`
+	RegionCode string `gorm:"column:region_code" json:"region_code"`
+}
+
+func (fullScopeModel) TableName() string {
+	return "full_scope"
+}
+
+// taglessModel 仅使用字段名（无 gorm column/json tag）的模型，应走蛇形命名兜底
+type taglessModel struct {
+	Name      string
+	CreatedAt string
+	Status    string
+}
+
+func TestStructHasField_ByGormColumn(t *testing.T) {
+	assert.True(t, StructHasField(scopeFieldProbeModel{}, "tenant_id"))
+	assert.True(t, StructHasField(scopeFieldProbeModel{}, "platform_id"))
+	assert.True(t, StructHasField(scopeFieldProbeModel{}, "module"))
+}
+
+func TestStructHasField_PointerModel(t *testing.T) {
+	assert.True(t, StructHasField(&scopeFieldProbeModel{}, "tenant_id"))
+	assert.True(t, StructHasField(&fullScopeModel{}, "region_code"))
+}
+
+func TestStructHasField_NotExist(t *testing.T) {
+	// region_code 在 scopeFieldProbeModel 中不存在（对应 bug 场景）
+	assert.False(t, StructHasField(scopeFieldProbeModel{}, "region_code"))
+	assert.False(t, StructHasField(&scopeFieldProbeModel{}, "non_exist_field"))
+}
+
+func TestStructHasField_EmptyField(t *testing.T) {
+	assert.False(t, StructHasField(scopeFieldProbeModel{}, ""))
+}
+
+func TestStructHasField_NilOrNonStruct(t *testing.T) {
+	assert.False(t, StructHasField(nil, "tenant_id"))
+	assert.False(t, StructHasField("string", "tenant_id"))
+	assert.False(t, StructHasField(123, "tenant_id"))
+}
+
+func TestStructHasField_SnakeCaseFallback(t *testing.T) {
+	// taglessModel 没有 gorm column / json tag，应通过蛇形命名匹配
+	assert.True(t, StructHasField(taglessModel{}, "name"))
+	assert.True(t, StructHasField(taglessModel{}, "created_at"))
+	assert.True(t, StructHasField(taglessModel{}, "status"))
+	assert.False(t, StructHasField(taglessModel{}, "region_code"))
+}
