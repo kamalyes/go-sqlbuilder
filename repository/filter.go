@@ -13,9 +13,9 @@ package repository
 import (
 	"fmt"
 
+	validator "github.com/kamalyes/go-argus"
 	"github.com/kamalyes/go-sqlbuilder/constants"
 	"github.com/kamalyes/go-toolbox/pkg/convert"
-	"github.com/kamalyes/go-argus"
 )
 
 // MaxFilterGroupDepth 过滤条件组最大嵌套深度，防止无限嵌套导致内存溢出
@@ -356,6 +356,16 @@ type Query struct {
 	Having       []*Filter    // HAVING 条件
 	SelectFields []string     // 要查询的字段列表（为空则查询所有字段）
 	OmitFields   []string     // 要排除的字段列表
+	Joins        []JoinSpec   // JOIN 关联（主表 JOIN 关联表补充字段）
+
+	// JoinScanDest 设置后 ListWithPagination* 会将结果 Find 到此扩展 struct 切片（*[]E），
+	// 而非默认的 []*T用于 JOIN 关联表补充字段的场景，配合 Joins 与 JoinExtract 使用
+	// 扩展 struct 约定：匿名内嵌主模型 T 作为首字段（gorm 展开扫描主表所有列），
+	// 关联字段用 gorm column tag 匹配 JoinField.Alias
+	JoinScanDest interface{} // 类型必须为 *[]E
+	// JoinExtract 提取回调：func(E) *TJoinScanDest 设置后必填
+	// ListWithPagination* 完成 Find 后会用反射逐行调用此回调，组装出 []*T 返回
+	JoinExtract interface{} // 类型必须为 func(E) *T
 }
 
 // NewEqFilter 创建等于过滤条件

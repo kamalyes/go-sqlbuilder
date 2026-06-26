@@ -16,12 +16,12 @@ import (
 	"strings"
 	"time"
 
+	validator "github.com/kamalyes/go-argus"
 	"github.com/kamalyes/go-sqlbuilder/constants"
 	"github.com/kamalyes/go-toolbox/pkg/convert"
 	"github.com/kamalyes/go-toolbox/pkg/mathx"
 	"github.com/kamalyes/go-toolbox/pkg/stringx"
 	"github.com/kamalyes/go-toolbox/pkg/syncx"
-	"github.com/kamalyes/go-argus"
 )
 
 type QueryCondition struct {
@@ -50,6 +50,7 @@ func NewQuery() *Query {
 		Having:       make([]*Filter, 0),
 		SelectFields: make([]string, 0),
 		OmitFields:   make([]string, 0),
+		Joins:        make([]JoinSpec, 0),
 	}
 }
 
@@ -156,6 +157,39 @@ func (q *Query) Offset(offset int) *Query {
 // WithFilterGroup 设置复合过滤条件组
 func (q *Query) WithFilterGroup(group *FilterGroup) *Query {
 	q.FilterGroup = group
+	return q
+}
+
+// WithJoinScan 配置 JOIN 后扫描到扩展 struct 切片，再通过 extract 回调提取 []*T
+// 适用场景：主表 JOIN 关联表补充字段（如 dict_entries JOIN dict_groups 取
+// group_type/group_name），且补充字段在主模型上为 gorm:"-"（非持久化，
+// 避免 AutoMigrate 建列）
+//
+// 扩展 struct 约定：
+//   - 匿名内嵌主模型 T 作为首字段（gorm 展开扫描主表所有列）
+//   - 关联字段用 gorm column tag 匹配 JoinField.Alias（如 `gorm:"column:group_type"`）
+//
+// 用法：
+//
+//	type dictEntryWithGroup struct {
+//	    models.DictEntryModel
+//	    GroupType enumspb.DictGroupType `gorm:"column:group_type"`
+//	    GroupName string                 `gorm:"column:group_name"`
+//	}
+//	var rows []dictEntryWithGroup
+//	query.WithJoinScan(&rows, func(r dictEntryWithGroup) *models.DictEntryModel {
+//	    r.DictEntryModel.GroupType = r.GroupType
+//	    r.DictEntryModel.GroupName = r.GroupName
+//	    return &r.DictEntryModel
+//	})
+//	entries, paging, err := repo.ListWithPagination32(ctx, query)
+//
+// 注意：
+//   - JOIN 后字段可能歧义，调用方需在 Filter/Order 中用表别名限定（如 "e.created_at"、"g.type"）
+//   - count 复用 JOIN+WHERE；若关联为一对多可能使 total 翻倍，调用方需自行保证一对一或改用子查询
+func (q *Query) WithJoinScan(scanDest interface{}, extract interface{}) *Query {
+	q.JoinScanDest = scanDest
+	q.JoinExtract = extract
 	return q
 }
 

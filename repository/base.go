@@ -824,6 +824,10 @@ func (r *BaseRepository[T]) FirstWithQuery(ctx context.Context, query *Query) (*
 // ListWithPagination 分页列表查询（泛型版本，支持任意整数类型的分页参数）
 // page 可选，不传时优先使用 query.Pagination；若 query 也为 nil 或无分页，则使用默认值
 // 优先级：显式传入的 page > query.Pagination > 默认值
+//
+// 当 query 配置了 JoinScanDest + JoinExtract（参见 Query.WithJoinScan）时，
+// 走 JOIN 扩展 struct 路径：Find 到 *[]E 再用 extract 提取 []*T 返回
+// 否则走默认路径：Find 到 []*T
 func ListWithPaginationT[T any, P types.Integer](r *BaseRepository[T], ctx context.Context, query *Query, page ...*PaginationT[P]) ([]*T, *PaginationT[P], error) {
 	if query == nil {
 		query = NewQuery()
@@ -855,7 +859,10 @@ func ListWithPaginationT[T any, P types.Integer](r *BaseRepository[T], ctx conte
 	// 应用过滤条件（模型感知）
 	db = r.ApplyQueryFilters(db, query)
 
-	// 计算总数
+	// 应用 JOIN + 补充字段 SELECT（若配置）
+	db = ApplyJoins(db, query, r.table)
+
+	// 计算总数（gorm Count 用 count(*) 覆盖 Select，保留 JOIN 与 WHERE）
 	var total int64
 	countDb := db
 	countDb.Model(new(T)).Count(&total)
@@ -871,12 +878,45 @@ func ListWithPaginationT[T any, P types.Integer](r *BaseRepository[T], ctx conte
 
 	// 应用分页
 	offset := (int(p.Page) - 1) * int(p.PageSize)
+
+	// JOIN 扩展 struct 路径：Find 到 *[]E 再用 extract 提取 []*T
+	if query.JoinScanDest != nil && query.JoinExtract != nil {
+		if err := db.Offset(offset).Limit(int(p.PageSize)).Find(query.JoinScanDest).Error; err != nil {
+			return nil, nil, r.handleErrorWithContext(ctx, err, "list with join scan")
+		}
+		return extractJoinScanResults[T](query.JoinScanDest, query.JoinExtract), p, nil
+	}
+
+	// 默认路径：Find 到 []*T
 	result := db.Offset(offset).Limit(int(p.PageSize)).Find(&entities)
 	if result.Error != nil {
 		return nil, nil, result.Error
 	}
 
 	return entities, p, nil
+}
+
+// extractJoinScanResults 通过反射调用 extract 回调，从 *[]E 提取 []*T
+// scanDest 必须为 *[]E，extract 必须为 func(E) *T；类型不匹配时返回空切片
+func extractJoinScanResults[T any](scanDest interface{}, extract interface{}) []*T {
+	destVal := reflect.ValueOf(scanDest)
+	if destVal.Kind() != reflect.Ptr || destVal.IsNil() {
+		return []*T{}
+	}
+	sliceVal := destVal.Elem()
+	if sliceVal.Kind() != reflect.Slice {
+		return []*T{}
+	}
+	extractVal := reflect.ValueOf(extract)
+	results := make([]*T, 0, sliceVal.Len())
+	for i := 0; i < sliceVal.Len(); i++ {
+		row := sliceVal.Index(i)
+		out := extractVal.Call([]reflect.Value{row})[0]
+		if t, ok := out.Interface().(*T); ok {
+			results = append(results, t)
+		}
+	}
+	return results
 }
 
 // ListWithPagination 分页列表查询
