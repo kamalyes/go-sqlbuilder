@@ -696,6 +696,10 @@ func (m *Migrator) updateColumnComment(tableName, columnName, comment, columnTyp
 	var sql string
 	switch {
 	case constants.IsMySQLDialector(dialector):
+		// 防御：缺少类型定义会生成非法 SQL（MODIFY COLUMN `col`  COMMENT '...'）触发 1064
+		if columnType == "" {
+			return fmt.Errorf("missing column type for %s.%s, cannot generate MODIFY COLUMN sql", tableName, columnName)
+		}
 		sql = fmt.Sprintf("ALTER TABLE `%s` MODIFY COLUMN `%s` %s COMMENT '%s'",
 			tableName, columnName, columnType, comment)
 	case constants.IsPostgreSQLFamilyDialector(dialector):
