@@ -398,6 +398,50 @@ func StructHasField(model interface{}, field string) bool {
 	return false
 }
 
+// FilterGroupByModel 模型感知地过滤 FilterGroup，移除模型中不存在的字段
+// 用于在执行层（BaseRepository，已知泛型 T）自动剔除作用域注入但目标表不存在的列
+// （如 customer_service_modules 没有 region_code），避免 "column xxx does not exist" 错误
+//
+// 处理策略：
+//   - 普通 Filter：字段不存在则丢弃
+//   - OP_RAW 条件（如 deny-all "1 = 0"）：保留
+//   - 子 FilterGroup：递归过滤；过滤后为空则丢弃
+func FilterGroupByModel(group *FilterGroup, model interface{}) *FilterGroup {
+	if group == nil || group.IsEmpty() {
+		return group
+	}
+
+	newGroup := NewFilterGroup(group.LogicOp)
+
+	// 过滤普通条件
+	for _, f := range group.Filters {
+		if f == nil {
+			continue
+		}
+		// OP_RAW 用于 deny-all 等场景，无具体列名，直接保留
+		if f.Operator == constants.OP_RAW {
+			newGroup.AddFilter(f)
+			continue
+		}
+		if StructHasField(model, f.Field) {
+			newGroup.AddFilter(f)
+		}
+	}
+
+	// 递归过滤子组
+	for _, sub := range group.Groups {
+		if sub == nil {
+			continue
+		}
+		filtered := FilterGroupByModel(sub, model)
+		if filtered != nil && !filtered.IsEmpty() {
+			newGroup.AddGroup(filtered)
+		}
+	}
+
+	return newGroup
+}
+
 // BuildSelectClause 构建 SELECT 子句
 func BuildSelectClause(tableName string, fields []string) string {
 	if len(fields) == 0 {

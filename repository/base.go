@@ -817,7 +817,7 @@ func (r *BaseRepository[T]) FirstWithQuery(ctx context.Context, query *Query) (*
 	if result := db.First(&entity); result.Error != nil {
 		return nil, r.handleErrorWithContext(ctx, result.Error, "first with query")
 	}
-	
+
 	return &entity, nil
 }
 
@@ -852,15 +852,8 @@ func ListWithPaginationT[T any, P types.Integer](r *BaseRepository[T], ctx conte
 	// 应用字段选择（Select/Omit）
 	db = ApplyFieldSelection(db, query.SelectFields, query.OmitFields, r.modelFields, r.autoFields)
 
-	// 应用过滤条件
-	for _, filter := range query.Filters {
-		db = ApplyFilter(db, filter)
-	}
-
-	// 应用复合过滤条件组
-	if query.FilterGroup != nil {
-		db = ApplyFilterGroup(db, query.FilterGroup)
-	}
+	// 应用过滤条件（模型感知）
+	db = r.ApplyQueryFilters(db, query)
 
 	// 计算总数
 	var total int64
@@ -1010,7 +1003,7 @@ func (r *BaseRepository[T]) DeleteByQuery(ctx context.Context, query *Query) err
 	if query == nil || !query.HasFilters() {
 		return errorx.NewError(errors.ErrorCodeInvalidInput)
 	}
-	return ApplyQueryFilters(r.newDB(ctx), query).Delete(new(T)).Error
+	return r.ApplyQueryFilters(r.newDB(ctx), query).Delete(new(T)).Error
 }
 
 // DeleteByFiltersWithCount 按过滤条件删除记录并返回删除数量
@@ -1140,7 +1133,7 @@ func (r *BaseRepository[T]) UpdateFieldsByQuery(ctx context.Context, fields map[
 		return errorx.NewError(errors.ErrorCodeInvalidInput)
 	}
 	r.normalizeJSONStringFieldMap(fields)
-	return ApplyQueryFilters(r.newDB(ctx), query).Updates(fields).Error
+	return r.ApplyQueryFilters(r.newDB(ctx), query).Updates(fields).Error
 }
 
 // SoftDelete 软删除（需要指定删除标记字段和值）
@@ -1431,8 +1424,9 @@ func ApplyQueryConditions[T any](repo *BaseRepository[T], db *gorm.DB, query *Qu
 		db = db.Distinct()
 	}
 
-	// 4. 应用过滤条件
-	db = ApplyQueryFilters(db, query)
+	// 4. 应用过滤条件（模型感知：自动剔除作用域 FilterGroup 中模型不存在的字段，
+	//    避免 region_code 等列在不匹配的表上引发 "column xxx does not exist" 错误）
+	db = repo.ApplyQueryFilters(db, query)
 
 	// 5. 应用分组
 	for _, groupBy := range query.GroupBy {
@@ -1476,16 +1470,23 @@ func ApplyPaginationOrLimit(db *gorm.DB, query *Query) *gorm.DB {
 	return db
 }
 
-// ApplyQueryFilters 应用过滤条件到查询
-func ApplyQueryFilters(db *gorm.DB, query *Query) *gorm.DB {
+// ApplyQueryFilters 模型感知地应用查询过滤条件
+// BaseRepository 是泛型 [T]，在方法内部通过 new(T) 自动获取模型类型，
+// 调用 FilterGroupByModel 过滤掉 FilterGroup 中模型不存在的字段（保留 OP_RAW deny-all），
+// 顶层 query.Filters（业务条件）原样应用，不修改入参 query
+//
+// 统一注入点：List/DeleteByQuery/UpdateByQuery/分页 等所有携带 *Query 的内部路径
+// 均走本方法，从而让作用域注入的 region_code 等字段在不匹配的表上被自动剔除，
+// 调用方零感知，无需传 model
+func (r *BaseRepository[T]) ApplyQueryFilters(db *gorm.DB, query *Query) *gorm.DB {
 	// 应用简单过滤条件
 	for _, filter := range query.Filters {
 		db = ApplyFilter(db, filter)
 	}
 
-	// 应用复合过滤条件组
+	// 应用复合过滤条件组（模型感知）
 	if query.FilterGroup != nil {
-		db = ApplyFilterGroup(db, query.FilterGroup)
+		db = ApplyFilterGroup(db, FilterGroupByModel(query.FilterGroup, new(T)))
 	}
 
 	return db

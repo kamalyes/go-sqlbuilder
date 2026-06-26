@@ -732,3 +732,184 @@ func TestStructHasField_SnakeCaseFallback(t *testing.T) {
 	assert.True(t, StructHasField(taglessModel{}, "status"))
 	assert.False(t, StructHasField(taglessModel{}, "region_code"))
 }
+
+// flattenFilterFields 递归收集 FilterGroup 中所有 Filter 的字段名（用于断言）
+func flattenFilterFields(group *FilterGroup) []string {
+	if group == nil {
+		return nil
+	}
+	var fields []string
+	for _, f := range group.Filters {
+		if f != nil {
+			fields = append(fields, f.Field)
+		}
+	}
+	for _, sub := range group.Groups {
+		fields = append(fields, flattenFilterFields(sub)...)
+	}
+	return fields
+}
+
+// containsFilterField 检查 FilterGroup 内是否存在指定字段
+func containsFilterField(group *FilterGroup, field string) bool {
+	for _, f := range flattenFilterFields(group) {
+		if f == field {
+			return true
+		}
+	}
+	return false
+}
+
+// ============================================================
+// FilterGroupByModel 模型感知过滤
+// ============================================================
+
+func TestFilterGroupByModel_NilGroup_ReturnsNil(t *testing.T) {
+	result := FilterGroupByModel(nil, scopeFieldProbeModel{})
+	assert.Nil(t, result)
+}
+
+func TestFilterGroupByModel_EmptyGroup_ReturnsSameRef(t *testing.T) {
+	empty := NewFilterGroup(constants.LOGIC_AND)
+	result := FilterGroupByModel(empty, scopeFieldProbeModel{})
+	assert.Same(t, empty, result)
+}
+
+func TestFilterGroupByModel_DropsNonExistentFields(t *testing.T) {
+	// 复现 bug 场景：scopeFieldProbeModel 无 region_code
+	group := NewFilterGroup(constants.LOGIC_AND)
+	group.AddFilter(NewEqFilter("tenant_id", "t1"))
+	group.AddFilter(NewEqFilter("region_code", "en"))
+	group.AddFilter(NewEqFilter("non_exist", "x"))
+
+	result := FilterGroupByModel(group, scopeFieldProbeModel{})
+	assert.NotNil(t, result)
+	assert.Len(t, result.Filters, 1)
+	assert.Equal(t, "tenant_id", result.Filters[0].Field)
+	assert.False(t, containsFilterField(result, "region_code"), "region_code 应被剔除")
+}
+
+func TestFilterGroupByModel_FullModel_KeepsRegionCode(t *testing.T) {
+	// 对照组：fullScopeModel 拥有 region_code，应保留
+	group := NewFilterGroup(constants.LOGIC_AND)
+	group.AddFilter(NewEqFilter("tenant_id", "t1"))
+	group.AddFilter(NewEqFilter("region_code", "en"))
+
+	result := FilterGroupByModel(group, fullScopeModel{})
+	assert.Len(t, result.Filters, 2)
+	assert.True(t, containsFilterField(result, "region_code"))
+}
+
+func TestFilterGroupByModel_PointerModel(t *testing.T) {
+	group := NewFilterGroup(constants.LOGIC_AND)
+	group.AddFilter(NewEqFilter("platform_id", "P1"))
+	group.AddFilter(NewEqFilter("region_code", "en"))
+
+	result := FilterGroupByModel(group, &scopeFieldProbeModel{})
+	assert.Len(t, result.Filters, 1)
+	assert.Equal(t, "platform_id", result.Filters[0].Field)
+}
+
+func TestFilterGroupByModel_PreservesOPRaw(t *testing.T) {
+	// deny-all "1 = 0" 使用 OP_RAW，无具体列名，必须保留
+	group := NewFilterGroup(constants.LOGIC_AND)
+	group.AddFilter(&Filter{Field: "1 = 0", Operator: constants.OP_RAW})
+	group.AddFilter(NewEqFilter("region_code", "en"))
+
+	result := FilterGroupByModel(group, scopeFieldProbeModel{})
+	assert.True(t, containsFilterField(result, "1 = 0"), "OP_RAW deny-all 条件应保留")
+	assert.Len(t, result.Filters, 1)
+}
+
+func TestFilterGroupByModel_NilFilterSkipped(t *testing.T) {
+	// 覆盖 for 循环中 f == nil 的 continue 分支
+	group := NewFilterGroup(constants.LOGIC_AND)
+	group.AddFilter(NewEqFilter("tenant_id", "t1"))
+	group.Filters = append(group.Filters, nil)
+	group.Filters = append(group.Filters, nil)
+
+	result := FilterGroupByModel(group, scopeFieldProbeModel{})
+	assert.Len(t, result.Filters, 1)
+	assert.Equal(t, "tenant_id", result.Filters[0].Field)
+}
+
+func TestFilterGroupByModel_NilSubGroupSkipped(t *testing.T) {
+	parent := NewFilterGroup(constants.LOGIC_AND)
+	parent.AddFilter(NewEqFilter("tenant_id", "t1"))
+
+	validChild := NewFilterGroup(constants.LOGIC_OR)
+	validChild.AddFilter(NewEqFilter("platform_id", "P1"))
+	parent.AddGroup(validChild)
+	// nil 子组覆盖 if sub == nil { continue }
+	parent.Groups = append(parent.Groups, nil)
+	parent.Groups = append(parent.Groups, nil)
+
+	result := FilterGroupByModel(parent, scopeFieldProbeModel{})
+	assert.Len(t, result.Groups, 1, "nil 子组应被跳过")
+	assert.Len(t, result.Groups[0].Filters, 1)
+	assert.Equal(t, "platform_id", result.Groups[0].Filters[0].Field)
+}
+
+func TestFilterGroupByModel_EmptyFilteredSubGroupDropped(t *testing.T) {
+	// 子组全部字段不存在 → 过滤后为空 → 被丢弃（覆盖 !filtered.IsEmpty() 为 false）
+	parent := NewFilterGroup(constants.LOGIC_AND)
+	parent.AddFilter(NewEqFilter("tenant_id", "t1"))
+
+	emptyChild := NewFilterGroup(constants.LOGIC_OR)
+	emptyChild.AddFilter(NewEqFilter("region_code", "en"))
+	emptyChild.AddFilter(NewEqFilter("non_exist", "x"))
+	parent.AddGroup(emptyChild)
+
+	result := FilterGroupByModel(parent, scopeFieldProbeModel{})
+	assert.Empty(t, result.Groups, "过滤后为空的子组应被丢弃")
+	assert.Len(t, result.Filters, 1, "父组普通条件不受影响")
+}
+
+func TestFilterGroupByModel_NestedSubGroups(t *testing.T) {
+	// 覆盖多层嵌套递归
+	parent := NewFilterGroup(constants.LOGIC_AND)
+	parent.AddFilter(NewEqFilter("tenant_id", "t1"))
+
+	child := NewFilterGroup(constants.LOGIC_OR)
+	child.AddFilter(NewEqFilter("platform_id", "P1"))
+	child.AddFilter(NewEqFilter("region_code", "en"))
+
+	grandchild := NewFilterGroup(constants.LOGIC_AND)
+	grandchild.AddFilter(NewEqFilter("module", 1))
+
+	child.AddGroup(grandchild)
+	parent.AddGroup(child)
+
+	result := FilterGroupByModel(parent, scopeFieldProbeModel{})
+	assert.Len(t, result.Groups, 1)
+	// 子组保留 platform_id，剔除 region_code
+	assert.Len(t, result.Groups[0].Filters, 1)
+	assert.Equal(t, "platform_id", result.Groups[0].Filters[0].Field)
+	// 孙子组（仅含 module，模型存在）应保留
+	assert.Len(t, result.Groups[0].Groups, 1)
+	assert.Equal(t, "module", result.Groups[0].Groups[0].Filters[0].Field)
+}
+
+func TestFilterGroupByModel_NilModel_DropsAllButRaw(t *testing.T) {
+	// nil model 兜底：StructHasField 全返回 false，普通字段全丢，OP_RAW 保留
+	group := NewFilterGroup(constants.LOGIC_AND)
+	group.AddFilter(NewEqFilter("tenant_id", "t1"))
+	group.AddFilter(NewEqFilter("region_code", "en"))
+	group.AddFilter(&Filter{Field: "1 = 0", Operator: constants.OP_RAW})
+
+	result := FilterGroupByModel(group, nil)
+	assert.Len(t, result.Filters, 1)
+	assert.Equal(t, "1 = 0", result.Filters[0].Field)
+}
+
+func TestFilterGroupByModel_OnlyNonExistentFilters_ResultEmpty(t *testing.T) {
+	// 全部字段都不存在 → 普通条件全丢，结果 Filters 为空（但 group 非空引用）
+	group := NewFilterGroup(constants.LOGIC_AND)
+	group.AddFilter(NewEqFilter("region_code", "en"))
+	group.AddFilter(NewEqFilter("non_exist", "x"))
+
+	result := FilterGroupByModel(group, scopeFieldProbeModel{})
+	assert.NotNil(t, result)
+	assert.Empty(t, result.Filters)
+	assert.Empty(t, result.Groups)
+}
