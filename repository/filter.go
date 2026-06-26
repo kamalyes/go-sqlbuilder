@@ -475,3 +475,17 @@ func NewJsonbLikeFilter(field string, value string) *Filter {
 func NewFilter(field string, operator constants.Operator, value interface{}) *Filter {
 	return &Filter{Field: field, Operator: operator, Value: validator.NormalizeFilterValue(value)}
 }
+
+// NewInSubQueryFilter 创建 IN 子查询过滤条件：field IN (subSQL)
+// subSQL 为子查询 SQL（含 ? 占位符），args 为子查询参数
+// 示例: NewInSubQueryFilter("group_id", "SELECT id FROM dict_groups WHERE type IN (?)", types)
+func NewInSubQueryFilter(field, subSQL string, args ...interface{}) *Filter {
+	return &Filter{Field: field, Operator: constants.OP_IN, Value: NewSubQuery(subSQL, args...)}
+}
+
+// NewNotInSubQueryFilter 创建 NOT IN 子查询过滤条件：field NOT IN (subSQL)
+// subSQL 为子查询 SQL（含 ? 占位符），args 为子查询参数
+// 示例: NewNotInSubQueryFilter("group_id", "SELECT id FROM dict_groups WHERE type IN (?)", types)
+func NewNotInSubQueryFilter(field, subSQL string, args ...interface{}) *Filter {
+	return &Filter{Field: field, Operator: constants.OP_NOT_IN, Value: NewSubQuery(subSQL, args...)}
+}

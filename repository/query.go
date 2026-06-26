@@ -395,6 +395,43 @@ func (q *Query) AddNotInFilterIfNotEmpty(field string, values interface{}) *Quer
 	return q
 }
 
+// AddInSubQueryFilterIfNotEmpty 添加 IN 子查询过滤条件（仅当首个参数非空时）
+// 用于 "field IN (SELECT id FROM xxx WHERE col IN (?))" 场景，替代手动
+// query.AddFilter(NewFilter(field, OP_IN, NewSubQuery(sql, args)))
+// args 通常传入单个切片（如 []string、[]enumspb.Xxx）；nil/空切片时跳过
+// 多占位符子查询请直接使用 NewInSubQueryFilter 手动构造
+func (q *Query) AddInSubQueryFilterIfNotEmpty(field, subSQL string, args ...interface{}) *Query {
+	deref, empty := subQueryArgsIfNotEmpty(args)
+	if empty {
+		return q
+	}
+	return q.AddFilter(NewInSubQueryFilter(field, subSQL, deref))
+}
+
+// AddNotInSubQueryFilterIfNotEmpty 添加 NOT IN 子查询过滤条件（仅当首个参数非空时）
+// 用于 "field NOT IN (SELECT id FROM xxx WHERE col IN (?))" 场景
+// args 通常传入单个切片；nil/空切片时跳过
+func (q *Query) AddNotInSubQueryFilterIfNotEmpty(field, subSQL string, args ...interface{}) *Query {
+	deref, empty := subQueryArgsIfNotEmpty(args)
+	if empty {
+		return q
+	}
+	return q.AddFilter(NewNotInSubQueryFilter(field, subSQL, deref))
+}
+
+// subQueryArgsIfNotEmpty 校验子查询参数是否非空
+// 返回归一化后的值与是否为空；空 args 或首参为空切片/nil 时 empty=true
+func subQueryArgsIfNotEmpty(args []interface{}) (interface{}, bool) {
+	if len(args) == 0 {
+		return nil, true
+	}
+	deref, empty := validator.NormalizeFilterValueIfNotEmpty(args[0])
+	if empty {
+		return nil, true
+	}
+	return deref, false
+}
+
 // AddBetweenFilterIfNotEmpty 添加 BETWEEN 过滤条件（仅当最小值和最大值都不为空时）
 func (q *Query) AddBetweenFilterIfNotEmpty(field string, min, max interface{}) *Query {
 	minDeref, minEmpty := validator.NormalizeFilterValueIfNotEmpty(min)

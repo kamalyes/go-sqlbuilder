@@ -16,6 +16,7 @@ import (
 
 	"github.com/kamalyes/go-sqlbuilder/constants"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
@@ -2825,4 +2826,191 @@ func TestQueryWithFiltersSkipsNilBuilders(t *testing.T) {
 
 	assert.Len(t, query.Filters, 1)
 	assert.Equal(t, "status", query.Filters[0].Field)
+}
+
+// ============================================================
+// NewInSubQueryFilter / NewNotInSubQueryFilter 构造函数
+// ============================================================
+
+func TestNewInSubQueryFilter(t *testing.T) {
+	f := NewInSubQueryFilter("group_id", "SELECT id FROM dict_groups WHERE type IN (?)", []string{"a", "b"})
+
+	assert.Equal(t, "group_id", f.Field)
+	assert.Equal(t, constants.OP_IN, f.Operator)
+	sq, ok := f.Value.(*SubQuery)
+	require.True(t, ok, "Value 应为 *SubQuery 类型")
+	assert.Equal(t, "SELECT id FROM dict_groups WHERE type IN (?)", sq.SQL)
+}
+
+func TestNewNotInSubQueryFilter(t *testing.T) {
+	f := NewNotInSubQueryFilter("group_id", "SELECT id FROM dict_groups WHERE type IN (?)", []string{"a"})
+
+	assert.Equal(t, "group_id", f.Field)
+	assert.Equal(t, constants.OP_NOT_IN, f.Operator)
+	sq, ok := f.Value.(*SubQuery)
+	require.True(t, ok, "Value 应为 *SubQuery 类型")
+	assert.Equal(t, "SELECT id FROM dict_groups WHERE type IN (?)", sq.SQL)
+}
+
+func TestNewInSubQueryFilter_NoArgs(t *testing.T) {
+	// 无参数子查询（如 SELECT id FROM x，无占位符）
+	f := NewInSubQueryFilter("id", "SELECT id FROM dict_groups")
+	assert.Equal(t, constants.OP_IN, f.Operator)
+	sq, ok := f.Value.(*SubQuery)
+	require.True(t, ok)
+	assert.Equal(t, 0, len(sq.Args))
+}
+
+// ============================================================
+// AddInSubQueryFilterIfNotEmpty
+// ============================================================
+
+func TestAddInSubQueryFilterIfNotEmpty_WithSlice(t *testing.T) {
+	q := NewQuery().AddInSubQueryFilterIfNotEmpty("group_id",
+		"SELECT id FROM dict_groups WHERE type IN (?)",
+		[]string{"typeA", "typeB"})
+
+	assert.Len(t, q.Filters, 1)
+	f := q.Filters[0]
+	assert.Equal(t, "group_id", f.Field)
+	assert.Equal(t, constants.OP_IN, f.Operator)
+	_, ok := f.Value.(*SubQuery)
+	assert.True(t, ok, "Value 应为 *SubQuery")
+}
+
+func TestAddInSubQueryFilterIfNotEmpty_EmptySlice_Skipped(t *testing.T) {
+	q := NewQuery().AddInSubQueryFilterIfNotEmpty("group_id",
+		"SELECT id FROM dict_groups WHERE type IN (?)",
+		[]string{})
+
+	assert.Empty(t, q.Filters, "空切片应跳过")
+}
+
+func TestAddInSubQueryFilterIfNotEmpty_Nil_Skipped(t *testing.T) {
+	q := NewQuery().AddInSubQueryFilterIfNotEmpty("group_id",
+		"SELECT id FROM dict_groups WHERE type IN (?)", nil)
+
+	assert.Empty(t, q.Filters, "nil 应跳过")
+}
+
+func TestAddInSubQueryFilterIfNotEmpty_NoArgs_Skipped(t *testing.T) {
+	q := NewQuery().AddInSubQueryFilterIfNotEmpty("group_id",
+		"SELECT id FROM dict_groups WHERE type IN (?)")
+
+	assert.Empty(t, q.Filters, "无参数应跳过")
+}
+
+func TestAddInSubQueryFilterIfNotEmpty_IntSlice(t *testing.T) {
+	q := NewQuery().AddInSubQueryFilterIfNotEmpty("user_id",
+		"SELECT user_id FROM orders WHERE amount > ?",
+		[]int64{100, 200, 300})
+
+	assert.Len(t, q.Filters, 1)
+	f := q.Filters[0]
+	assert.Equal(t, "user_id", f.Field)
+	sq, ok := f.Value.(*SubQuery)
+	require.True(t, ok)
+	assert.Equal(t, "SELECT user_id FROM orders WHERE amount > ?", sq.SQL)
+}
+
+func TestAddInSubQueryFilterIfNotEmpty_PointerToSlice(t *testing.T) {
+	types := []string{"a", "b"}
+	q := NewQuery().AddInSubQueryFilterIfNotEmpty("group_id",
+		"SELECT id FROM dict_groups WHERE type IN (?)", &types)
+
+	assert.Len(t, q.Filters, 1, "指向切片的指针应解引用并添加")
+}
+
+// ============================================================
+// AddNotInSubQueryFilterIfNotEmpty
+// ============================================================
+
+func TestAddNotInSubQueryFilterIfNotEmpty_WithSlice(t *testing.T) {
+	q := NewQuery().AddNotInSubQueryFilterIfNotEmpty("group_id",
+		"SELECT id FROM dict_groups WHERE type IN (?)",
+		[]string{"typeA"})
+
+	assert.Len(t, q.Filters, 1)
+	f := q.Filters[0]
+	assert.Equal(t, constants.OP_NOT_IN, f.Operator)
+}
+
+func TestAddNotInSubQueryFilterIfNotEmpty_EmptySlice_Skipped(t *testing.T) {
+	q := NewQuery().AddNotInSubQueryFilterIfNotEmpty("group_id",
+		"SELECT id FROM dict_groups WHERE type IN (?)", []string{})
+
+	assert.Empty(t, q.Filters)
+}
+
+func TestAddNotInSubQueryFilterIfNotEmpty_Nil_Skipped(t *testing.T) {
+	q := NewQuery().AddNotInSubQueryFilterIfNotEmpty("group_id",
+		"SELECT id FROM dict_groups WHERE type IN (?)", nil)
+
+	assert.Empty(t, q.Filters)
+}
+
+// ============================================================
+// subQueryArgsIfNotEmpty 内部辅助函数
+// ============================================================
+
+func TestSubQueryArgsIfNotEmpty_NilArgs(t *testing.T) {
+	deref, empty := subQueryArgsIfNotEmpty(nil)
+	assert.True(t, empty)
+	assert.Nil(t, deref)
+}
+
+func TestSubQueryArgsIfNotEmpty_EmptyArgs(t *testing.T) {
+	deref, empty := subQueryArgsIfNotEmpty([]interface{}{})
+	assert.True(t, empty)
+	assert.Nil(t, deref)
+}
+
+func TestSubQueryArgsIfNotEmpty_NilFirstArg(t *testing.T) {
+	deref, empty := subQueryArgsIfNotEmpty([]interface{}{nil})
+	assert.True(t, empty)
+	assert.Nil(t, deref)
+}
+
+func TestSubQueryArgsIfNotEmpty_EmptySliceFirstArg(t *testing.T) {
+	deref, empty := subQueryArgsIfNotEmpty([]interface{}{[]string{}})
+	assert.True(t, empty)
+	assert.Nil(t, deref)
+}
+
+func TestSubQueryArgsIfNotEmpty_NonEmptySliceFirstArg(t *testing.T) {
+	deref, empty := subQueryArgsIfNotEmpty([]interface{}{[]string{"a", "b"}})
+	assert.False(t, empty)
+	assert.NotNil(t, deref)
+}
+
+func TestSubQueryArgsIfNotEmpty_ScalarFirstArg(t *testing.T) {
+	// 非空标量值（如字符串）应判定为非空
+	deref, empty := subQueryArgsIfNotEmpty([]interface{}{"active"})
+	assert.False(t, empty)
+	assert.Equal(t, "active", deref)
+}
+
+// ============================================================
+// 链式调用与 BuildWhereClause 集成
+// ============================================================
+
+func TestAddInSubQueryFilterIfNotEmpty_ChainedWithOtherFilters(t *testing.T) {
+	// 模拟 dict_repository 场景：链式拼接 LIKE + 子查询
+	q := NewQuery().
+		AddLikeFilterIfNotEmpty("code", "abc").
+		AddInSubQueryFilterIfNotEmpty("group_id",
+			"SELECT id FROM dict_groups WHERE type IN (?)",
+			[]string{"typeA", "typeB"})
+
+	assert.Len(t, q.Filters, 2)
+	// 验证子查询过滤器存在
+	var sub *Filter
+	for _, f := range q.Filters {
+		if _, ok := f.Value.(*SubQuery); ok {
+			sub = f
+			break
+		}
+	}
+	require.NotNil(t, sub, "应包含子查询过滤器")
+	assert.Equal(t, "group_id", sub.Field)
 }
