@@ -30,6 +30,23 @@ type JoinField struct {
 	Alias string
 }
 
+// ComputedField 计算字段：SELECT 中的派生表达式（如子查询聚合）
+//
+// 用于在查询时动态计算派生值，无需维护冗余列。
+// 当 Alias 与主表物理列同名时，后出现的计算列会覆盖主表列的值（GORM 行为）。
+//
+// 用法：
+//
+//	q.AddComputedField("(SELECT COUNT(*) FROM game_libraries WHERE brand_id = game_brands.id)", "linked_game_count")
+type ComputedField struct {
+	// Expr SQL 表达式，如 "(SELECT COUNT(*) FROM game_libraries WHERE brand_id = game_brands.id)"
+	Expr string
+	// Alias 结果列别名，如 "linked_game_count"
+	// 需匹配主模型 struct 的 gorm column tag
+	// 为空则直接用 Expr，不做 AS
+	Alias string
+}
+
 // JoinSpec 一次 JOIN 的描述
 type JoinSpec struct {
 	// JoinType JOIN 类型，使用 constants.JOIN_LEFT / constants.JOIN_INNER 等
@@ -74,13 +91,34 @@ func buildJoinSelect(query *Query) []string {
 	return extras
 }
 
+// buildComputedSelect 构建计算字段的 SELECT 片段
+func buildComputedSelect(query *Query) []string {
+	var extras []string
+	for _, cf := range query.ComputedFields {
+		if cf.Alias != "" {
+			extras = append(extras, fmt.Sprintf("%s AS %s", cf.Expr, cf.Alias))
+		} else {
+			extras = append(extras, cf.Expr)
+		}
+	}
+	return extras
+}
+
 // ApplyJoins 应用所有 JOIN 子句与补充字段 SELECT 拼接
 //
 // mainTable 为主表名，用于 SELECT "mainTable.*" 限定，避免 JOIN 后字段歧义
 // mainTable 为空时只应用 JOIN 子句，不拼接 SELECT（count 场景）
-// query 无 Joins 时直接返回原 db
+// query 无 Joins 且无 ComputedFields 时直接返回原 db
+//
+// SELECT 构建顺序：主表.* + 关联补充字段 + 计算字段
+// 当计算字段 Alias 与主表物理列同名时，后出现的计算列会覆盖主表列值
 func ApplyJoins(db *gorm.DB, query *Query, mainTable string) *gorm.DB {
-	if query == nil || len(query.Joins) == 0 {
+	if query == nil {
+		return db
+	}
+	hasJoins := len(query.Joins) > 0
+	hasComputed := len(query.ComputedFields) > 0
+	if !hasJoins && !hasComputed {
 		return db
 	}
 
@@ -89,13 +127,12 @@ func ApplyJoins(db *gorm.DB, query *Query, mainTable string) *gorm.DB {
 		db = applyJoinSpec(db, j)
 	}
 
-	// 拼接 SELECT：主表.* + 关联补充字段
+	// 拼接 SELECT：主表.* + 关联补充字段 + 计算字段
 	if mainTable != "" {
-		extras := buildJoinSelect(query)
-		if len(extras) > 0 {
-			selects := append([]string{mainTable + ".*"}, extras...)
-			db = db.Select(selects)
-		}
+		selects := []string{mainTable + ".*"}
+		selects = append(selects, buildJoinSelect(query)...)
+		selects = append(selects, buildComputedSelect(query)...)
+		db = db.Select(selects)
 	}
 
 	return db

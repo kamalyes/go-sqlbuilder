@@ -13,6 +13,7 @@ package types
 import (
 	"bytes"
 	"database/sql/driver"
+	"encoding/json"
 	"fmt"
 
 	"github.com/kamalyes/go-toolbox/pkg/serializer"
@@ -35,7 +36,12 @@ func (s *Slice[T]) Scan(value interface{}) error {
 		return nil
 	}
 	b = normalizeSliceJSON(b)
-	return serializer.JSONUnmarshal(b, s)
+	if err := serializer.JSONUnmarshal(b, s); err != nil {
+		// protojson 反序列化失败时回退到标准 json
+		// 兼容旧格式数据（如 Timestamp 对象格式、枚举数字值等 generated proto json tag 可解析的格式）
+		return json.Unmarshal(b, s)
+	}
+	return nil
 }
 
 func normalizeSliceJSON(data []byte) []byte {

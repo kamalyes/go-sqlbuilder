@@ -11,6 +11,7 @@
 package repository
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -18,6 +19,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/wrapperspb"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
+	gormlogger "gorm.io/gorm/logger"
 )
 
 type TestStatus int32
@@ -3013,4 +3017,160 @@ func TestAddInSubQueryFilterIfNotEmpty_ChainedWithOtherFilters(t *testing.T) {
 	}
 	require.NotNil(t, sub, "应包含子查询过滤器")
 	assert.Equal(t, "group_id", sub.Field)
+}
+
+// ComputedTestPost 主表测试模型，LinkedCount 为物理列（将被计算字段覆盖）
+type ComputedTestPost struct {
+	ID          int    `gorm:"column:id;primaryKey"`
+	Title       string `gorm:"column:title"`
+	UserID      int    `gorm:"column:user_id"`
+	LinkedCount int    `gorm:"column:linked_count"`
+}
+
+func (ComputedTestPost) TableName() string { return "computed_test_posts" }
+
+// ComputedTestComment 关联表（评论）
+type ComputedTestComment struct {
+	ID     int `gorm:"column:id;primaryKey"`
+	PostID int `gorm:"column:post_id"`
+}
+
+func (ComputedTestComment) TableName() string { return "computed_test_comments" }
+
+func setupComputedTestDB(t *testing.T) *gorm.DB {
+	gormDB, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{
+		Logger: gormlogger.Default.LogMode(gormlogger.Silent),
+	})
+	require.NoError(t, err)
+	require.NoError(t, gormDB.AutoMigrate(&ComputedTestPost{}, &ComputedTestComment{}))
+	require.NoError(t, gormDB.Create(&ComputedTestPost{ID: 1, Title: "post1", UserID: 1, LinkedCount: 0}).Error)
+	require.NoError(t, gormDB.Create(&ComputedTestPost{ID: 2, Title: "post2", UserID: 1, LinkedCount: 0}).Error)
+	require.NoError(t, gormDB.Create(&ComputedTestPost{ID: 3, Title: "post3", UserID: 2, LinkedCount: 0}).Error)
+	require.NoError(t, gormDB.Create(&ComputedTestComment{ID: 1, PostID: 1}).Error)
+	require.NoError(t, gormDB.Create(&ComputedTestComment{ID: 2, PostID: 1}).Error)
+	require.NoError(t, gormDB.Create(&ComputedTestComment{ID: 3, PostID: 2}).Error)
+	return gormDB
+}
+
+// === AddComputedField / AddComputedFields 方法测试 ===
+
+func TestAddComputedField(t *testing.T) {
+	q := NewQuery()
+	q.AddComputedField("(SELECT COUNT(*) FROM t WHERE id = 1)", "cnt")
+	assert.Len(t, q.ComputedFields, 1)
+	assert.Equal(t, "(SELECT COUNT(*) FROM t WHERE id = 1)", q.ComputedFields[0].Expr)
+	assert.Equal(t, "cnt", q.ComputedFields[0].Alias)
+}
+
+func TestAddComputedField_NoAlias(t *testing.T) {
+	q := NewQuery()
+	q.AddComputedField("COUNT(*)", "")
+	assert.Len(t, q.ComputedFields, 1)
+	assert.Empty(t, q.ComputedFields[0].Alias)
+}
+
+func TestAddComputedFields(t *testing.T) {
+	q := NewQuery()
+	q.AddComputedFields(
+		ComputedField{Expr: "(SELECT 1)", Alias: "a"},
+		ComputedField{Expr: "(SELECT 2)", Alias: "b"},
+	)
+	assert.Len(t, q.ComputedFields, 2)
+}
+
+func TestAddComputedField_OnClone(t *testing.T) {
+	q := NewQuery()
+	q.AddComputedField("(SELECT 1)", "a")
+	cloned := q.Clone()
+	cloned.AddComputedField("(SELECT 2)", "b")
+	assert.Len(t, q.ComputedFields, 1, "原 query 不受 clone 影响")
+	assert.Len(t, cloned.ComputedFields, 2)
+}
+
+// === buildComputedSelect 单元测试 ===
+
+func TestBuildComputedSelect_WithAlias(t *testing.T) {
+	q := NewQuery().AddComputedField("(SELECT COUNT(*) FROM t)", "cnt")
+	selects := buildComputedSelect(q)
+	assert.Equal(t, []string{"(SELECT COUNT(*) FROM t) AS cnt"}, selects)
+}
+
+func TestBuildComputedSelect_NoAlias(t *testing.T) {
+	q := NewQuery().AddComputedField("COUNT(*)", "")
+	selects := buildComputedSelect(q)
+	assert.Equal(t, []string{"COUNT(*)"}, selects)
+}
+
+func TestBuildComputedSelect_Empty(t *testing.T) {
+	q := NewQuery()
+	selects := buildComputedSelect(q)
+	assert.Empty(t, selects)
+}
+
+// === ApplyJoins + ComputedFields 集成测试 ===
+
+func TestApplyJoins_ComputedFieldOnly(t *testing.T) {
+	gormDB := setupComputedTestDB(t)
+	dryDB := gormDB.Session(&gorm.Session{DryRun: true}).Table("computed_test_posts")
+	q := NewQuery().AddComputedField("(SELECT COUNT(*) FROM computed_test_comments WHERE post_id = computed_test_posts.id)", "linked_count")
+	result := ApplyJoins(dryDB, q, "computed_test_posts")
+	result = result.Find(&[]ComputedTestPost{})
+	sql := result.Statement.SQL.String()
+	assert.Contains(t, sql, "computed_test_posts.*")
+	assert.Contains(t, sql, "AS linked_count")
+}
+
+func TestApplyJoins_NoJoinsNoComputed(t *testing.T) {
+	gormDB := setupComputedTestDB(t)
+	db := gormDB.Table("computed_test_posts")
+	result := ApplyJoins(db, NewQuery(), "computed_test_posts")
+	assert.Same(t, db, result)
+}
+
+// === 实际查询覆盖测试 ===
+
+func TestComputedField_QueryOverridesMainColumn(t *testing.T) {
+	gormDB := setupComputedTestDB(t)
+	ctx := context.Background()
+
+	q := NewQuery().AddComputedField(
+		"(SELECT COUNT(*) FROM computed_test_comments WHERE post_id = computed_test_posts.id)",
+		"linked_count",
+	)
+	db := ApplyJoins(gormDB.WithContext(ctx), q, "computed_test_posts")
+	var posts []ComputedTestPost
+	require.NoError(t, db.Order("id ASC").Find(&posts).Error)
+	require.Len(t, posts, 3)
+	assert.Equal(t, 2, posts[0].LinkedCount, "post1 的 LinkedCount 应被计算字段覆盖为 2")
+	assert.Equal(t, 1, posts[1].LinkedCount, "post2 的 LinkedCount 应被计算字段覆盖为 1")
+	assert.Equal(t, 0, posts[2].LinkedCount, "post3 的 LinkedCount 应为 0")
+}
+
+func TestComputedField_QuerySingle(t *testing.T) {
+	gormDB := setupComputedTestDB(t)
+	ctx := context.Background()
+
+	q := NewQuery().AddComputedField(
+		"(SELECT COUNT(*) FROM computed_test_comments WHERE post_id = computed_test_posts.id)",
+		"linked_count",
+	)
+	db := ApplyJoins(gormDB.WithContext(ctx), q, "computed_test_posts")
+	var post ComputedTestPost
+	require.NoError(t, db.Where("id = ?", 1).First(&post).Error)
+	assert.Equal(t, 2, post.LinkedCount, "post1 的 LinkedCount 应为 2")
+	assert.Equal(t, "post1", post.Title)
+}
+
+func TestComputedField_CountNotAffected(t *testing.T) {
+	gormDB := setupComputedTestDB(t)
+	ctx := context.Background()
+
+	q := NewQuery().AddComputedField(
+		"(SELECT COUNT(*) FROM computed_test_comments WHERE post_id = computed_test_posts.id)",
+		"linked_count",
+	)
+	db := ApplyJoins(gormDB.WithContext(ctx).Model(&ComputedTestPost{}), q, "computed_test_posts")
+	var count int64
+	require.NoError(t, db.Count(&count).Error)
+	assert.Equal(t, int64(3), count, "Count 查询应返回总行数，不受 ComputedFields 影响")
 }

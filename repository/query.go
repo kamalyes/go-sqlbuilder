@@ -44,13 +44,14 @@ type ComparedValue struct {
 // NewQuery 创建查询条件，初始化所有切片字段
 func NewQuery() *Query {
 	return &Query{
-		Filters:      make([]*Filter, 0),
-		Orders:       make([]Order, 0),
-		GroupBy:      make([]string, 0),
-		Having:       make([]*Filter, 0),
-		SelectFields: make([]string, 0),
-		OmitFields:   make([]string, 0),
-		Joins:        make([]JoinSpec, 0),
+		Filters:        make([]*Filter, 0),
+		Orders:         make([]Order, 0),
+		GroupBy:        make([]string, 0),
+		Having:         make([]*Filter, 0),
+		SelectFields:   make([]string, 0),
+		OmitFields:     make([]string, 0),
+		Joins:          make([]JoinSpec, 0),
+		ComputedFields: make([]ComputedField, 0),
 	}
 }
 
@@ -190,6 +191,33 @@ func (q *Query) WithFilterGroup(group *FilterGroup) *Query {
 func (q *Query) WithJoinScan(scanDest interface{}, extract interface{}) *Query {
 	q.JoinScanDest = scanDest
 	q.JoinExtract = extract
+	return q
+}
+
+// AddComputedField 添加计算字段（SELECT 中的派生表达式，如子查询聚合）
+//
+// 用于查询时动态计算派生值，避免维护冗余列计算字段会追加到 SELECT 末尾，
+// 当 alias 与主表物理列同名时，后出现的计算列会覆盖主表列值
+//
+// 用法：
+//
+//	q.AddComputedField("(SELECT COUNT(*) FROM game_libraries WHERE brand_id = game_brands.id)", "linked_game_count")
+//
+// 注意：表达式中的主表别名需与 ListWithPaginationT 使用的表名一致（默认为主模型 TableName）
+func (q *Query) AddComputedField(expr, alias string) *Query {
+	if q.ComputedFields == nil {
+		q.ComputedFields = make([]ComputedField, 0)
+	}
+	q.ComputedFields = append(q.ComputedFields, ComputedField{Expr: expr, Alias: alias})
+	return q
+}
+
+// AddComputedFields 批量添加计算字段
+func (q *Query) AddComputedFields(fields ...ComputedField) *Query {
+	if q.ComputedFields == nil {
+		q.ComputedFields = make([]ComputedField, 0)
+	}
+	q.ComputedFields = append(q.ComputedFields, fields...)
 	return q
 }
 
@@ -1053,6 +1081,9 @@ func (q *Query) Clone() *Query {
 	}
 	if cloned.OmitFields == nil {
 		cloned.OmitFields = make([]string, 0)
+	}
+	if cloned.ComputedFields == nil {
+		cloned.ComputedFields = make([]ComputedField, 0)
 	}
 
 	return cloned

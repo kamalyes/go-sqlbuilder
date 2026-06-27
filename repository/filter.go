@@ -354,9 +354,10 @@ type Query struct {
 	Distinct     bool         // 是否去重
 	GroupBy      []string     // 分组字段
 	Having       []*Filter    // HAVING 条件
-	SelectFields []string     // 要查询的字段列表（为空则查询所有字段）
-	OmitFields   []string     // 要排除的字段列表
-	Joins        []JoinSpec   // JOIN 关联（主表 JOIN 关联表补充字段）
+	SelectFields   []string        // 要查询的字段列表（为空则查询所有字段）
+	OmitFields     []string        // 要排除的字段列表
+	Joins          []JoinSpec       // JOIN 关联（主表 JOIN 关联表补充字段）
+	ComputedFields []ComputedField  // 计算字段（派生表达式 SELECT，如子查询聚合，可覆盖主表同名列）
 
 	// JoinScanDest 设置后 ListWithPagination* 会将结果 Find 到此扩展 struct 切片（*[]E），
 	// 而非默认的 []*T用于 JOIN 关联表补充字段的场景，配合 Joins 与 JoinExtract 使用
