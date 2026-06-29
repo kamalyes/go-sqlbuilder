@@ -297,6 +297,9 @@ func GetStructFields(model interface{}) []string {
 				fields = append(fields, columnName)
 				continue
 			}
+		} else {
+			// gorm:"-" 表示该字段不映射到数据库列，跳过
+			continue
 		}
 
 		// 使用 json tag
