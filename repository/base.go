@@ -1468,20 +1468,25 @@ func ApplyQueryConditions[T any](repo *BaseRepository[T], db *gorm.DB, query *Qu
 	//    避免 region_code 等列在不匹配的表上引发 "column xxx does not exist" 错误）
 	db = repo.ApplyQueryFilters(db, query)
 
-	// 5. 应用分组
+	// 5. 应用 JOIN 子句与补充字段 SELECT（含 ComputedField 子查询）
+	//    与 ListWithPaginationT 保持一致，让 List/ListWithPreloads/FirstWithQuery
+	//    也能填充 gorm:"-" 派生字段
+	db = ApplyJoins(db, query, repo.table)
+
+	// 6. 应用分组
 	for _, groupBy := range query.GroupBy {
 		db = db.Group(groupBy)
 	}
 
-	// 6. 应用 HAVING 条件
+	// 7. 应用 HAVING 条件
 	for _, having := range query.Having {
 		db = ApplyFilter(db, having)
 	}
 
-	// 7. 应用排序
+	// 8. 应用排序
 	db = ApplyOrdering(db, query.Orders, repo.defaultOrder)
 
-	// 8. 应用分页或限制条件
+	// 9. 应用分页或限制条件
 	db = ApplyPaginationOrLimit(db, query)
 
 	return db
