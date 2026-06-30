@@ -15,12 +15,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/kamalyes/go-logger"
 	"github.com/kamalyes/go-sqlbuilder/constants"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+	gormLogger "gorm.io/gorm/logger"
 	gormlogger "gorm.io/gorm/logger"
 )
 
@@ -3173,4 +3175,411 @@ func TestComputedField_CountNotAffected(t *testing.T) {
 	var count int64
 	require.NoError(t, db.Count(&count).Error)
 	assert.Equal(t, int64(3), count, "Count 查询应返回总行数，不受 ComputedFields 影响")
+}
+
+func TestNewILikeFilter(t *testing.T) {
+	t.Run("非空值", func(t *testing.T) {
+		f := NewILikeFilter("name", "test")
+		assert.Equal(t, "name", f.Field)
+		assert.Equal(t, constants.OP_ILIKE, f.Operator)
+		assert.Equal(t, "%test%", f.Value)
+	})
+
+	t.Run("空值仍构造", func(t *testing.T) {
+		f := NewILikeFilter("name", "")
+		assert.Equal(t, "name", f.Field)
+		assert.Equal(t, constants.OP_ILIKE, f.Operator)
+		assert.Equal(t, "%%", f.Value)
+	})
+}
+
+func TestNewNotILikeFilter(t *testing.T) {
+	t.Run("非空值", func(t *testing.T) {
+		f := NewNotILikeFilter("name", "test")
+		assert.Equal(t, "name", f.Field)
+		assert.Equal(t, constants.OP_NOT_ILIKE, f.Operator)
+		assert.Equal(t, "%test%", f.Value)
+	})
+
+	t.Run("空值仍构造", func(t *testing.T) {
+		f := NewNotILikeFilter("name", "")
+		assert.Equal(t, constants.OP_NOT_ILIKE, f.Operator)
+		assert.Equal(t, "%%", f.Value)
+	})
+}
+
+// ==============================================================================
+// FilterGroup.AddILikeFilterIfNotEmpty / AddNotILikeFilterIfNotEmpty
+// ==============================================================================
+
+func TestFilterGroupAddILikeFiltersIfNotEmpty(t *testing.T) {
+	t.Run("AddILikeFilterIfNotEmpty 非空", func(t *testing.T) {
+		fg := NewFilterGroup(constants.LOGIC_OR)
+		fg.AddILikeFilterIfNotEmpty("name", "test")
+		assert.Equal(t, 1, len(fg.Filters))
+		assert.Equal(t, constants.OP_ILIKE, fg.Filters[0].Operator)
+		assert.Equal(t, "%test%", fg.Filters[0].Value)
+	})
+
+	t.Run("AddILikeFilterIfNotEmpty 空值跳过", func(t *testing.T) {
+		fg := NewFilterGroup(constants.LOGIC_OR)
+		fg.AddILikeFilterIfNotEmpty("name", "")
+		assert.Equal(t, 0, len(fg.Filters))
+	})
+
+	t.Run("AddILikeFilterIfNotEmpty nil跳过", func(t *testing.T) {
+		fg := NewFilterGroup(constants.LOGIC_OR)
+		fg.AddILikeFilterIfNotEmpty("name", nil)
+		assert.Equal(t, 0, len(fg.Filters))
+	})
+
+	t.Run("AddILikeFilterIfNotEmpty 链式调用", func(t *testing.T) {
+		fg := NewFilterGroup(constants.LOGIC_OR)
+		result := fg.AddILikeFilterIfNotEmpty("code", "abc")
+		assert.Equal(t, fg, result)
+		assert.Equal(t, 1, len(fg.Filters))
+	})
+
+	t.Run("AddNotILikeFilterIfNotEmpty 非空", func(t *testing.T) {
+		fg := NewFilterGroup(constants.LOGIC_AND)
+		fg.AddNotILikeFilterIfNotEmpty("name", "test")
+		assert.Equal(t, 1, len(fg.Filters))
+		assert.Equal(t, constants.OP_NOT_ILIKE, fg.Filters[0].Operator)
+		assert.Equal(t, "%test%", fg.Filters[0].Value)
+	})
+
+	t.Run("AddNotILikeFilterIfNotEmpty 空值跳过", func(t *testing.T) {
+		fg := NewFilterGroup(constants.LOGIC_AND)
+		fg.AddNotILikeFilterIfNotEmpty("name", "")
+		assert.Equal(t, 0, len(fg.Filters))
+	})
+
+	t.Run("AddNotILikeFilterIfNotEmpty 链式调用", func(t *testing.T) {
+		fg := NewFilterGroup(constants.LOGIC_AND)
+		result := fg.AddNotILikeFilterIfNotEmpty("name", "demo")
+		assert.Equal(t, fg, result)
+		assert.Equal(t, 1, len(fg.Filters))
+	})
+
+	t.Run("多字段 OR ILIKE 组合", func(t *testing.T) {
+		fg := NewFilterGroup(constants.LOGIC_OR).
+			AddILikeFilterIfNotEmpty("code", "abc").
+			AddILikeFilterIfNotEmpty("name", "abc")
+		assert.Equal(t, 2, len(fg.Filters))
+		assert.Equal(t, constants.OP_ILIKE, fg.Filters[0].Operator)
+		assert.Equal(t, constants.OP_ILIKE, fg.Filters[1].Operator)
+	})
+}
+
+// ==============================================================================
+// Query.AddILikeFilterIfNotEmpty / AddNotILikeFilterIfNotEmpty
+// ==============================================================================
+
+func TestQueryAddILikeFilterIfNotEmpty(t *testing.T) {
+	t.Run("非空关键词", func(t *testing.T) {
+		q := NewQuery()
+		q.AddILikeFilterIfNotEmpty("name", "test")
+		assert.Equal(t, 1, len(q.Filters))
+		assert.Equal(t, constants.OP_ILIKE, q.Filters[0].Operator)
+		assert.Equal(t, "%test%", q.Filters[0].Value)
+	})
+
+	t.Run("空关键词跳过", func(t *testing.T) {
+		q := NewQuery()
+		q.AddILikeFilterIfNotEmpty("name", "")
+		assert.Equal(t, 0, len(q.Filters))
+	})
+
+	t.Run("nil关键词跳过", func(t *testing.T) {
+		q := NewQuery()
+		q.AddILikeFilterIfNotEmpty("name", nil)
+		assert.Equal(t, 0, len(q.Filters))
+	})
+
+	t.Run("链式调用", func(t *testing.T) {
+		q := NewQuery()
+		result := q.AddILikeFilterIfNotEmpty("title", "golang")
+		assert.Equal(t, q, result)
+		assert.Equal(t, "%golang%", q.Filters[0].Value)
+	})
+}
+
+func TestQueryAddNotILikeFilterIfNotEmpty(t *testing.T) {
+	t.Run("非空关键词", func(t *testing.T) {
+		q := NewQuery()
+		q.AddNotILikeFilterIfNotEmpty("name", "test")
+		assert.Equal(t, 1, len(q.Filters))
+		assert.Equal(t, constants.OP_NOT_ILIKE, q.Filters[0].Operator)
+		assert.Equal(t, "%test%", q.Filters[0].Value)
+	})
+
+	t.Run("空关键词跳过", func(t *testing.T) {
+		q := NewQuery()
+		q.AddNotILikeFilterIfNotEmpty("name", "")
+		assert.Equal(t, 0, len(q.Filters))
+	})
+
+	t.Run("链式调用", func(t *testing.T) {
+		q := NewQuery()
+		result := q.AddNotILikeFilterIfNotEmpty("name", "demo")
+		assert.Equal(t, q, result)
+		assert.Equal(t, 1, len(q.Filters))
+	})
+}
+
+// ==============================================================================
+// SQL 模板生成测试 - buildFilterCondition（query.go 纯函数路径）
+// ==============================================================================
+
+func TestBuildFilterConditionILike(t *testing.T) {
+	testCases := []struct {
+		name              string
+		filter            *Filter
+		expectedCondition string
+		expectedArg       interface{}
+	}{
+		{
+			name:              "OP_ILIKE 生成 LOWER(field) LIKE LOWER(?)",
+			filter:            NewILikeFilter("name", "test"),
+			expectedCondition: "LOWER(name) LIKE LOWER(?)",
+			expectedArg:       "%test%",
+		},
+		{
+			name:              "OP_NOT_ILIKE 生成 LOWER(field) NOT LIKE LOWER(?)",
+			filter:            NewNotILikeFilter("email", "spam"),
+			expectedCondition: "LOWER(email) NOT LIKE LOWER(?)",
+			expectedArg:       "%spam%",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			condition, arg := buildFilterCondition(tc.filter)
+			assert.Equal(t, tc.expectedCondition, condition)
+			assert.Equal(t, tc.expectedArg, arg)
+		})
+	}
+}
+
+// TestBuildConditionILike 测试 base.go 的 buildCondition（通用模板路径）
+func TestBuildConditionILike(t *testing.T) {
+	t.Run("OP_ILIKE", func(t *testing.T) {
+		condition, arg := buildFilterCondition(NewILikeFilter("title", "demo"))
+		assert.Equal(t, "LOWER(title) LIKE LOWER(?)", condition)
+		assert.Equal(t, "%demo%", arg)
+	})
+
+	t.Run("OP_NOT_ILIKE", func(t *testing.T) {
+		condition, arg := buildFilterCondition(NewNotILikeFilter("title", "demo"))
+		assert.Equal(t, "LOWER(title) NOT LIKE LOWER(?)", condition)
+		assert.Equal(t, "%demo%", arg)
+	})
+}
+
+// ==============================================================================
+// applyFilter 不 panic 测试（base.go db 查询路径）
+// ==============================================================================
+
+func TestApplyFilterILike(t *testing.T) {
+	gormDB, err := setupTestDB()
+	require.NoError(t, err)
+
+	dbQuery := gormDB.Table("test_users")
+
+	filters := []*Filter{
+		NewILikeFilter("name", "test"),
+		NewNotILikeFilter("email", "spam"),
+	}
+
+	for _, f := range filters {
+		assert.NotPanics(t, func() {
+			ApplyFilter(dbQuery, f)
+		}, "应用 ILIKE 过滤器不应 panic")
+	}
+}
+
+// ==============================================================================
+// 端到端集成测试：验证大小写不敏感搜索真实生效
+// ==============================================================================
+
+// ilikeTestUser ILIKE 集成测试专用模型（独立表，避免与其他测试数据冲突）
+type ilikeTestUser struct {
+	ID    uint   `json:"id" gorm:"primaryKey"`
+	Name  string `json:"name" gorm:"column:name"`
+	Code  string `json:"code" gorm:"column:code"`
+	Email string `json:"email" gorm:"column:email"`
+}
+
+func (ilikeTestUser) TableName() string {
+	return "ilike_test_users"
+}
+
+// setupILikeTestDB 设置 ILIKE 专用测试库
+func setupILikeTestDB() (*gorm.DB, error) {
+	gormDB, err := gorm.Open(sqlite.Open("file:ilike_memdb?mode=memory&cache=shared"), &gorm.Config{
+		DisableForeignKeyConstraintWhenMigrating: true,
+		Logger:                                   gormLogger.Default.LogMode(gormlogger.Silent),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	gormDB.Exec("DROP TABLE IF EXISTS ilike_test_users")
+	if err := gormDB.AutoMigrate(&ilikeTestUser{}); err != nil {
+		return nil, err
+	}
+	return gormDB, nil
+}
+
+// TestILikeCaseInsensitiveSearchE2E 端到端验证：数据 "ABcDef" 可被任意大小写关键词匹配
+// 这是用户的核心诉求："ABcDef 我随便输入大小写都可以支持 bc Bc bC 都能搜"
+func TestILikeCaseInsensitiveSearchE2E(t *testing.T) {
+	gormDB, err := setupILikeTestDB()
+	require.NoError(t, err)
+
+	dbHandler := newTestDBHandler(gormDB)
+	repo := NewBaseRepository[ilikeTestUser](dbHandler, logger.NewLogger(), "ilike_test_users")
+	ctx := context.Background()
+
+	// 插入混合大小写数据
+	seed := []*ilikeTestUser{
+		{Name: "ABcDef", Code: "CdEfGh", Email: "User@Example.COM"},
+		{Name: "HelloWorld", Code: "hElLo", Email: "test@demo.com"},
+		{Name: "GoLang", Code: "GOLANG", Email: "foo@bar.org"},
+	}
+	for _, u := range seed {
+		_, err := repo.Create(ctx, u)
+		require.NoError(t, err)
+	}
+
+	// 用户原始诉求：数据 ABcDef，输入 bc/Bc/bC/BC 都应能搜到
+	t.Run("ABcDef 任意大小写关键词均匹配", func(t *testing.T) {
+		keywords := []string{"bc", "Bc", "bC", "BC", "abcd", "ABCD", "AbCdEf", "def", "DEF", "DeF"}
+		for _, kw := range keywords {
+			q := NewQuery().AddFilter(NewILikeFilter("name", kw))
+			results, err := repo.List(ctx, q)
+			require.NoError(t, err, "关键词 %q 查询失败", kw)
+			require.Len(t, results, 1, "关键词 %q 应匹配到 ABcDef", kw)
+			assert.Equal(t, "ABcDef", results[0].Name)
+		}
+	})
+
+	// 对比说明：SQLite 的 LIKE 默认对 ASCII 大小写不敏感（方言特性），
+	// 而 PostgreSQL 的 LIKE 默认大小写敏感，ILIKE 通过显式 LOWER() 保证
+	// 跨数据库（MySQL/PostgreSQL/SQLite）一致的大小写不敏感行为，
+	// 不依赖任何方言的默认 collation，这是 ILIKE 的核心价值
+	t.Run("ILIKE 与 LIKE 在 SQLite 下均匹配（方言差异说明）", func(t *testing.T) {
+		qLike := NewQuery().AddFilter(NewLikeFilter("name", "bc"))
+		resultsLike, err := repo.List(ctx, qLike)
+		require.NoError(t, err)
+
+		qILike := NewQuery().AddFilter(NewILikeFilter("name", "bc"))
+		resultsILike, err := repo.List(ctx, qILike)
+		require.NoError(t, err)
+
+		// SQLite 下两者都匹配（ASCII 大小写不敏感特性）
+		assert.Len(t, resultsLike, 1, "SQLite LIKE 默认对 ASCII 大小写不敏感")
+		assert.Len(t, resultsILike, 1, "ILIKE 通过 LOWER() 保证大小写不敏感")
+		// 关键区别：ILIKE 在 PostgreSQL/MySQL 下同样保证大小写不敏感，而 LIKE 不保证
+	})
+
+	// NOT ILIKE 验证：排除包含某子串（任意大小写）的记录
+	t.Run("NOT ILIKE 排除任意大小写子串", func(t *testing.T) {
+		q := NewQuery().AddFilter(NewNotILikeFilter("name", "ello"))
+		results, err := repo.List(ctx, q)
+		require.NoError(t, err)
+		// HelloWorld 含 "ello"（任意大小写）被排除，剩余 ABcDef + GoLang
+		assert.Len(t, results, 2)
+	})
+
+	// 多字段 OR ILIKE：在 name 或 code 上搜索同一关键词
+	t.Run("多字段 OR ILIKE 匹配", func(t *testing.T) {
+		// "cdef" 在 name=ABcDef；"cd" 同时在 name=ABcDef 和 code=CdEfGh
+		keywordGroup := NewFilterGroup(constants.LOGIC_OR).
+			AddILikeFilterIfNotEmpty("name", "cdef").
+			AddILikeFilterIfNotEmpty("code", "cdef")
+		q := NewQuery().WithFilterGroup(keywordGroup)
+
+		results, err := repo.List(ctx, q)
+		require.NoError(t, err)
+		require.Len(t, results, 1)
+		assert.Equal(t, "ABcDef", results[0].Name)
+	})
+
+	// 大小写混合的 Email 字段搜索
+	t.Run("Email 字段大小写不敏感搜索", func(t *testing.T) {
+		q := NewQuery().AddFilter(NewILikeFilter("email", "USER@example.com"))
+		results, err := repo.List(ctx, q)
+		require.NoError(t, err)
+		require.Len(t, results, 1)
+		assert.Equal(t, "User@Example.COM", results[0].Email)
+	})
+
+	// Query.AddILikeFilterIfNotEmpty 空值不参与过滤
+	t.Run("空关键词不参与过滤", func(t *testing.T) {
+		q := NewQuery().AddILikeFilterIfNotEmpty("name", "")
+		results, err := repo.List(ctx, q)
+		require.NoError(t, err)
+		assert.Len(t, results, len(seed), "空关键词应返回全部记录")
+	})
+}
+
+// TestILikeFilterGroupORE2E 端到端验证：FilterGroup OR + ILIKE 多字段搜索
+// 模拟 game_brand_repository 的 code/name OR 关键字搜索场景
+func TestILikeFilterGroupORE2E(t *testing.T) {
+	gormDB, err := setupILikeTestDB()
+	require.NoError(t, err)
+
+	dbHandler := newTestDBHandler(gormDB)
+	repo := NewBaseRepository[ilikeTestUser](dbHandler, logger.NewLogger(), "ilike_test_users")
+	ctx := context.Background()
+
+	seed := []*ilikeTestUser{
+		{Name: "NetEase", Code: "ne001", Email: "a@x.com"},
+		{Name: "Tencent", Code: "TC002", Email: "b@x.com"},
+		{Name: "Blizzard", Code: "BZ003", Email: "c@x.com"},
+	}
+	for _, u := range seed {
+		_, err := repo.Create(ctx, u)
+		require.NoError(t, err)
+	}
+
+	// "tC" 应匹配 Tencent 的 code（TC002）和 name（Tencent）
+	t.Run("tC 匹配 name 或 code（OR ILIKE）", func(t *testing.T) {
+		keywordGroup := NewFilterGroup(constants.LOGIC_OR).
+			AddILikeFilterIfNotEmpty("code", "tC").
+			AddILikeFilterIfNotEmpty("name", "tC")
+		q := NewQuery().WithFilterGroup(keywordGroup)
+
+		results, err := repo.List(ctx, q)
+		require.NoError(t, err)
+		require.Len(t, results, 1)
+		assert.Equal(t, "Tencent", results[0].Name)
+	})
+
+	// "BLIZZ" 只匹配 Blizzard
+	t.Run("BLIZZ 匹配 Blizzard", func(t *testing.T) {
+		keywordGroup := NewFilterGroup(constants.LOGIC_OR).
+			AddILikeFilterIfNotEmpty("code", "BLIZZ").
+			AddILikeFilterIfNotEmpty("name", "BLIZZ")
+		q := NewQuery().WithFilterGroup(keywordGroup)
+
+		results, err := repo.List(ctx, q)
+		require.NoError(t, err)
+		require.Len(t, results, 1)
+		assert.Equal(t, "Blizzard", results[0].Name)
+	})
+
+	// "ne" 同时匹配 NetEase(name) 和 ne001(code)
+	t.Run("ne 匹配多条", func(t *testing.T) {
+		keywordGroup := NewFilterGroup(constants.LOGIC_OR).
+			AddILikeFilterIfNotEmpty("code", "ne").
+			AddILikeFilterIfNotEmpty("name", "ne")
+		q := NewQuery().WithFilterGroup(keywordGroup)
+
+		results, err := repo.List(ctx, q)
+		require.NoError(t, err)
+		assert.Len(t, results, 1, "ne 应匹配 NetEase（name 含 ne，code 含 ne）")
+		assert.Equal(t, "NetEase", results[0].Name)
+	})
 }

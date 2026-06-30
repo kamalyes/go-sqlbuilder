@@ -43,6 +43,13 @@ const (
 	// SQL_NOT_LIKE NOT LIKE条件模板
 	SQL_NOT_LIKE = "%s NOT LIKE ?"
 
+	// SQL_ILIKE 大小写不敏感 LIKE 条件模板
+	// 跨数据库实现：LOWER(field) LIKE LOWER(?)，兼容 PostgreSQL/MySQL/SQLite 等
+	SQL_ILIKE = "LOWER(%s) LIKE LOWER(?)"
+
+	// SQL_NOT_ILIKE 大小写不敏感 NOT LIKE 条件模板
+	SQL_NOT_ILIKE = "LOWER(%s) NOT LIKE LOWER(?)"
+
 	// SQL_BETWEEN BETWEEN条件模板
 	SQL_BETWEEN = "%s BETWEEN ? AND ?"
 
@@ -79,6 +86,8 @@ var OperatorTemplateMap = map[Operator]string{
 	OP_LTE:         SQL_LESS_EQUAL,
 	OP_LIKE:        SQL_LIKE,
 	OP_NOT_LIKE:    SQL_NOT_LIKE,
+	OP_ILIKE:       SQL_ILIKE,
+	OP_NOT_ILIKE:   SQL_NOT_ILIKE,
 	OP_IN:          SQL_IN,
 	OP_NOT_IN:      SQL_NOT_IN,
 	OP_IS_NULL:     SQL_IS_NULL,

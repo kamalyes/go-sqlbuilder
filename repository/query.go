@@ -324,6 +324,17 @@ func (q *Query) AddLikeFilterIfNotEmpty(field string, keyword interface{}) *Quer
 	return q
 }
 
+// AddILikeFilterIfNotEmpty 添加大小写不敏感 LIKE 过滤条件（仅当关键词不为空时）
+// 跨数据库实现：LOWER(field) LIKE LOWER(?)，keyword 支持 string 和 *string 类型
+func (q *Query) AddILikeFilterIfNotEmpty(field string, keyword interface{}) *Query {
+	deref, empty := validator.NormalizeFilterValueIfNotEmpty(keyword)
+	if empty {
+		return q
+	}
+	q.AddFilter(NewILikeFilter(field, fmt.Sprintf("%v", deref)))
+	return q
+}
+
 // AddJsonbLikeFilterIfNotEmpty 添加 jsonb 字段文本搜索过滤条件（仅当关键词不为空时）
 // 用于对 PostgreSQL jsonb 类型字段进行模糊搜索，自动将字段转为 text 后匹配
 // keyword 支持 string 和 *wrapperspb.StringValue 等类型
@@ -535,6 +546,17 @@ func (q *Query) AddNotLikeFilterIfNotEmpty(field string, value interface{}) *Que
 		return q
 	}
 	q.AddFilter(NewNotLikeFilter(field, fmt.Sprintf("%v", deref)))
+	return q
+}
+
+// AddNotILikeFilterIfNotEmpty 添加大小写不敏感 NOT LIKE 过滤条件（仅当值不为空时）
+// 跨数据库实现：LOWER(field) NOT LIKE LOWER(?)，value 支持 string 和 *string 类型
+func (q *Query) AddNotILikeFilterIfNotEmpty(field string, value interface{}) *Query {
+	deref, empty := validator.NormalizeFilterValueIfNotEmpty(value)
+	if empty {
+		return q
+	}
+	q.AddFilter(NewNotILikeFilter(field, fmt.Sprintf("%v", deref)))
 	return q
 }
 

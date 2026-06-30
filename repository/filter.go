@@ -194,6 +194,17 @@ func (fg *FilterGroup) AddLikeFilterIfNotEmpty(field string, value interface{}) 
 	return fg
 }
 
+// AddILikeFilterIfNotEmpty 当值不为空时添加大小写不敏感 LIKE 过滤条件
+// 跨数据库实现：LOWER(field) LIKE LOWER(?)，value 支持 string 和 *string 类型
+func (fg *FilterGroup) AddILikeFilterIfNotEmpty(field string, value interface{}) *FilterGroup {
+	deref, empty := validator.NormalizeFilterValueIfNotEmpty(value)
+	if empty {
+		return fg
+	}
+	fg.AddFilter(NewILikeFilter(field, fmt.Sprintf("%v", deref)))
+	return fg
+}
+
 // AddInFilterIfNotEmpty 当切片不为空时添加 IN 过滤条件
 // values 支持任意切片类型（[]string、[]int 等）以及对应指针类型
 func (fg *FilterGroup) AddInFilterIfNotEmpty(field string, values interface{}) *FilterGroup {
@@ -275,6 +286,16 @@ func (fg *FilterGroup) AddNotLikeFilterIfNotEmpty(field string, value interface{
 	return fg
 }
 
+// AddNotILikeFilterIfNotEmpty 当值不为空时添加大小写不敏感 NOT LIKE 过滤条件
+func (fg *FilterGroup) AddNotILikeFilterIfNotEmpty(field string, value interface{}) *FilterGroup {
+	deref, empty := validator.NormalizeFilterValueIfNotEmpty(value)
+	if empty {
+		return fg
+	}
+	fg.AddFilter(NewNotILikeFilter(field, fmt.Sprintf("%v", deref)))
+	return fg
+}
+
 // AddFindInSetFilterIfNotEmpty 当值不为空时添加 FIND_IN_SET 过滤条件（MySQL特定）
 func (fg *FilterGroup) AddFindInSetFilterIfNotEmpty(field string, value interface{}) *FilterGroup {
 	deref, empty := validator.NormalizeFilterValueIfNotEmpty(value)
@@ -345,19 +366,19 @@ type Order struct {
 
 // Query 查询条件
 type Query struct {
-	Filters      []*Filter    // 简单过滤条件
-	FilterGroup  *FilterGroup // 复合过滤条件组
-	Orders       []Order      // 排序条件
-	Pagination   *Pagination  // 分页信息
-	LimitValue   *int         // 限制数量
-	OffsetValue  *int         // 偏移量
-	Distinct     bool         // 是否去重
-	GroupBy      []string     // 分组字段
-	Having       []*Filter    // HAVING 条件
+	Filters        []*Filter       // 简单过滤条件
+	FilterGroup    *FilterGroup    // 复合过滤条件组
+	Orders         []Order         // 排序条件
+	Pagination     *Pagination     // 分页信息
+	LimitValue     *int            // 限制数量
+	OffsetValue    *int            // 偏移量
+	Distinct       bool            // 是否去重
+	GroupBy        []string        // 分组字段
+	Having         []*Filter       // HAVING 条件
 	SelectFields   []string        // 要查询的字段列表（为空则查询所有字段）
 	OmitFields     []string        // 要排除的字段列表
-	Joins          []JoinSpec       // JOIN 关联（主表 JOIN 关联表补充字段）
-	ComputedFields []ComputedField  // 计算字段（派生表达式 SELECT，如子查询聚合，可覆盖主表同名列）
+	Joins          []JoinSpec      // JOIN 关联（主表 JOIN 关联表补充字段）
+	ComputedFields []ComputedField // 计算字段（派生表达式 SELECT，如子查询聚合，可覆盖主表同名列）
 
 	// JoinScanDest 设置后 ListWithPagination* 会将结果 Find 到此扩展 struct 切片（*[]E），
 	// 而非默认的 []*T用于 JOIN 关联表补充字段的场景，配合 Joins 与 JoinExtract 使用
@@ -464,6 +485,17 @@ func NewEndsWithFilter(field string, value string) *Filter {
 // NewNotLikeFilter 创建 NOT LIKE 过滤条件
 func NewNotLikeFilter(field string, value string) *Filter {
 	return NewFilter(field, constants.OP_NOT_LIKE, "%"+value+"%")
+}
+
+// NewILikeFilter 创建大小写不敏感 LIKE 过滤条件
+// 跨数据库实现：LOWER(field) LIKE LOWER(?)，兼容 PostgreSQL/MySQL/SQLite 等
+func NewILikeFilter(field string, value string) *Filter {
+	return NewFilter(field, constants.OP_ILIKE, "%"+value+"%")
+}
+
+// NewNotILikeFilter 创建大小写不敏感 NOT LIKE 过滤条件
+func NewNotILikeFilter(field string, value string) *Filter {
+	return NewFilter(field, constants.OP_NOT_ILIKE, "%"+value+"%")
 }
 
 // NewRegexpFilter 创建正则匹配过滤条件（仅MySQL/PostgreSQL）

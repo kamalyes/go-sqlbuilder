@@ -1310,6 +1310,12 @@ func ApplyFilter(dbQuery *gorm.DB, filter *Filter) *gorm.DB {
 	case constants.OP_RAW:
 		// 原始 SQL 条件，Field 直接作为 WHERE 子句
 		return dbQuery.Where(filter.Field)
+	case constants.OP_ILIKE:
+		// 大小写不敏感 LIKE：跨数据库实现 LOWER(field) LIKE LOWER(?)，避免 MySQL 不支持 ILIKE 关键字
+		return dbQuery.Where(fmt.Sprintf(constants.SQL_ILIKE, filter.Field), value)
+	case constants.OP_NOT_ILIKE:
+		// 大小写不敏感 NOT LIKE：跨数据库实现 LOWER(field) NOT LIKE LOWER(?)
+		return dbQuery.Where(fmt.Sprintf(constants.SQL_NOT_ILIKE, filter.Field), value)
 	case constants.OP_JSONB_LIKE:
 		// jsonb 字段文本搜索：field::text LIKE ?，参数化防注入
 		return dbQuery.Where(fmt.Sprintf("%s::text LIKE ?", filter.Field), value)
