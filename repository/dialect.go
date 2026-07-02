@@ -22,6 +22,18 @@ import (
 type Dialect interface {
 	// FormatTimeGroup 格式化时间分组表达式
 	FormatTimeGroup(field string, groupType TimeGroupType) string
+	// JsonArrayContains 构建JSON数组包含查询的SQL表达式（WHERE 子句用）
+	// placeholder 为参数占位符（如 "?"），返回的表达式应直接拼入WHERE，参数由调用方通过args传入
+	//   MySQL:           JSON_CONTAINS(column, ?)
+	//   PostgreSQL/CRDB: column @> ?::jsonb
+	//   SQLite:          EXISTS(SELECT 1 FROM json_each(column) WHERE json_each.value = ?)
+	JsonArrayContains(column, placeholder string) string
+	// JsonArrayCountSubQuery 构建JSON数组包含计数子查询（用于 ComputedField / SELECT 派生列）
+	// 计算 table 表中 jsonColumn 包含 valueColumn 值的记录数
+	//   MySQL:           (SELECT COUNT(*) FROM table WHERE JSON_CONTAINS(jsonColumn, CAST(valueColumn AS JSON)))
+	//   PostgreSQL/CRDB: (SELECT COUNT(*) FROM table WHERE jsonColumn @> CAST('[' || valueColumn::text || ']' AS JSONB))
+	//   SQLite:          (SELECT COUNT(*) FROM table t2 WHERE EXISTS(SELECT 1 FROM json_each(t2.jsonColumn) WHERE json_each.value = table.valueColumn))
+	JsonArrayCountSubQuery(table, jsonColumn, valueColumn string) string
 }
 
 // formatTimeGroup 获取格式化字符串
@@ -48,6 +60,16 @@ func (d *MySQLDialect) FormatTimeGroup(field string, groupType TimeGroupType) st
 	return fmt.Sprintf("DATE_FORMAT(%s, '%s')", field, format)
 }
 
+// JsonArrayContains MySQL: JSON_CONTAINS(column, ?)，参数为 JSON 编码的 '[value]'
+func (d *MySQLDialect) JsonArrayContains(column, placeholder string) string {
+	return fmt.Sprintf("JSON_CONTAINS(%s, %s)", column, placeholder)
+}
+
+// JsonArrayCountSubQuery MySQL: 用 JSON_CONTAINS + CAST 利用 json 列索引
+func (d *MySQLDialect) JsonArrayCountSubQuery(table, jsonColumn, valueColumn string) string {
+	return fmt.Sprintf("(SELECT COUNT(*) FROM %s WHERE JSON_CONTAINS(%s, CAST(%s AS JSON)))", table, jsonColumn, valueColumn)
+}
+
 // SQLiteDialect SQLite 方言
 type SQLiteDialect struct{}
 
@@ -61,6 +83,18 @@ func (d *SQLiteDialect) FormatTimeGroup(field string, groupType TimeGroupType) s
 	}
 	format := formatTimeGroup(groupType, formatMap)
 	return fmt.Sprintf("strftime('%s', %s)", format, field)
+}
+
+// JsonArrayContains SQLite: 用 json_each 表值函数 + EXISTS，参数为原始标量值
+// SQLite 无原生 JSON_CONTAINS，EXISTS 子查询可利用 json_each 的虚拟表
+func (d *SQLiteDialect) JsonArrayContains(column, placeholder string) string {
+	return fmt.Sprintf("EXISTS(SELECT 1 FROM json_each(%s) WHERE json_each.value = %s)", column, placeholder)
+}
+
+// JsonArrayCountSubQuery SQLite: EXISTS 子查询计数（性能较低，仅用于测试/兼容）
+// valueColumn 应为外部主表的完整列引用（如 "payment_channels.id"）
+func (d *SQLiteDialect) JsonArrayCountSubQuery(table, jsonColumn, valueColumn string) string {
+	return fmt.Sprintf("(SELECT COUNT(*) FROM %s t2 WHERE EXISTS(SELECT 1 FROM json_each(t2.%s) WHERE json_each.value = %s))", table, jsonColumn, valueColumn)
 }
 
 // PostgreSQLDialect PostgreSQL 方言
@@ -78,6 +112,17 @@ func (d *PostgreSQLDialect) FormatTimeGroup(field string, groupType TimeGroupTyp
 	return fmt.Sprintf("TO_CHAR(%s, '%s')", field, format)
 }
 
+// JsonArrayContains PostgreSQL: column @> ?::jsonb，参数为 JSON 编码的 '[value]'
+// 配合 GIN 索引（CREATE INDEX USING GIN (column)）可获得最佳查询性能
+func (d *PostgreSQLDialect) JsonArrayContains(column, placeholder string) string {
+	return fmt.Sprintf("%s @> %s::jsonb", column, placeholder)
+}
+
+// JsonArrayCountSubQuery PostgreSQL: 用 @> 操作符 + CAST 利用 GIN 索引
+func (d *PostgreSQLDialect) JsonArrayCountSubQuery(table, jsonColumn, valueColumn string) string {
+	return fmt.Sprintf("(SELECT COUNT(*) FROM %s WHERE %s @> CAST('[' || %s::text || ']' AS JSONB))", table, jsonColumn, valueColumn)
+}
+
 // CockroachDBDialect CockroachDB 方言（兼容PostgreSQL语法）
 type CockroachDBDialect struct{}
 
@@ -93,6 +138,16 @@ func (d *CockroachDBDialect) FormatTimeGroup(field string, groupType TimeGroupTy
 	return fmt.Sprintf("TO_CHAR(%s, '%s')", field, format)
 }
 
+// JsonArrayContains CockroachDB: 兼容 PostgreSQL 的 @> 操作符，配合 inverted index 可高效查询
+func (d *CockroachDBDialect) JsonArrayContains(column, placeholder string) string {
+	return fmt.Sprintf("%s @> %s::jsonb", column, placeholder)
+}
+
+// JsonArrayCountSubQuery CockroachDB: 同 PostgreSQL，用 @> + CAST
+func (d *CockroachDBDialect) JsonArrayCountSubQuery(table, jsonColumn, valueColumn string) string {
+	return fmt.Sprintf("(SELECT COUNT(*) FROM %s WHERE %s @> CAST('[' || %s::text || ']' AS JSONB))", table, jsonColumn, valueColumn)
+}
+
 // ClickHouseDialect ClickHouse 方言
 type ClickHouseDialect struct{}
 
@@ -106,6 +161,17 @@ func (d *ClickHouseDialect) FormatTimeGroup(field string, groupType TimeGroupTyp
 	}
 	format := formatTimeGroup(groupType, formatMap)
 	return fmt.Sprintf("formatDateTime(%s, '%s')", field, format)
+}
+
+// JsonArrayContains ClickHouse: 用 hasAny(CAST(column AS Array(String)), [?])
+// ClickHouse 推荐用 Array 类型而非 JSON，此处提供兼容实现
+func (d *ClickHouseDialect) JsonArrayContains(column, placeholder string) string {
+	return fmt.Sprintf("hasAny(CAST(%s AS Array(String)), [%s])", column, placeholder)
+}
+
+// JsonArrayCountSubQuery ClickHouse: 用 hasAny 计数
+func (d *ClickHouseDialect) JsonArrayCountSubQuery(table, jsonColumn, valueColumn string) string {
+	return fmt.Sprintf("(SELECT COUNT(*) FROM %s WHERE hasAny(CAST(%s AS Array(String)), [toString(%s)]))", table, jsonColumn, valueColumn)
 }
 
 // DetectDialect 自动检测数据库方言

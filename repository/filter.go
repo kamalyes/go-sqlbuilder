@@ -306,6 +306,18 @@ func (fg *FilterGroup) AddFindInSetFilterIfNotEmpty(field string, value interfac
 	return fg
 }
 
+// AddJsonArrayContainsFilterIfNotEmpty 当值不为空时添加 JSON 数组包含过滤条件（方言感知）
+// 用于查询 JSON 数组列是否包含指定值，SQL 表达式由各方言在执行时生成
+// value 支持 int64/string 等标量类型及对应指针类型
+func (fg *FilterGroup) AddJsonArrayContainsFilterIfNotEmpty(field string, value interface{}) *FilterGroup {
+	deref, empty := validator.NormalizeFilterValueIfNotEmpty(value)
+	if empty {
+		return fg
+	}
+	fg.AddFilter(NewJsonArrayContainsFilter(field, deref))
+	return fg
+}
+
 // AddGroupIf 当条件为真时添加嵌套条件组
 func (fg *FilterGroup) AddGroupIf(condition bool, group *FilterGroup) *FilterGroup {
 	if condition && group != nil && !group.IsEmpty() {
@@ -388,6 +400,14 @@ type Query struct {
 	// JoinExtract 提取回调：func(E) *TJoinScanDest 设置后必填
 	// ListWithPagination* 完成 Find 后会用反射逐行调用此回调，组装出 []*T 返回
 	JoinExtract interface{} // 类型必须为 func(E) *T
+
+	// dialect 数据库方言（由 BaseRepository.ApplyQueryFilters 自动注入，供 OP_JSON_CONTAINS 等方言感知操作符使用）
+	dialect Dialect
+}
+
+// SetDialect 设置数据库方言（供 OP_JSON_CONTAINS 等方言感知操作符使用，通常由 BaseRepository 自动注入）
+func (q *Query) SetDialect(dialect Dialect) {
+	q.dialect = dialect
 }
 
 // NewEqFilter 创建等于过滤条件
@@ -512,6 +532,18 @@ func NewFindInSetFilter(field string, value interface{}) *Filter {
 // 用于对 jsonb 类型字段进行模糊搜索，自动将字段转为 text 后匹配
 func NewJsonbLikeFilter(field string, value string) *Filter {
 	return NewFilter(field, constants.OP_JSONB_LIKE, "%"+value+"%")
+}
+
+// NewJsonArrayContainsFilter 创建 JSON 数组包含过滤条件（方言感知）
+// 用于查询 JSON 数组列是否包含指定值，SQL 表达式由各方言在 ApplyFilter 时生成：
+//
+//	MySQL:           JSON_CONTAINS(field, ?)
+//	PostgreSQL/CRDB: field @> ?::jsonb
+//	SQLite:          EXISTS(SELECT 1 FROM json_each(field) WHERE json_each.value = ?)
+//
+// value 为待检查的标量值（int64/string 等），参数序列化由方言自动处理
+func NewJsonArrayContainsFilter(field string, value interface{}) *Filter {
+	return NewFilter(field, constants.OP_JSON_CONTAINS, value)
 }
 
 // NewFilter 创建通用过滤条件(支持任意操作符)

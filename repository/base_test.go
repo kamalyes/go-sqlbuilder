@@ -2799,7 +2799,7 @@ func TestSpecialOperatorsBugCheck(t *testing.T) {
 			Operator: constants.OP_STARTS_WITH,
 			Value:    "John",
 		}
-		condition, arg := buildFilterCondition(filter)
+		condition, arg := buildFilterCondition(filter, nil)
 		fmt.Printf("STARTS_WITH - Condition: %s, Arg: %v\n", condition, arg)
 
 		assert.Equal(t, "name LIKE ?", condition)
@@ -2811,7 +2811,7 @@ func TestSpecialOperatorsBugCheck(t *testing.T) {
 			Operator: constants.OP_STARTS_WITH,
 			Value:    123,
 		}
-		condition, arg = buildFilterCondition(filter)
+		condition, arg = buildFilterCondition(filter, nil)
 		fmt.Printf("STARTS_WITH (non-string) - Condition: %s, Arg: %v\n", condition, arg)
 
 		assert.Equal(t, "", condition)
@@ -2825,7 +2825,7 @@ func TestSpecialOperatorsBugCheck(t *testing.T) {
 			Operator: constants.OP_ENDS_WITH,
 			Value:    "@example.com",
 		}
-		condition, arg := buildFilterCondition(filter)
+		condition, arg := buildFilterCondition(filter, nil)
 		fmt.Printf("ENDS_WITH - Condition: %s, Arg: %v\n", condition, arg)
 
 		assert.Equal(t, "email LIKE ?", condition)
@@ -2837,7 +2837,7 @@ func TestSpecialOperatorsBugCheck(t *testing.T) {
 			Operator: constants.OP_ENDS_WITH,
 			Value:    "",
 		}
-		condition, arg = buildFilterCondition(filter)
+		condition, arg = buildFilterCondition(filter, nil)
 		fmt.Printf("ENDS_WITH (empty) - Condition: %s, Arg: %v\n", condition, arg)
 
 		assert.Equal(t, "email LIKE ?", condition)
@@ -2851,7 +2851,7 @@ func TestSpecialOperatorsBugCheck(t *testing.T) {
 			Operator: constants.OP_CONTAINS,
 			Value:    "keyword",
 		}
-		condition, arg := buildFilterCondition(filter)
+		condition, arg := buildFilterCondition(filter, nil)
 		fmt.Printf("CONTAINS - Condition: %s, Arg: %v\n", condition, arg)
 
 		assert.Equal(t, "description LIKE ?", condition)
@@ -2863,7 +2863,7 @@ func TestSpecialOperatorsBugCheck(t *testing.T) {
 			Operator: constants.OP_CONTAINS,
 			Value:    "test_with_underscore",
 		}
-		condition, arg = buildFilterCondition(filter)
+		condition, arg = buildFilterCondition(filter, nil)
 		fmt.Printf("CONTAINS (special chars) - Condition: %s, Arg: %v\n", condition, arg)
 
 		assert.Equal(t, "description LIKE ?", condition)
@@ -2877,7 +2877,7 @@ func TestSpecialOperatorsBugCheck(t *testing.T) {
 			Operator: constants.OP_FIND_IN_SET,
 			Value:    "important",
 		}
-		condition, arg := buildFilterCondition(filter)
+		condition, arg := buildFilterCondition(filter, nil)
 		fmt.Printf("FIND_IN_SET - Condition: %s, Arg: %v\n", condition, arg)
 
 		// 这里可能有bug！让我们检查实际输出
@@ -2896,7 +2896,7 @@ func TestSpecialOperatorsBugCheck(t *testing.T) {
 			Operator: constants.OP_FIND_IN_SET,
 			Value:    123,
 		}
-		condition, arg = buildFilterCondition(filter)
+		condition, arg = buildFilterCondition(filter, nil)
 		fmt.Printf("FIND_IN_SET (number) - Condition: %s, Arg: %v\n", condition, arg)
 	})
 }
@@ -2920,7 +2920,7 @@ func TestBuildFilterConditionVsApplyFilter(t *testing.T) {
 			fmt.Printf("字段: %s, 值: %v (类型: %T)\n", filter.Field, filter.Value, filter.Value)
 
 			// 测试 buildFilterCondition
-			condition, arg := buildFilterCondition(filter)
+			condition, arg := buildFilterCondition(filter, nil)
 			fmt.Printf("buildFilterCondition 输出:\n")
 			fmt.Printf("  - 条件: '%s'\n", condition)
 			fmt.Printf("  - 参数: %v (类型: %T)\n", arg, arg)
@@ -7117,7 +7117,7 @@ func TestCollectFilterConditionsRefactored(t *testing.T) {
 
 		var conditions []string
 		var args []interface{}
-		collectFilterConditions(filters, &conditions, &args)
+		collectFilterConditions(filters, &conditions, &args, nil)
 
 		assert.Len(t, conditions, 2)
 		assert.Len(t, args, 2)
@@ -7137,7 +7137,7 @@ func TestCollectFilterConditionsRefactored(t *testing.T) {
 
 		var conditions []string
 		var args []interface{}
-		collectFilterConditions(filters, &conditions, &args)
+		collectFilterConditions(filters, &conditions, &args, nil)
 
 		assert.Len(t, conditions, 2)
 		assert.Len(t, args, 2)
@@ -7150,7 +7150,7 @@ func TestCollectFilterConditionsRefactored(t *testing.T) {
 
 		var conditions []string
 		var args []interface{}
-		collectFilterConditions(filters, &conditions, &args)
+		collectFilterConditions(filters, &conditions, &args, nil)
 
 		assert.Len(t, conditions, 1)
 		assert.Contains(t, conditions[0], "IS NULL")
@@ -7170,7 +7170,7 @@ func TestCollectSubGroupConditionsRefactored(t *testing.T) {
 
 		var conditions []string
 		var args []interface{}
-		collectSubGroupConditions([]*FilterGroup{subGroup}, &conditions, &args)
+		collectSubGroupConditions([]*FilterGroup{subGroup}, &conditions, &args, nil)
 
 		assert.Len(t, conditions, 1)
 		assert.Len(t, args, 2)
@@ -7186,7 +7186,7 @@ func TestCollectSubGroupConditionsRefactored(t *testing.T) {
 
 		var conditions []string
 		var args []interface{}
-		collectSubGroupConditions([]*FilterGroup{nil, emptyGroup, nil}, &conditions, &args)
+		collectSubGroupConditions([]*FilterGroup{nil, emptyGroup, nil}, &conditions, &args, nil)
 
 		assert.Len(t, conditions, 0)
 		assert.Len(t, args, 0)
@@ -7202,7 +7202,7 @@ func TestCollectFilterConditionsWithArgsRefactored(t *testing.T) {
 
 		var conditions []string
 		var args []interface{}
-		collectFilterConditionsWithArgs(filters, &conditions, &args)
+		collectFilterConditionsWithArgs(filters, &conditions, &args, nil)
 
 		assert.Len(t, conditions, 1)
 		assert.Len(t, args, 2) // BETWEEN应展开为两个参数
@@ -7219,7 +7219,7 @@ func TestCollectFilterConditionsWithArgsRefactored(t *testing.T) {
 
 		var conditions []string
 		var args []interface{}
-		collectFilterConditionsWithArgs(filters, &conditions, &args)
+		collectFilterConditionsWithArgs(filters, &conditions, &args, nil)
 
 		assert.Len(t, conditions, 3)
 		assert.Len(t, args, 4) // 1 + 2 (BETWEEN) + 1 = 4
@@ -7355,7 +7355,7 @@ func BenchmarkRefactoredFilterMethods(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			var conditions []string
 			var args []interface{}
-			collectFilterConditions(filters, &conditions, &args)
+			collectFilterConditions(filters, &conditions, &args, nil)
 		}
 	})
 
@@ -7370,7 +7370,7 @@ func BenchmarkRefactoredFilterMethods(b *testing.B) {
 
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			_, _ = buildGroupCondition(group)
+			_, _ = buildGroupCondition(group, nil)
 		}
 	})
 }

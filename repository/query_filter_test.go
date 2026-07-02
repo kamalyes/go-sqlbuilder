@@ -2758,7 +2758,7 @@ func TestBuildFilterConditionWithNewOperators(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			condition, arg := buildFilterCondition(tc.filter)
+			condition, arg := buildFilterCondition(tc.filter, nil)
 			assert.Equal(t, tc.expectedCondition, condition)
 
 			if tc.shouldHaveArg {
@@ -2809,7 +2809,7 @@ func TestProtobufWrapperFilterValues(t *testing.T) {
 			Field:    "group_id",
 			Operator: constants.OP_EQ,
 			Value:    wrapperspb.String("g1"),
-		})
+		}, nil)
 
 		assert.Equal(t, "group_id = ?", condition)
 		assert.Equal(t, "g1", arg)
@@ -2818,7 +2818,7 @@ func TestProtobufWrapperFilterValues(t *testing.T) {
 			Field:    "code",
 			Operator: constants.OP_LIKE,
 			Value:    wrapperspb.StringValue{Value: "%tenant%"},
-		})
+		}, nil)
 
 		assert.Equal(t, "code LIKE ?", condition)
 		assert.Equal(t, "%tenant%", arg)
@@ -3354,7 +3354,7 @@ func TestBuildFilterConditionILike(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			condition, arg := buildFilterCondition(tc.filter)
+			condition, arg := buildFilterCondition(tc.filter, nil)
 			assert.Equal(t, tc.expectedCondition, condition)
 			assert.Equal(t, tc.expectedArg, arg)
 		})
@@ -3364,13 +3364,13 @@ func TestBuildFilterConditionILike(t *testing.T) {
 // TestBuildConditionILike 测试 base.go 的 buildCondition（通用模板路径）
 func TestBuildConditionILike(t *testing.T) {
 	t.Run("OP_ILIKE", func(t *testing.T) {
-		condition, arg := buildFilterCondition(NewILikeFilter("title", "demo"))
+		condition, arg := buildFilterCondition(NewILikeFilter("title", "demo"), nil)
 		assert.Equal(t, "LOWER(title) LIKE LOWER(?)", condition)
 		assert.Equal(t, "%demo%", arg)
 	})
 
 	t.Run("OP_NOT_ILIKE", func(t *testing.T) {
-		condition, arg := buildFilterCondition(NewNotILikeFilter("title", "demo"))
+		condition, arg := buildFilterCondition(NewNotILikeFilter("title", "demo"), nil)
 		assert.Equal(t, "LOWER(title) NOT LIKE LOWER(?)", condition)
 		assert.Equal(t, "%demo%", arg)
 	})

@@ -95,15 +95,18 @@ func PermanentlyDeleteBatch[T any](ctx context.Context, db *gorm.DB, ids []inter
 
 // applyQuery 应用查询条件的辅助函数
 func applyQuery(dbQuery *gorm.DB, query *Query) *gorm.DB {
+	// 检测方言，供 OP_JSON_CONTAINS 等方言感知操作符使用
+	dialect := DetectDialect(dbQuery)
+
 	// 应用过滤条件
 	if query.FilterGroup != nil {
-		conditions, args := buildGroupCondition(query.FilterGroup)
+		conditions, args := buildGroupCondition(query.FilterGroup, dialect)
 		if conditions != "" {
 			dbQuery = dbQuery.Where(conditions, args...)
 		}
 	}
 	for _, filter := range query.Filters {
-		condition, arg := buildFilterCondition(filter)
+		condition, arg := buildFilterCondition(filter, dialect)
 		if condition != "" {
 			if arg != nil {
 				dbQuery = dbQuery.Where(condition, arg)
@@ -146,7 +149,7 @@ func applyQuery(dbQuery *gorm.DB, query *Query) *gorm.DB {
 
 	// 应用HAVING条件
 	for _, havingFilter := range query.Having {
-		condition, arg := buildFilterCondition(havingFilter)
+		condition, arg := buildFilterCondition(havingFilter, dialect)
 		if condition != "" {
 			if arg != nil {
 				dbQuery = dbQuery.Having(condition, arg)

@@ -347,6 +347,19 @@ func (q *Query) AddJsonbLikeFilterIfNotEmpty(field string, keyword interface{}) 
 	return q
 }
 
+// AddJsonArrayContainsFilterIfNotEmpty 添加 JSON 数组包含过滤条件（仅当值不为空时，方言感知）
+// 用于查询 JSON 数组列（如 sqltypes.Slice[int64] 存储的 channel_ids）是否包含指定值
+// SQL 表达式由各方言在执行时自动生成（MySQL: JSON_CONTAINS / PG&CRDB: @>::jsonb / SQLite: json_each）
+// value 支持 int64/string 等标量类型及对应指针类型
+func (q *Query) AddJsonArrayContainsFilterIfNotEmpty(field string, value interface{}) *Query {
+	deref, empty := validator.NormalizeFilterValueIfNotEmpty(value)
+	if empty {
+		return q
+	}
+	q.AddFilter(NewJsonArrayContainsFilter(field, deref))
+	return q
+}
+
 // AddTimeRangeFilter 添加时间范围过滤条件
 // 自动过滤掉nil和零值时间，避免生成无效的SQL条件
 func (q *Query) AddTimeRangeFilter(field string, startTime, endTime interface{}) *Query {
@@ -955,6 +968,13 @@ func (q *Query) handleSpecialOperators(filter *Filter) (string, interface{}) {
 		return q.handleContainsOperator(filter)
 	case constants.OP_FIND_IN_SET:
 		return q.handleFindInSetOperator(filter)
+	case constants.OP_JSON_CONTAINS:
+		// JSON 数组包含查询：方言感知，dialect 由 BaseRepository.ApplyQueryFilters 注入
+		sql, args := JsonArrayContainsExpr(q.dialect, filter.Field, filter.Value)
+		if len(args) > 0 {
+			return sql, args[0]
+		}
+		return sql, nil
 	}
 	return "", nil
 }

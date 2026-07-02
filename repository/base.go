@@ -200,6 +200,14 @@ func (r *BaseRepository[T]) initFieldIndexes() {
 	}
 }
 
+// GetDialect 获取当前数据库方言（基于 db handler 自动检测，结果不做缓存）
+func (r *BaseRepository[T]) GetDialect() Dialect {
+	if r.db == nil || r.db.GetDB() == nil {
+		return &MySQLDialect{}
+	}
+	return DetectDialect(r.db.GetDB())
+}
+
 // ========== 辅助方法 ==========
 
 // newDB 创建带上下文和表名的DB实例
@@ -1320,6 +1328,10 @@ func ApplyFilter(dbQuery *gorm.DB, filter *Filter) *gorm.DB {
 	case constants.OP_JSONB_LIKE:
 		// jsonb 字段文本搜索：field::text LIKE ?，参数化防注入
 		return dbQuery.Where(fmt.Sprintf("%s::text LIKE ?", filter.Field), value)
+	case constants.OP_JSON_CONTAINS:
+		// JSON 数组包含查询：方言感知，从 dbQuery 自动检测方言生成对应 SQL
+		sql, args := JsonArrayContainsExpr(DetectDialect(dbQuery), filter.Field, value)
+		return dbQuery.Where(sql, args...)
 	}
 
 	return dbQuery
@@ -1573,6 +1585,9 @@ func ApplyPaginationOrLimit(db *gorm.DB, query *Query) *gorm.DB {
 // 均走本方法，从而让作用域注入的 region_code 等字段在不匹配的表上被自动剔除，
 // 调用方零感知，无需传 model
 func (r *BaseRepository[T]) ApplyQueryFilters(db *gorm.DB, query *Query) *gorm.DB {
+	// 注入方言，供 OP_JSON_CONTAINS 等方言感知操作符在 Query SQL 构建路径使用
+	query.SetDialect(DetectDialect(db))
+
 	// 应用简单过滤条件
 	for _, filter := range query.Filters {
 		db = ApplyFilter(db, filter)
@@ -1603,9 +1618,12 @@ func ApplyOrFilterGroup(db *gorm.DB, group *FilterGroup) *gorm.DB {
 	var conditions []string
 	var args []interface{}
 
+	// 从 db 检测方言，供 OP_JSON_CONTAINS 等方言感知操作符使用
+	dialect := DetectDialect(db)
+
 	// 收集所有条件（过滤条件 + 子组）
-	collectFilterConditions(group.Filters, &conditions, &args)
-	collectSubGroupConditions(group.Groups, &conditions, &args)
+	collectFilterConditions(group.Filters, &conditions, &args, dialect)
+	collectSubGroupConditions(group.Groups, &conditions, &args, dialect)
 
 	if len(conditions) == 0 {
 		return db
@@ -1635,12 +1653,12 @@ func ApplyAndFilterGroup(db *gorm.DB, group *FilterGroup) *gorm.DB {
 }
 
 // collectFilterConditions 收集过滤条件（通用函数）
-func collectFilterConditions(filters []*Filter, conditions *[]string, args *[]interface{}) {
+func collectFilterConditions(filters []*Filter, conditions *[]string, args *[]interface{}, dialect Dialect) {
 	for _, filter := range filters {
 		if filter == nil {
 			continue
 		}
-		condition, arg := buildFilterCondition(filter)
+		condition, arg := buildFilterCondition(filter, dialect)
 		if condition != "" {
 			*conditions = append(*conditions, condition)
 			if arg != nil {
@@ -1651,12 +1669,12 @@ func collectFilterConditions(filters []*Filter, conditions *[]string, args *[]in
 }
 
 // collectSubGroupConditions 收集子组条件（通用函数）
-func collectSubGroupConditions(groups []*FilterGroup, conditions *[]string, args *[]interface{}) {
+func collectSubGroupConditions(groups []*FilterGroup, conditions *[]string, args *[]interface{}, dialect Dialect) {
 	for _, subGroup := range groups {
 		if subGroup == nil || subGroup.IsEmpty() {
 			continue
 		}
-		subCondition, subArgs := buildGroupCondition(subGroup)
+		subCondition, subArgs := buildGroupCondition(subGroup, dialect)
 		if subCondition != "" {
 			*conditions = append(*conditions, "("+subCondition+")")
 			*args = append(*args, subArgs...)
@@ -1665,7 +1683,8 @@ func collectSubGroupConditions(groups []*FilterGroup, conditions *[]string, args
 }
 
 // buildFilterCondition 构建单个过滤条件的SQL和参数
-func buildFilterCondition(filter *Filter) (string, interface{}) {
+// dialect 用于 OP_JSON_CONTAINS 等方言感知操作符的 SQL 生成，传 nil 则默认 MySQL
+func buildFilterCondition(filter *Filter, dialect Dialect) (string, interface{}) {
 	if filter == nil {
 		return "", nil
 	}
@@ -1690,6 +1709,13 @@ func buildFilterCondition(filter *Filter) (string, interface{}) {
 		return buildFindInSetCondition(filter)
 	case constants.OP_REGEX, constants.OP_NOT_REGEX:
 		return buildRegexpCondition(filter)
+	case constants.OP_JSON_CONTAINS:
+		// JSON 数组包含查询：方言感知，dialect 由调用方从 gorm.DB 检测后传入
+		sql, args := JsonArrayContainsExpr(dialect, filter.Field, filter.Value)
+		if len(args) > 0 {
+			return sql, args[0]
+		}
+		return sql, nil
 	}
 
 	// 通用处理：使用 map 查找模板
@@ -1759,7 +1785,7 @@ func buildRegexpCondition(filter *Filter) (string, interface{}) {
 }
 
 // buildGroupCondition 递归构建过滤组的条件
-func buildGroupCondition(group *FilterGroup) (string, []interface{}) {
+func buildGroupCondition(group *FilterGroup, dialect Dialect) (string, []interface{}) {
 	if group == nil || group.IsEmpty() {
 		return "", nil
 	}
@@ -1768,8 +1794,8 @@ func buildGroupCondition(group *FilterGroup) (string, []interface{}) {
 	var args []interface{}
 
 	// 收集过滤条件和子组条件
-	collectFilterConditionsWithArgs(group.Filters, &conditions, &args)
-	collectSubGroupConditions(group.Groups, &conditions, &args)
+	collectFilterConditionsWithArgs(group.Filters, &conditions, &args, dialect)
+	collectSubGroupConditions(group.Groups, &conditions, &args, dialect)
 
 	if len(conditions) == 0 {
 		return "", nil
@@ -1779,12 +1805,12 @@ func buildGroupCondition(group *FilterGroup) (string, []interface{}) {
 }
 
 // collectFilterConditionsWithArgs 收集过滤条件（处理 BETWEEN 等多参数情况）
-func collectFilterConditionsWithArgs(filters []*Filter, conditions *[]string, args *[]interface{}) {
+func collectFilterConditionsWithArgs(filters []*Filter, conditions *[]string, args *[]interface{}, dialect Dialect) {
 	for _, filter := range filters {
 		if filter == nil {
 			continue
 		}
-		condition, arg := buildFilterCondition(filter)
+		condition, arg := buildFilterCondition(filter, dialect)
 		if condition != "" {
 			*conditions = append(*conditions, condition)
 			if arg != nil {
