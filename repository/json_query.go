@@ -110,9 +110,6 @@ func JsonArrayContainsDB(db *gorm.DB, column string, value interface{}) *gorm.DB
 // 将 ? 占位符替换为实际参数值，JSON 方言（MySQL/PG/CRDB）参数加单引号，SQLite/ClickHouse 参数为原始值
 func JsonArrayContainsStr(dialect Dialect, column string, value interface{}) string {
 	sql, args := JsonArrayContainsExpr(dialect, column, value)
-	if len(args) == 0 {
-		return sql
-	}
 	if dialect == nil {
 		dialect = &MySQLDialect{}
 	}

@@ -53,16 +53,25 @@ func setupJsonTestDB(t *testing.T) *gorm.DB {
 		DisableForeignKeyConstraintWhenMigrating: true,
 		Logger:                                   gormLogger.Default.LogMode(gormLogger.Silent),
 	})
-	require.NoError(t, err)
-
-	// CGO 检测：go-sqlite3 在 CGO_ENABLED=0 时为 stub，执行 SQL 会报错，跳过依赖实际查询的测试
-	var n int
-	if err := gormDB.Raw("SELECT 1").Scan(&n).Error; err != nil {
-		t.Skipf("跳过 SQLite 集成测试（%v）", err)
+	// CGO 检测：go-sqlite3 在 CGO_ENABLED=0 时为 stub，gorm.Open/AutoMigrate 会报错，跳过依赖 SQLite 的测试
+	if err != nil {
+		t.Skipf("跳过 SQLite 集成测试（无法打开数据库: %v）", err)
 	}
 
 	gormDB.Exec("DROP TABLE IF EXISTS json_items")
-	require.NoError(t, gormDB.AutoMigrate(&JsonItem{}))
+	if err := gormDB.AutoMigrate(&JsonItem{}); err != nil {
+		t.Skipf("跳过 SQLite 集成测试（AutoMigrate 失败: %v）", err)
+	}
+	return gormDB
+}
+
+// setupTestDBOrSkip 包装 setupTestDB，在 CGO 不可用时跳过测试而非失败
+func setupTestDBOrSkip(t *testing.T) *gorm.DB {
+	t.Helper()
+	gormDB, err := setupTestDB()
+	if err != nil {
+		t.Skipf("跳过 SQLite 集成测试（%v）", err)
+	}
 	return gormDB
 }
 
@@ -156,8 +165,7 @@ func TestDialectJsonArrayCountSubQuery(t *testing.T) {
 // ============================================================
 
 func TestDetectDialect_SQLite(t *testing.T) {
-	gormDB, err := setupTestDB()
-	require.NoError(t, err)
+	gormDB := setupTestDBOrSkip(t)
 
 	// SQLite 测试库
 	d := DetectDialect(gormDB)
@@ -428,8 +436,7 @@ func TestBuildFilterCondition_OpJsonContains_NilFilter(t *testing.T) {
 // ============================================================
 
 func TestApplyFilter_OpJsonContains(t *testing.T) {
-	gormDB, err := setupTestDB()
-	require.NoError(t, err)
+	gormDB := setupTestDBOrSkip(t)
 
 	dbQuery := gormDB.Table("test_users")
 	f := NewJsonArrayContainsFilter("channel_ids", int64(1))
@@ -556,8 +563,7 @@ func TestApplyQueryFilters_InjectsDialect(t *testing.T) {
 // ============================================================
 
 func TestApplyFilterGroup_NilAndEmpty(t *testing.T) {
-	gormDB, err := setupTestDB()
-	require.NoError(t, err)
+	gormDB := setupTestDBOrSkip(t)
 
 	t.Run("nil group", func(t *testing.T) {
 		dbQuery := gormDB.Table("test_users")
