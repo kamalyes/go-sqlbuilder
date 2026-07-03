@@ -8581,3 +8581,483 @@ func TestBaseRepositoryMutateWithQuery(t *testing.T) {
 	assert.Error(t, repo.UpdateFieldsByQuery(ctx, map[string]interface{}{"status": "bad"}, nil))
 	assert.Error(t, repo.DeleteByQuery(ctx, nil))
 }
+
+// ==============================================================================
+// 测试用模型
+// ==============================================================================
+
+// sortableTestModel 包含 JSON/JSONB 字段的测试模型，用于验证 GetSortableFields 自动排除 JSON 类型
+type sortableTestModel struct {
+	ID          uint      `json:"id" gorm:"column:id;primaryKey"`
+	Name        string    `json:"name" gorm:"column:name;type:varchar(64)"`
+	Description string    `json:"description" gorm:"column:description;type:text"`
+	Config      string    `json:"config" gorm:"column:config;type:json"`
+	Metadata    string    `json:"metadata" gorm:"column:metadata;type:jsonb"`
+	Sort        int       `json:"sort" gorm:"column:sort;default:0"`
+	Enabled     bool      `json:"enabled" gorm:"column:enabled;default:true"`
+	CreatedAt   time.Time `json:"created_at" gorm:"column:created_at;autoCreateTime"`
+	UpdatedAt   time.Time `json:"updated_at" gorm:"column:updated_at;autoUpdateTime"`
+}
+
+func (sortableTestModel) TableName() string {
+	return "sortable_test_model"
+}
+
+// gormDashModel 包含 gorm:"-" 字段，验证跳过逻辑
+type gormDashModel struct {
+	ID     uint   `json:"id" gorm:"column:id;primaryKey"`
+	Name   string `json:"name" gorm:"column:name"`
+	Secret string `gorm:"-"`
+}
+
+// taglessSortableModel 无 gorm column / json tag，验证蛇形命名兜底
+type taglessSortableModel struct {
+	ID        uint
+	Name      string
+	CreatedAt time.Time
+}
+
+// mockSorter 实现 Sorter 接口，用于测试 AddSafeOrderFromSort / ApplySort
+type mockSorter struct {
+	field     string
+	ascending bool
+}
+
+func (m mockSorter) GetField() string   { return m.field }
+func (m mockSorter) GetAscending() bool { return m.ascending }
+
+// ==============================================================================
+// isJSONType
+// ==============================================================================
+
+func TestIsJSONType(t *testing.T) {
+	testCases := []struct {
+		name    string
+		gormTag string
+		want    bool
+	}{
+		{"type:json 多标签", "column:config;type:json", true},
+		{"type:jsonb 多标签", "column:metadata;type:jsonb", true},
+		{"type:json 单独", "type:json", true},
+		{"type:jsonb 单独", "type:jsonb", true},
+		{"type:varchar 带长度", "column:name;type:varchar(64)", false},
+		{"type:text", "column:description;type:text", false},
+		{"type:int", "column:age;type:int", false},
+		{"type:bool", "column:enabled;type:bool", false},
+		{"无 type 标签", "column:id;primaryKey", false},
+		{"空字符串", "", false},
+		{"type:json(100) 带括号", "type:json(100)", true},
+		{"type:JSON 大写", "type:JSON", true},
+		{"type:JSONB 大写", "type:JSONB", true},
+		{"type:varchar_json 后缀", "type:varchar_json", false},
+		{"type:jsonish 近似", "type:jsonish", false},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := isJSONType(tc.gormTag)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
+// ==============================================================================
+// GetStructFields
+// ==============================================================================
+
+func TestGetStructFields_SortableModel(t *testing.T) {
+	fields := GetStructFields(sortableTestModel{})
+	assert.Equal(t, []string{"id", "name", "description", "config", "metadata", "sort", "enabled", "created_at", "updated_at"}, fields)
+}
+
+func TestGetStructFields_PointerModel(t *testing.T) {
+	fields := GetStructFields(&sortableTestModel{})
+	assert.NotEmpty(t, fields)
+	assert.Contains(t, fields, "name")
+	assert.Contains(t, fields, "config")
+}
+
+func TestGetStructFields_GormDashSkipped(t *testing.T) {
+	fields := GetStructFields(gormDashModel{})
+	// Secret 字段 gorm:"-"，应被跳过
+	assert.Equal(t, []string{"id", "name"}, fields)
+	assert.NotContains(t, fields, "secret")
+}
+
+func TestGetStructFields_TaglessSnakeFallback(t *testing.T) {
+	fields := GetStructFields(taglessSortableModel{})
+	assert.Equal(t, []string{"id", "name", "created_at"}, fields)
+}
+
+func TestGetStructFields_NonStruct(t *testing.T) {
+	assert.Empty(t, GetStructFields("string"))
+	assert.Empty(t, GetStructFields(123))
+	assert.Empty(t, GetStructFields(nil))
+}
+
+// ==============================================================================
+// GetSortableFields
+// ==============================================================================
+
+func TestGetSortableFields_ExcludesJSONTypes(t *testing.T) {
+	fields := GetSortableFields(sortableTestModel{})
+	// JSON 字段 config / metadata 应被排除
+	assert.Contains(t, fields, "id")
+	assert.Contains(t, fields, "name")
+	assert.Contains(t, fields, "description")
+	assert.Contains(t, fields, "sort")
+	assert.Contains(t, fields, "enabled")
+	assert.Contains(t, fields, "created_at")
+	assert.Contains(t, fields, "updated_at")
+	assert.NotContains(t, fields, "config")
+	assert.NotContains(t, fields, "metadata")
+	assert.Equal(t, 7, len(fields))
+}
+
+func TestGetSortableFields_PointerModel(t *testing.T) {
+	fields := GetSortableFields(&sortableTestModel{})
+	assert.NotEmpty(t, fields)
+	assert.NotContains(t, fields, "config")
+	assert.NotContains(t, fields, "metadata")
+}
+
+func TestGetSortableFields_AllJSONExcluded(t *testing.T) {
+	// TestJSONConfig 定义于 base_test.go，含 detail/jsonb_detail
+	fields := GetSortableFields(TestJSONConfig{})
+	assert.NotContains(t, fields, "detail")
+	assert.NotContains(t, fields, "jsonb_detail")
+	assert.Contains(t, fields, "name")
+	assert.Contains(t, fields, "plain")
+	assert.Contains(t, fields, "id")
+}
+
+func TestGetSortableFields_NoJSONModel(t *testing.T) {
+	// TestUser 无 JSON 字段，可排序字段应等于全部字段
+	sortable := GetSortableFields(TestUser{})
+	all := GetStructFields(TestUser{})
+	assert.Equal(t, all, sortable)
+}
+
+func TestGetSortableFields_NonStruct(t *testing.T) {
+	assert.Empty(t, GetSortableFields(nil))
+	assert.Empty(t, GetSortableFields("string"))
+	assert.Empty(t, GetSortableFields(123))
+}
+
+// ==============================================================================
+// AddSafeOrderBool
+// ==============================================================================
+
+func TestAddSafeOrderBool_AscendingTrue(t *testing.T) {
+	q := NewQuery()
+	q.AddSafeOrderBool("name", true, "created_at", "DESC")
+	assert.Len(t, q.Orders, 1)
+	assert.Equal(t, "name", q.Orders[0].Field)
+	assert.Equal(t, "ASC", q.Orders[0].Direction)
+}
+
+func TestAddSafeOrderBool_AscendingFalse(t *testing.T) {
+	q := NewQuery()
+	q.AddSafeOrderBool("name", false, "created_at", "ASC")
+	assert.Len(t, q.Orders, 1)
+	assert.Equal(t, "name", q.Orders[0].Field)
+	assert.Equal(t, "DESC", q.Orders[0].Direction)
+}
+
+func TestAddSafeOrderBool_EmptyFieldFallback(t *testing.T) {
+	q := NewQuery()
+	q.AddSafeOrderBool("", true, "created_at", "DESC")
+	assert.Len(t, q.Orders, 1)
+	assert.Equal(t, "created_at", q.Orders[0].Field)
+	assert.Equal(t, "ASC", q.Orders[0].Direction) // ascending=true → ASC
+}
+
+func TestAddSafeOrderBool_FieldNotInWhitelist(t *testing.T) {
+	q := NewQuery()
+	allowed := []string{"id", "name"}
+	q.AddSafeOrderBool("malicious", true, "created_at", "DESC", allowed)
+	assert.Len(t, q.Orders, 1)
+	assert.Equal(t, "created_at", q.Orders[0].Field) // 回退默认字段
+}
+
+func TestAddSafeOrderBool_WithWhitelist(t *testing.T) {
+	q := NewQuery()
+	allowed := []string{"id", "name", "sort"}
+	q.AddSafeOrderBool("sort", false, "created_at", "ASC", allowed)
+	assert.Len(t, q.Orders, 1)
+	assert.Equal(t, "sort", q.Orders[0].Field)
+	assert.Equal(t, "DESC", q.Orders[0].Direction)
+}
+
+func TestAddSafeOrderBool_EmptyWhitelistAllowsAll(t *testing.T) {
+	// 空白名单切片（不传或传空）视为不限制
+	q := NewQuery()
+	q.AddSafeOrderBool("valid_field_123", true, "created_at", "DESC", []string{})
+	assert.Len(t, q.Orders, 1)
+	assert.Equal(t, "valid_field_123", q.Orders[0].Field)
+}
+
+// ==============================================================================
+// AddSafeOrderFromSort / Sorter 接口
+// ==============================================================================
+
+func TestAddSafeOrderFromSort_NilSorter(t *testing.T) {
+	// protobuf getter 对 nil 返回零值，但 Sorter 接口显式 nil 应回退默认
+	q := NewQuery()
+	q.AddSafeOrderFromSort(nil, "created_at", "DESC")
+	assert.Len(t, q.Orders, 1)
+	assert.Equal(t, "created_at", q.Orders[0].Field)
+	assert.Equal(t, "DESC", q.Orders[0].Direction)
+}
+
+func TestAddSafeOrderFromSort_WithSorter(t *testing.T) {
+	q := NewQuery()
+	sort := mockSorter{field: "name", ascending: true}
+	q.AddSafeOrderFromSort(sort, "created_at", "DESC")
+	assert.Len(t, q.Orders, 1)
+	assert.Equal(t, "name", q.Orders[0].Field)
+	assert.Equal(t, "ASC", q.Orders[0].Direction)
+}
+
+func TestAddSafeOrderFromSort_EmptyFieldFallback(t *testing.T) {
+	q := NewQuery()
+	sort := mockSorter{field: "", ascending: false}
+	q.AddSafeOrderFromSort(sort, "sort", "ASC")
+	assert.Len(t, q.Orders, 1)
+	assert.Equal(t, "sort", q.Orders[0].Field)
+	assert.Equal(t, "ASC", q.Orders[0].Direction) // 回退默认方向
+}
+
+func TestAddSafeOrderFromSort_FieldNotInWhitelist(t *testing.T) {
+	q := NewQuery()
+	sort := mockSorter{field: "malicious", ascending: true}
+	allowed := []string{"id", "name"}
+	q.AddSafeOrderFromSort(sort, "created_at", "DESC", allowed)
+	assert.Len(t, q.Orders, 1)
+	assert.Equal(t, "created_at", q.Orders[0].Field)
+}
+
+func TestAddSafeOrderFromSort_Chaining(t *testing.T) {
+	q := NewQuery()
+	sort1 := mockSorter{field: "name", ascending: true}
+	sort2 := mockSorter{field: "created_at", ascending: false}
+	q.AddSafeOrderFromSort(sort1, "id", "DESC").
+		AddSafeOrderFromSort(sort2, "id", "DESC")
+	assert.Len(t, q.Orders, 2)
+	assert.Equal(t, "name", q.Orders[0].Field)
+	assert.Equal(t, "ASC", q.Orders[0].Direction)
+	assert.Equal(t, "created_at", q.Orders[1].Field)
+	assert.Equal(t, "DESC", q.Orders[1].Direction)
+}
+
+// ==============================================================================
+// BaseRepository.GetSortableFields
+// ==============================================================================
+
+func TestBaseRepository_GetSortableFields_CachesResult(t *testing.T) {
+	gormDB, err := setupTestDB()
+	assert.NoError(t, err)
+	dbHandler := db.MustNewGormHandler(gormDB)
+	repo := NewBaseRepository[sortableTestModel](dbHandler, logger.NewLogger(), "sortable_test_model")
+
+	// 首次调用应计算并缓存
+	fields1 := repo.GetSortableFields()
+	assert.NotEmpty(t, fields1)
+	assert.NotContains(t, fields1, "config") // JSON 排除
+	assert.NotContains(t, fields1, "metadata")
+
+	// 第二次调用应返回缓存
+	fields2 := repo.GetSortableFields()
+	assert.Equal(t, fields1, fields2)
+	// 验证 sortableFields 字段已被填充（缓存命中）
+	assert.True(t, len(repo.sortableFields) > 0, "sortableFields 应被缓存")
+}
+
+func TestBaseRepository_GetSortableFields_NoJSONFields(t *testing.T) {
+	gormDB, err := setupTestDB()
+	assert.NoError(t, err)
+	dbHandler := db.MustNewGormHandler(gormDB)
+	// TestUser 不含 JSON 字段，可排序字段应等于全部字段
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
+
+	fields := repo.GetSortableFields()
+	allFields := repo.GetModelFields()
+	assert.Equal(t, allFields, fields)
+}
+
+// ==============================================================================
+// BaseRepository.ApplySort
+// ==============================================================================
+
+func TestBaseRepository_ApplySort_WithSorter(t *testing.T) {
+	gormDB, err := setupTestDB()
+	assert.NoError(t, err)
+	dbHandler := db.MustNewGormHandler(gormDB)
+	repo := NewBaseRepository[sortableTestModel](dbHandler, logger.NewLogger(), "sortable_test_model")
+
+	q := NewQuery()
+	sort := mockSorter{field: "name", ascending: true}
+	repo.ApplySort(q, sort, "sort", "DESC")
+	assert.Len(t, q.Orders, 1)
+	assert.Equal(t, "name", q.Orders[0].Field)
+	assert.Equal(t, "ASC", q.Orders[0].Direction)
+}
+
+func TestBaseRepository_ApplySort_NilSorterFallback(t *testing.T) {
+	gormDB, err := setupTestDB()
+	assert.NoError(t, err)
+	dbHandler := db.MustNewGormHandler(gormDB)
+	repo := NewBaseRepository[sortableTestModel](dbHandler, logger.NewLogger(), "sortable_test_model")
+
+	q := NewQuery()
+	repo.ApplySort(q, nil, "sort", "DESC")
+	assert.Len(t, q.Orders, 1)
+	assert.Equal(t, "sort", q.Orders[0].Field)
+	assert.Equal(t, "DESC", q.Orders[0].Direction)
+}
+
+func TestBaseRepository_ApplySort_JSONFieldRejected(t *testing.T) {
+	gormDB, err := setupTestDB()
+	assert.NoError(t, err)
+	dbHandler := db.MustNewGormHandler(gormDB)
+	repo := NewBaseRepository[sortableTestModel](dbHandler, logger.NewLogger(), "sortable_test_model")
+
+	// config 是 JSON 字段，应被白名单拒绝，回退默认
+	q := NewQuery()
+	sort := mockSorter{field: "config", ascending: true}
+	repo.ApplySort(q, sort, "sort", "DESC")
+	assert.Len(t, q.Orders, 1)
+	assert.Equal(t, "sort", q.Orders[0].Field)
+}
+
+func TestBaseRepository_ApplySort_ExcludeFields(t *testing.T) {
+	gormDB, err := setupTestDB()
+	assert.NoError(t, err)
+	dbHandler := db.MustNewGormHandler(gormDB)
+	repo := NewBaseRepository[sortableTestModel](dbHandler, logger.NewLogger(), "sortable_test_model")
+
+	// id 在白名单中但被 excludeFields 排除
+	q := NewQuery()
+	sort := mockSorter{field: "id", ascending: true}
+	repo.ApplySort(q, sort, "sort", "DESC", "id", "version")
+	assert.Len(t, q.Orders, 1)
+	assert.Equal(t, "sort", q.Orders[0].Field) // id 被排除，回退默认
+}
+
+func TestBaseRepository_ApplySort_ExcludeFieldsAllowsOthers(t *testing.T) {
+	gormDB, err := setupTestDB()
+	assert.NoError(t, err)
+	dbHandler := db.MustNewGormHandler(gormDB)
+	repo := NewBaseRepository[sortableTestModel](dbHandler, logger.NewLogger(), "sortable_test_model")
+
+	// 排除 id/version，但 name 仍可用
+	q := NewQuery()
+	sort := mockSorter{field: "name", ascending: false}
+	repo.ApplySort(q, sort, "sort", "DESC", "id", "version")
+	assert.Len(t, q.Orders, 1)
+	assert.Equal(t, "name", q.Orders[0].Field)
+	assert.Equal(t, "DESC", q.Orders[0].Direction)
+}
+
+func TestBaseRepository_ApplySort_MaliciousFieldRejected(t *testing.T) {
+	gormDB, err := setupTestDB()
+	assert.NoError(t, err)
+	dbHandler := db.MustNewGormHandler(gormDB)
+	repo := NewBaseRepository[sortableTestModel](dbHandler, logger.NewLogger(), "sortable_test_model")
+
+	// SQL 注入尝试应被白名单拒绝
+	q := NewQuery()
+	sort := mockSorter{field: "id; DROP TABLE users--", ascending: true}
+	repo.ApplySort(q, sort, "sort", "DESC")
+	assert.Len(t, q.Orders, 1)
+	assert.Equal(t, "sort", q.Orders[0].Field)
+}
+
+// ==============================================================================
+// 端到端集成测试：ApplySort + 实际查询
+// ==============================================================================
+
+func TestBaseRepository_ApplySort_IntegrationWithQuery(t *testing.T) {
+	gormDB, err := setupTestDB()
+	assert.NoError(t, err)
+
+	// 自动迁移测试模型
+	err = gormDB.AutoMigrate(&sortableTestModel{})
+	assert.NoError(t, err)
+	// 测试结束清理表
+	t.Cleanup(func() {
+		gormDB.Exec("DROP TABLE IF EXISTS sortable_test_model")
+	})
+
+	dbHandler := db.MustNewGormHandler(gormDB)
+	repo := NewBaseRepository[sortableTestModel](dbHandler, logger.NewLogger(), "sortable_test_model")
+	ctx := context.Background()
+
+	// 准备测试数据
+	records := []*sortableTestModel{
+		{Name: "Charlie", Sort: 30},
+		{Name: "Alice", Sort: 10},
+		{Name: "Bob", Sort: 20},
+	}
+	for _, r := range records {
+		_, err := repo.Create(ctx, r)
+		assert.NoError(t, err)
+	}
+
+	t.Run("按 name 升序", func(t *testing.T) {
+		q := NewQuery()
+		sort := mockSorter{field: "name", ascending: true}
+		repo.ApplySort(q, sort, "sort", "DESC")
+		results, err := repo.List(ctx, q)
+		assert.NoError(t, err)
+		assert.Len(t, results, 3)
+		assert.Equal(t, "Alice", results[0].Name)
+		assert.Equal(t, "Bob", results[1].Name)
+		assert.Equal(t, "Charlie", results[2].Name)
+	})
+
+	t.Run("按 sort 降序", func(t *testing.T) {
+		q := NewQuery()
+		sort := mockSorter{field: "sort", ascending: false}
+		repo.ApplySort(q, sort, "name", "ASC")
+		results, err := repo.List(ctx, q)
+		assert.NoError(t, err)
+		assert.Len(t, results, 3)
+		assert.Equal(t, "Charlie", results[0].Name) // sort=30
+		assert.Equal(t, "Bob", results[1].Name)     // sort=20
+		assert.Equal(t, "Alice", results[2].Name)   // sort=10
+	})
+
+	t.Run("JSON 字段排序回退默认", func(t *testing.T) {
+		q := NewQuery()
+		sort := mockSorter{field: "config", ascending: true}
+		repo.ApplySort(q, sort, "sort", "ASC")
+		results, err := repo.List(ctx, q)
+		assert.NoError(t, err)
+		assert.Len(t, results, 3)
+		// 默认按 sort ASC：Alice(10), Bob(20), Charlie(30)
+		assert.Equal(t, "Alice", results[0].Name)
+		assert.Equal(t, "Bob", results[1].Name)
+		assert.Equal(t, "Charlie", results[2].Name)
+	})
+
+	t.Run("nil Sorter 回退默认", func(t *testing.T) {
+		q := NewQuery()
+		repo.ApplySort(q, nil, "sort", "ASC")
+		results, err := repo.List(ctx, q)
+		assert.NoError(t, err)
+		assert.Len(t, results, 3)
+		assert.Equal(t, "Alice", results[0].Name)
+	})
+
+	t.Run("excludeFields 排除指定字段", func(t *testing.T) {
+		// 排除 name，强制回退默认 sort
+		q := NewQuery()
+		sort := mockSorter{field: "name", ascending: true}
+		repo.ApplySort(q, sort, "sort", "ASC", "name")
+		results, err := repo.List(ctx, q)
+		assert.NoError(t, err)
+		assert.Len(t, results, 3)
+		// 默认按 sort ASC：Alice(10), Bob(20), Charlie(30)
+		assert.Equal(t, "Alice", results[0].Name)
+	})
+}

@@ -31,6 +31,7 @@ jobs:
         run: go install gotest.tools/gotestsum@v1.12.0 # 指定版本
       - name: Test
         run: gotestsum -f testname -- ./... -race -count=1 -shuffle=on
+        continue-on-error: true
 
       - name: Test
         run: gotestsum -f testname -- ./... -race -count=1 -coverprofile=coverage.txt -covermode=atomic -shuffle=on
@@ -42,3 +43,4 @@ jobs:
           file: ./coverage.txt
           flags: unittests
           slug: kamalyes/go-sqlbuilder
+        continue-on-error: true

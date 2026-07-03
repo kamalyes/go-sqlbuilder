@@ -265,9 +265,10 @@ func (r *RepositoryWithSoftDelete[T]) ListDeletedByIsDeleted(ctx context.Context
 
 // === 字段处理辅助函数 ===
 
-// GetStructFields 获取结构体的所有字段名（基于 gorm tag 或 json tag）
-// 返回数据库字段名列表
-func GetStructFields(model interface{}) []string {
+// extractFieldNames 提取结构体的数据库字段名（gorm column 优先，json tag 次之，蛇形兜底）
+// 跳过未导出字段和 gorm:"-" 字段；keep 为 nil 时保留全部数据库字段，否则仅保留 keep(gormTag) 为 true 的字段
+// GetStructFields 与 GetSortableFields 的公共实现，避免逻辑重复
+func extractFieldNames(model interface{}, keep func(gormTag string) bool) []string {
 	var fields []string
 	t := reflect.TypeOf(model)
 
@@ -291,22 +292,22 @@ func GetStructFields(model interface{}) []string {
 		}
 
 		// 优先使用 gorm 的 column tag
-		if columnTag := field.Tag.Get("gorm"); columnTag != "-" {
-			// 解析 gorm tag，提取 column 名称
-			if columnName := extractColumnName(columnTag); columnName != "" {
-				fields = append(fields, columnName)
-				continue
-			}
-		} else {
-			// gorm:"-" 表示该字段不映射到数据库列，跳过
+		gormTag := field.Tag.Get("gorm")
+		if gormTag == "-" {
+			continue
+		}
+		if keep != nil && !keep(gormTag) {
+			continue
+		}
+		if columnName := extractColumnName(gormTag); columnName != "" {
+			fields = append(fields, columnName)
 			continue
 		}
 
 		// 使用 json tag
 		if jsonTag := field.Tag.Get("json"); jsonTag != "" && jsonTag != "-" {
 			// 去除 omitempty 等选项
-			jsonName := strings.Split(jsonTag, ",")[0]
-			if jsonName != "" {
+			if jsonName := strings.Split(jsonTag, ",")[0]; jsonName != "" {
 				fields = append(fields, jsonName)
 				continue
 			}
@@ -315,8 +316,33 @@ func GetStructFields(model interface{}) []string {
 		// 使用字段名的蛇形命名
 		fields = append(fields, toSnakeCase(field.Name))
 	}
-
 	return fields
+}
+
+// GetStructFields 获取结构体的所有数据库字段名（基于 gorm tag 或 json tag）
+func GetStructFields(model interface{}) []string {
+	return extractFieldNames(model, nil)
+}
+
+// GetSortableFields 返回模型中可排序的字段（排除 JSON/JSONB 类型字段，这类字段无法直接 ORDER BY）
+// 适用于 BaseRepository.ApplySort 自动构建排序白名单，省去手写字段列表
+func GetSortableFields(model interface{}) []string {
+	return extractFieldNames(model, func(gormTag string) bool {
+		return !isJSONType(gormTag)
+	})
+}
+
+// isJSONType 判断 gorm tag 是否为 JSON 类型（json/jsonb）
+func isJSONType(gormTag string) bool {
+	for _, part := range strings.Split(gormTag, ";") {
+		part = strings.TrimSpace(part)
+		if strings.HasPrefix(part, "type:") {
+			typ := strings.TrimPrefix(part, "type:")
+			typ = strings.ToLower(strings.Split(typ, "(")[0]) // varchar(100) → varchar
+			return typ == "json" || typ == "jsonb"
+		}
+	}
+	return false
 }
 
 // extractColumnName 从 gorm tag 中提取 column 名称

@@ -51,6 +51,7 @@ type BaseRepository[T any] struct {
 	autoCreateTimeIndexes []int          // 创建时间字段索引缓存
 	autoUpdateTimeIndexes []int          // 更新时间字段索引缓存
 	modelFields           []string       // 模型字段缓存（用于自动字段选择）
+	sortableFields        []string       // 可排序字段缓存（排除 JSON 类型，用于 ApplySort）
 	autoFields            bool           // 是否启用自动字段模式
 	normalizeEnabled      bool           // 是否启用 JSON 字段归一化
 	normalizeFunc         NormalizeFunc  // 自定义归一化函数
@@ -1363,6 +1364,48 @@ func (r *BaseRepository[T]) GetModelFields() []string {
 		r.modelFields = GetStructFields(model)
 	}
 	return r.modelFields
+}
+
+// GetSortableFields 获取模型可排序字段（排除 JSON 类型），带缓存
+// 用于 ApplySort 自动构建白名单，避免每个仓库手写字段列表
+func (r *BaseRepository[T]) GetSortableFields() []string {
+	if len(r.sortableFields) == 0 {
+		var model T
+		r.sortableFields = GetSortableFields(model)
+	}
+	return r.sortableFields
+}
+
+// ApplySort 从 Sorter 自动应用安全排序，白名单取自模型可排序字段（排除 JSON 类型）
+// 调用方无需手写白名单；如需排除特定字段（如 id/version），传入 excludeFields
+//
+// 参数:
+//   - q: 查询构建器
+//   - sort: 排序参数(可为 nil，回退默认排序)
+//   - defaultField: 默认排序字段(sort 为空或字段不在白名单时使用)
+//   - defaultDirection: 默认排序方向
+//   - excludeFields: 额外排除的字段(可选)
+//
+// 示例:
+//
+//	r.ApplySort(q, req.GetSort(), "sort", "DESC")
+//	r.ApplySort(q, req.GetSort(), "sort", "DESC", "id", "version")
+func (r *BaseRepository[T]) ApplySort(q *Query, sort Sorter, defaultField, defaultDirection string, excludeFields ...string) *Query {
+	allowed := r.GetSortableFields()
+	if len(excludeFields) > 0 {
+		exclude := make(map[string]struct{}, len(excludeFields))
+		for _, f := range excludeFields {
+			exclude[f] = struct{}{}
+		}
+		filtered := make([]string, 0, len(allowed))
+		for _, f := range allowed {
+			if _, ok := exclude[f]; !ok {
+				filtered = append(filtered, f)
+			}
+		}
+		allowed = filtered
+	}
+	return q.AddSafeOrderFromSort(sort, defaultField, defaultDirection, allowed)
 }
 
 // transactionWrapper 事务包装器

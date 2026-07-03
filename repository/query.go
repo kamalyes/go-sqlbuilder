@@ -595,6 +595,58 @@ func (q *Query) AddSafeOrder(sortBy, sortOrder, defaultField, defaultDirection s
 	return q
 }
 
+// AddSafeOrderBool 安全添加排序条件（ascending 布尔版本）
+// 将 ascending bool 转为排序方向：true→ASC, false→DESC，其余行为与 AddSafeOrder 一致
+// 适用于 protobuf SortRequest{field, ascending} 场景，省去手动方向转换与 if/else 分支
+//
+// 参数:
+//   - sortBy: 排序字段(可选,为空或不在白名单时使用默认)
+//   - ascending: 是否升序(true=ASC, false=DESC)
+//   - defaultField: 默认排序字段
+//   - defaultDirection: 默认排序方向
+//   - allowedFields: 允许的字段白名单(可选,为空则不限制)
+//
+// 示例:
+//
+//	q.AddSafeOrderBool(req.GetSort().GetField(), req.GetSort().GetAscending(), "sort", "DESC", []string{"name", "sort", "created_at"})
+func (q *Query) AddSafeOrderBool(sortBy string, ascending bool, defaultField, defaultDirection string, allowedFields ...[]string) *Query {
+	sortOrder := constants.ORDER_DESC
+	if ascending {
+		sortOrder = constants.ORDER_ASC
+	}
+	return q.AddSafeOrder(sortBy, sortOrder, defaultField, defaultDirection, allowedFields...)
+}
+
+// Sorter 排序参数接口，由调用方传入 protobuf Sorting/SortRequest 等消息对象
+// 实现 GetField() string 和 GetAscending() bool 即可，go-sqlbuilder 不依赖任何业务 proto
+type Sorter interface {
+	GetField() string
+	GetAscending() bool
+}
+
+// AddSafeOrderFromSort 直接从 Sorter 接口构建安全排序（最简形式）
+// 自动提取 field + ascending，sort 为 nil 或字段为空/不在白名单时回退默认排序
+// 适用于 protobuf req.GetSort() 场景，省去手动拆解字段与方向
+//
+// 参数:
+//   - sort: 排序参数(可为 nil，protobuf getter 对 nil 接收者返回零值，安全)
+//   - defaultField: 默认排序字段
+//   - defaultDirection: 默认排序方向
+//   - allowedFields: 允许的字段白名单(可选,为空则不限制)
+//
+// 示例:
+//
+//	q.AddSafeOrderFromSort(req.GetSort(), "sort", "DESC", []string{"name", "sort", "created_at"})
+func (q *Query) AddSafeOrderFromSort(sort Sorter, defaultField, defaultDirection string, allowedFields ...[]string) *Query {
+	var field string
+	var ascending bool
+	if sort != nil {
+		field = sort.GetField()
+		ascending = sort.GetAscending()
+	}
+	return q.AddSafeOrderBool(field, ascending, defaultField, defaultDirection, allowedFields...)
+}
+
 // AddEqual 添加等于条件
 func (q *Query) AddEqual(field string, value interface{}) *Query {
 	return q.AddFilter(NewEqFilter(field, value))
