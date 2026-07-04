@@ -20,6 +20,10 @@ import (
 	"gorm.io/gorm"
 )
 
+// 预编译正则，避免 parseColumns 每次调用都重新编译
+// MustCompile 在包初始化时执行一次，失败会 panic（仅启动期）
+var ascDescSuffixRegex = regexp.MustCompile(`(?i)\s+(ASC|DESC)$`)
+
 // IndexDefinition 索引定义
 type IndexDefinition struct {
 	Table   string   // 表名
@@ -75,7 +79,7 @@ func (idx *IndexDefinition) parseColumns() []string {
 		part = strings.TrimSpace(part)
 
 		// 移除排序关键字 (ASC, DESC)
-		part = regexp.MustCompile(`(?i)\s+(ASC|DESC)$`).ReplaceAllString(part, "")
+		part = ascDescSuffixRegex.ReplaceAllString(part, "")
 
 		// 移除其他修饰符
 		part = strings.TrimSpace(part)
@@ -459,9 +463,33 @@ func (m *Migrator) addComment(c TableComment, dialector string) error {
 }
 
 // DropTables 删除指定的表（危险操作）
+// MySQL/PostgreSQL/SQLite/ClickHouse 均支持 DROP TABLE IF EXISTS t1, t2, t3 语法，
+// 用一条 SQL 替代 N 次往返；其它 dialector 回退到逐张删除
 func (m *Migrator) DropTables(tables ...string) error {
+	if len(tables) == 0 {
+		return nil
+	}
+
 	m.logger.Warn("⚠️ 准备删除数据表: %v", tables)
 
+	dialector := m.db.Dialector.Name()
+	batchSupported := constants.IsMySQLDialector(dialector) ||
+		constants.IsPostgreSQLFamilyDialector(dialector) ||
+		constants.IsSQLiteDialector(dialector) ||
+		constants.IsClickHouseDialector(dialector)
+
+	if batchSupported {
+		// 单条 SQL 批量删除，减少 N 次数据库往返
+		sql := fmt.Sprintf("DROP TABLE IF EXISTS %s", strings.Join(tables, ", "))
+		if err := m.db.Exec(sql).Error; err != nil {
+			m.logger.Error("❌ 批量删除表失败: %v", err)
+			return err
+		}
+		m.logger.Info("🗑️ %d 张表已批量删除", len(tables))
+		return nil
+	}
+
+	// 回退到逐张删除
 	for _, table := range tables {
 		if err := m.db.Exec(fmt.Sprintf("DROP TABLE IF EXISTS %s", table)).Error; err != nil {
 			m.logger.Error("❌ 删除表 %s 失败: %v", table, err)
@@ -481,10 +509,71 @@ func (m *Migrator) DropTablesWithModels(models ...interface{}) error {
 }
 
 // CheckTablesExist 检查表是否存在
+// 优先用单条 SQL 批量查询，避免 N 次 HasTable 往返；不支持的 dialector 回退到逐张检查
 func (m *Migrator) CheckTablesExist(tables ...string) map[string]bool {
-	result := make(map[string]bool)
-	for _, table := range tables {
-		result[table] = m.db.Migrator().HasTable(table)
+	result := make(map[string]bool, len(tables))
+	if len(tables) == 0 {
+		return result
+	}
+	// 初始化为 false，便于在批量查询未命中时也保留 key
+	for _, t := range tables {
+		result[t] = false
+	}
+
+	dialector := m.db.Dialector.Name()
+	if !constants.IsSupportedDialector(dialector) {
+		// 未知 dialector 回退
+		for _, table := range tables {
+			result[table] = m.db.Migrator().HasTable(table)
+		}
+		return result
+	}
+
+	// 构造 IN (?, ?, ?) 占位符
+	placeholders := make([]string, len(tables))
+	args := make([]interface{}, len(tables))
+	for i, t := range tables {
+		placeholders[i] = "?"
+		args[i] = t
+	}
+	inClause := strings.Join(placeholders, ", ")
+
+	var query string
+	switch {
+	case constants.IsMySQLDialector(dialector):
+		query = fmt.Sprintf(
+			"SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name IN (%s)",
+			inClause,
+		)
+	case constants.IsPostgreSQLFamilyDialector(dialector):
+		query = fmt.Sprintf(
+			"SELECT tablename FROM pg_tables WHERE schemaname = current_schema() AND tablename IN (%s)",
+			inClause,
+		)
+	case constants.IsClickHouseDialector(dialector):
+		query = fmt.Sprintf(
+			"SELECT name FROM system.tables WHERE database = currentDatabase() AND name IN (%s)",
+			inClause,
+		)
+	case constants.IsSQLiteDialector(dialector):
+		query = fmt.Sprintf(
+			"SELECT name FROM sqlite_master WHERE type = 'table' AND name IN (%s)",
+			inClause,
+		)
+	}
+
+	var foundTables []string
+	if err := m.db.Raw(query, args...).Scan(&foundTables).Error; err != nil {
+		// 查询失败时回退到逐张检查
+		m.logger.Warn("批量检查表存在失败，回退到逐张检查: %v", err)
+		for _, table := range tables {
+			result[table] = m.db.Migrator().HasTable(table)
+		}
+		return result
+	}
+
+	for _, t := range foundTables {
+		result[t] = true
 	}
 	return result
 }
@@ -572,6 +661,7 @@ func (m *Migrator) SyncColumnComments(models ...interface{}) error {
 }
 
 // syncModelColumnComments 同步单个模型的字段注释
+// MySQL 场景下 column_type 与 comment 一次性查询，避免循环内逐字段查 column_type 造成的 N+1
 func (m *Migrator) syncModelColumnComments(model interface{}, dialector string) (int, error) {
 	// 解析模型获取表名和字段信息
 	stmt := &gorm.Statement{DB: m.db}
@@ -582,8 +672,8 @@ func (m *Migrator) syncModelColumnComments(model interface{}, dialector string) 
 	tableName := stmt.Table
 	schema := stmt.Schema
 
-	// 获取数据库中的现有注释
-	dbComments, err := m.getColumnComments(tableName, dialector)
+	// 获取数据库中的现有注释（MySQL 同时取回 column_type，避免 N+1 查询）
+	dbComments, dbColumnTypes, err := m.getColumnCommentsWithTypes(tableName, dialector)
 	if err != nil {
 		return 0, fmt.Errorf("获取数据库字段注释失败: %w", err)
 	}
@@ -607,13 +697,17 @@ func (m *Migrator) syncModelColumnComments(model interface{}, dialector string) 
 			continue // 注释相同，无需更新
 		}
 
-		// 获取列类型（MySQL ALTER COLUMN 需要）
+		// 获取列类型（MySQL ALTER COLUMN 需要；已随 columnComments 一次性取回）
 		columnType := ""
 		if constants.IsMySQLDialector(dialector) {
-			columnType, err = m.getColumnType(tableName, field.DBName)
-			if err != nil {
-				m.logger.Warn("获取列 %s.%s 类型失败: %v", tableName, field.DBName, err)
-				continue
+			columnType = dbColumnTypes[field.DBName]
+			if columnType == "" {
+				// 兜底：批量查询未命中时再单独查
+				columnType, err = m.getColumnType(tableName, field.DBName)
+				if err != nil {
+					m.logger.Warn("获取列 %s.%s 类型失败: %v", tableName, field.DBName, err)
+					continue
+				}
 			}
 		}
 
@@ -632,50 +726,66 @@ func (m *Migrator) syncModelColumnComments(model interface{}, dialector string) 
 
 // getColumnComments 获取表中所有列的注释
 func (m *Migrator) getColumnComments(tableName, dialector string) (map[string]string, error) {
+	comments, _, err := m.getColumnCommentsWithTypes(tableName, dialector)
+	return comments, err
+}
+
+// getColumnCommentsWithTypes 同时获取列注释和列类型（MySQL 需要 column_type 用于 ALTER MODIFY）
+// 通过单条 SQL 一次性返回，避免 syncModelColumnComments 循环内 N+1 查询
+func (m *Migrator) getColumnCommentsWithTypes(tableName, dialector string) (map[string]string, map[string]string, error) {
 	comments := make(map[string]string)
+	columnTypes := make(map[string]string)
 
 	var rows []struct {
 		ColumnName    string `gorm:"column:column_name"`
 		ColumnComment string `gorm:"column:column_comment"`
+		ColumnType    string `gorm:"column:column_type"`
 	}
 
 	var err error
 	switch {
 	case constants.IsMySQLDialector(dialector):
+		// 一次查询同时取回 column_name / column_comment / column_type
 		err = m.db.Raw(`
-			SELECT COLUMN_NAME as column_name, COLUMN_COMMENT as column_comment 
-			FROM INFORMATION_SCHEMA.COLUMNS 
+			SELECT COLUMN_NAME as column_name,
+				   COLUMN_COMMENT as column_comment,
+				   COLUMN_TYPE as column_type
+			FROM INFORMATION_SCHEMA.COLUMNS
 			WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?
 		`, tableName).Scan(&rows).Error
 	case constants.IsPostgreSQLFamilyDialector(dialector):
 		err = m.db.Raw(`
-			SELECT a.attname as column_name, 
-				   COALESCE(d.description, '') as column_comment
+			SELECT a.attname as column_name,
+				   COALESCE(d.description, '') as column_comment,
+				   '' as column_type
 			FROM pg_attribute a
 			LEFT JOIN pg_description d ON d.objoid = a.attrelid AND d.objsubid = a.attnum
 			WHERE a.attrelid = ?::regclass AND a.attnum > 0 AND NOT a.attisdropped
 		`, tableName).Scan(&rows).Error
 	case constants.IsClickHouseDialector(dialector):
 		err = m.db.Raw(`
-			SELECT name as column_name, comment as column_comment
+			SELECT name as column_name, comment as column_comment, '' as column_type
 			FROM system.columns
 			WHERE database = currentDatabase() AND table = ?
 		`, tableName).Scan(&rows).Error
 	case constants.IsSQLiteDialector(dialector):
-		return comments, nil
+		return comments, columnTypes, nil
 	default:
-		return comments, nil
+		return comments, columnTypes, nil
 	}
 
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	for _, row := range rows {
 		comments[row.ColumnName] = row.ColumnComment
+		if row.ColumnType != "" {
+			columnTypes[row.ColumnName] = row.ColumnType
+		}
 	}
 
-	return comments, nil
+	return comments, columnTypes, nil
 }
 
 // getColumnType 获取列的类型定义（MySQL 需要完整类型来修改注释）

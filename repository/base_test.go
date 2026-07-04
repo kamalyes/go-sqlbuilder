@@ -9061,3 +9061,294 @@ func TestBaseRepository_ApplySort_IntegrationWithQuery(t *testing.T) {
 		assert.Equal(t, "Alice", results[0].Name)
 	})
 }
+
+// ==================== FilterGroup 批量方法测试 ====================
+// 以下测试覆盖 DeleteByFilterGroup / DeleteByFilterGroupWithCount /
+// CountByFilterGroup / ExistsByFilterGroup / UpdateFieldsByFilterGroup
+// 重点验证 OR 复合条件将 N 次 IO 合并为 1 次的正确性
+
+// TestBaseRepositoryDeleteByFilterGroup 测试按 OR FilterGroup 批量删除
+// 构造 (name=Alice) OR (name=Bob) 的复合条件，单条 DELETE 删除两条记录
+func TestBaseRepositoryDeleteByFilterGroup(t *testing.T) {
+	gormDB, err := setupTestDB()
+	assert.NoError(t, err)
+
+	repo := NewBaseRepository[TestUser](dbHandler(gormDB), logger.NewLogger(), "test_users")
+	ctx := context.Background()
+
+	users := []*TestUser{
+		{Name: "Alice", Email: "alice@test.com", Age: 20, Status: "active"},
+		{Name: "Bob", Email: "bob@test.com", Age: 25, Status: "active"},
+		{Name: "Charlie", Email: "charlie@test.com", Age: 30, Status: "active"},
+	}
+	err = repo.CreateBatch(ctx, users...)
+	assert.NoError(t, err)
+
+	// 构造 OR 组：(name=Alice) OR (name=Bob)
+	orGroup := NewFilterGroup(constants.LOGIC_OR).
+		AddFilter(NewEqFilter("name", "Alice")).
+		AddFilter(NewEqFilter("name", "Bob"))
+
+	err = repo.DeleteByFilterGroup(ctx, orGroup)
+	assert.NoError(t, err, "DeleteByFilterGroup 不应出错")
+
+	// 验证剩余记录
+	remaining, err := repo.GetAll(ctx)
+	assert.NoError(t, err)
+	assert.Len(t, remaining, 1, "应剩余 1 条记录")
+	assert.Equal(t, "Charlie", remaining[0].Name)
+}
+
+// TestBaseRepositoryDeleteByFilterGroupWithCount 测试带计数的批量删除
+func TestBaseRepositoryDeleteByFilterGroupWithCount(t *testing.T) {
+	gormDB, err := setupTestDB()
+	assert.NoError(t, err)
+
+	repo := NewBaseRepository[TestUser](dbHandler(gormDB), logger.NewLogger(), "test_users")
+	ctx := context.Background()
+
+	users := []*TestUser{
+		{Name: "Alice", Email: "alice@test.com", Age: 20, Status: "active"},
+		{Name: "Bob", Email: "bob@test.com", Age: 25, Status: "active"},
+		{Name: "Charlie", Email: "charlie@test.com", Age: 30, Status: "inactive"},
+		{Name: "David", Email: "david@test.com", Age: 35, Status: "inactive"},
+	}
+	err = repo.CreateBatch(ctx, users...)
+	assert.NoError(t, err)
+
+	// 构造 OR 组删除两个 inactive 用户
+	orGroup := NewFilterGroup(constants.LOGIC_OR).
+		AddFilter(NewEqFilter("name", "Charlie")).
+		AddFilter(NewEqFilter("name", "David"))
+
+	count, err := repo.DeleteByFilterGroupWithCount(ctx, orGroup)
+	assert.NoError(t, err)
+	assert.Equal(t, int64(2), count, "应删除 2 条记录")
+
+	remaining, _ := repo.Count(ctx)
+	assert.Equal(t, int64(2), remaining, "应剩余 2 条记录")
+}
+
+// TestBaseRepositoryDeleteByFilterGroupNoMatch 测试删除不存在的记录
+func TestBaseRepositoryDeleteByFilterGroupNoMatch(t *testing.T) {
+	gormDB, err := setupTestDB()
+	assert.NoError(t, err)
+
+	repo := NewBaseRepository[TestUser](dbHandler(gormDB), logger.NewLogger(), "test_users")
+	ctx := context.Background()
+
+	users := []*TestUser{{Name: "Alice", Email: "alice@test.com", Age: 20, Status: "active"}}
+	err = repo.CreateBatch(ctx, users...)
+	assert.NoError(t, err)
+
+	orGroup := NewFilterGroup(constants.LOGIC_OR).
+		AddFilter(NewEqFilter("name", "NonExistent1")).
+		AddFilter(NewEqFilter("name", "NonExistent2"))
+
+	count, err := repo.DeleteByFilterGroupWithCount(ctx, orGroup)
+	assert.NoError(t, err)
+	assert.Equal(t, int64(0), count, "不存在的记录应返回 0")
+}
+
+// TestBaseRepositoryCountByFilterGroup 测试按 OR FilterGroup 计数
+func TestBaseRepositoryCountByFilterGroup(t *testing.T) {
+	gormDB, err := setupTestDB()
+	assert.NoError(t, err)
+
+	repo := NewBaseRepository[TestUser](dbHandler(gormDB), logger.NewLogger(), "test_users")
+	ctx := context.Background()
+
+	users := []*TestUser{
+		{Name: "Alice", Email: "alice@test.com", Age: 20, Status: "active"},
+		{Name: "Bob", Email: "bob@test.com", Age: 25, Status: "active"},
+		{Name: "Charlie", Email: "charlie@test.com", Age: 30, Status: "inactive"},
+	}
+	err = repo.CreateBatch(ctx, users...)
+	assert.NoError(t, err)
+
+	// 构造 OR 组：(status=active) OR (name=Charlie)
+	orGroup := NewFilterGroup(constants.LOGIC_OR).
+		AddFilter(NewEqFilter("status", "active")).
+		AddFilter(NewEqFilter("name", "Charlie"))
+
+	count, err := repo.CountByFilterGroup(ctx, orGroup)
+	assert.NoError(t, err)
+	assert.Equal(t, int64(3), count, "active 用户 2 个 + Charlie 1 个 = 3")
+}
+
+// TestBaseRepositoryExistsByFilterGroup 测试按 OR FilterGroup 检查存在性
+func TestBaseRepositoryExistsByFilterGroup(t *testing.T) {
+	gormDB, err := setupTestDB()
+	assert.NoError(t, err)
+
+	repo := NewBaseRepository[TestUser](dbHandler(gormDB), logger.NewLogger(), "test_users")
+	ctx := context.Background()
+
+	users := []*TestUser{{Name: "Alice", Email: "alice@test.com", Age: 20, Status: "active"}}
+	err = repo.CreateBatch(ctx, users...)
+	assert.NoError(t, err)
+
+	// 存在的记录
+	existGroup := NewFilterGroup(constants.LOGIC_OR).
+		AddFilter(NewEqFilter("name", "Alice")).
+		AddFilter(NewEqFilter("name", "Bob"))
+	exists, err := repo.ExistsByFilterGroup(ctx, existGroup)
+	assert.NoError(t, err)
+	assert.True(t, exists, "Alice 存在，应返回 true")
+
+	// 不存在的记录
+	nonExistGroup := NewFilterGroup(constants.LOGIC_OR).
+		AddFilter(NewEqFilter("name", "Charlie")).
+		AddFilter(NewEqFilter("name", "David"))
+	exists, err = repo.ExistsByFilterGroup(ctx, nonExistGroup)
+	assert.NoError(t, err)
+	assert.False(t, exists, "Charlie 和 David 都不存在，应返回 false")
+}
+
+// TestBaseRepositoryUpdateFieldsByFilterGroup 测试按 OR FilterGroup 批量更新
+// 构造 (name=Alice) OR (name=Bob) 的复合条件，单条 UPDATE 更新两条记录的状态
+func TestBaseRepositoryUpdateFieldsByFilterGroup(t *testing.T) {
+	gormDB, err := setupTestDB()
+	assert.NoError(t, err)
+
+	repo := NewBaseRepository[TestUser](dbHandler(gormDB), logger.NewLogger(), "test_users")
+	ctx := context.Background()
+
+	users := []*TestUser{
+		{Name: "Alice", Email: "alice@test.com", Age: 20, Status: "active"},
+		{Name: "Bob", Email: "bob@test.com", Age: 25, Status: "active"},
+		{Name: "Charlie", Email: "charlie@test.com", Age: 30, Status: "active"},
+	}
+	err = repo.CreateBatch(ctx, users...)
+	assert.NoError(t, err)
+
+	// 构造 OR 组：(name=Alice) OR (name=Bob)，更新 status 为 "vip"
+	orGroup := NewFilterGroup(constants.LOGIC_OR).
+		AddFilter(NewEqFilter("name", "Alice")).
+		AddFilter(NewEqFilter("name", "Bob"))
+
+	err = repo.UpdateFieldsByFilterGroup(ctx, map[string]interface{}{"status": "vip"}, orGroup)
+	assert.NoError(t, err)
+
+	// 验证 Alice 和 Bob 已更新为 vip
+	vipCount, _ := repo.Count(ctx, NewEqFilter("status", "vip"))
+	assert.Equal(t, int64(2), vipCount, "应有 2 个 vip 用户")
+
+	activeCount, _ := repo.Count(ctx, NewEqFilter("status", "active"))
+	assert.Equal(t, int64(1), activeCount, "应剩余 1 个 active 用户")
+}
+
+// TestBaseRepositoryFilterGroupNilEmpty 测试 nil/空 FilterGroup 返回错误
+func TestBaseRepositoryFilterGroupNilEmpty(t *testing.T) {
+	gormDB, err := setupTestDB()
+	assert.NoError(t, err)
+
+	repo := NewBaseRepository[TestUser](dbHandler(gormDB), logger.NewLogger(), "test_users")
+	ctx := context.Background()
+
+	// nil group
+	err = repo.DeleteByFilterGroup(ctx, nil)
+	assert.Error(t, err, "nil group 应返回错误")
+
+	_, err = repo.CountByFilterGroup(ctx, nil)
+	assert.Error(t, err)
+
+	// 空 group（无 filter）
+	emptyGroup := NewFilterGroup(constants.LOGIC_OR)
+	err = repo.DeleteByFilterGroup(ctx, emptyGroup)
+	assert.Error(t, err, "空 group 应返回错误")
+
+	_, err = repo.DeleteByFilterGroupWithCount(ctx, emptyGroup)
+	assert.Error(t, err)
+
+	err = repo.UpdateFieldsByFilterGroup(ctx, map[string]interface{}{"status": "x"}, emptyGroup)
+	assert.Error(t, err)
+}
+
+// TestBaseRepositoryDeleteByFilterGroupNested 测试嵌套 FilterGroup
+// 构造 ((name=Alice AND status=active) OR (name=Bob AND status=active)) 的复合条件
+func TestBaseRepositoryDeleteByFilterGroupNested(t *testing.T) {
+	gormDB, err := setupTestDB()
+	assert.NoError(t, err)
+
+	repo := NewBaseRepository[TestUser](dbHandler(gormDB), logger.NewLogger(), "test_users")
+	ctx := context.Background()
+
+	users := []*TestUser{
+		{Name: "Alice", Email: "alice@test.com", Age: 20, Status: "active"},
+		{Name: "Alice", Email: "alice2@test.com", Age: 30, Status: "inactive"}, // 同名不同状态
+		{Name: "Bob", Email: "bob@test.com", Age: 25, Status: "active"},
+		{Name: "Charlie", Email: "charlie@test.com", Age: 30, Status: "active"},
+	}
+	err = repo.CreateBatch(ctx, users...)
+	assert.NoError(t, err)
+
+	// 嵌套 OR 组：((name=Alice AND status=active) OR (name=Bob AND status=active))
+	orGroup := NewFilterGroup(constants.LOGIC_OR).
+		AddGroup(NewFilterGroup(constants.LOGIC_AND).
+			AddFilter(NewEqFilter("name", "Alice")).
+			AddFilter(NewEqFilter("status", "active"))).
+		AddGroup(NewFilterGroup(constants.LOGIC_AND).
+			AddFilter(NewEqFilter("name", "Bob")).
+			AddFilter(NewEqFilter("status", "active")))
+
+	count, err := repo.DeleteByFilterGroupWithCount(ctx, orGroup)
+	assert.NoError(t, err)
+	assert.Equal(t, int64(2), count, "应删除 Alice(active) 和 Bob(active) 共 2 条")
+
+	// 验证 Alice(inactive) 保留
+	remaining, _ := repo.GetAll(ctx)
+	assert.Len(t, remaining, 2, "应剩余 2 条")
+}
+
+// BenchmarkDeleteByFiltersLoopVsFilterGroup 对比循环 DeleteByFilters 与 DeleteByFilterGroup 的性能
+// 场景：批量删除 N 条记录，循环版 N 次 SQL，FilterGroup 版 1 次 SQL
+func BenchmarkDeleteByFiltersLoopVsFilterGroup(b *testing.B) {
+	const N = 50 // 模拟批量删除 50 条策略
+	ctx := context.Background()
+
+	b.Run("Loop-DeleteByFilters", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			b.StopTimer()
+			gormDB, _ := setupTestDB()
+			repo := NewBaseRepository[TestUser](dbHandler(gormDB), logger.NewLogger(), "test_users")
+			users := make([]*TestUser, N)
+			for j := 0; j < N; j++ {
+				users[j] = &TestUser{Name: fmt.Sprintf("user_%d", j), Email: fmt.Sprintf("u%d@t.com", j), Age: j, Status: "active"}
+			}
+			_ = repo.CreateBatch(ctx, users...)
+			b.StartTimer()
+
+			// 循环删除：N 次 SQL
+			for j := 0; j < N; j++ {
+				_ = repo.DeleteByFilters(ctx, NewEqFilter("name", fmt.Sprintf("user_%d", j)))
+			}
+		}
+	})
+
+	b.Run("FilterGroup-DeleteByFilterGroup", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			b.StopTimer()
+			gormDB, _ := setupTestDB()
+			repo := NewBaseRepository[TestUser](dbHandler(gormDB), logger.NewLogger(), "test_users")
+			users := make([]*TestUser, N)
+			for j := 0; j < N; j++ {
+				users[j] = &TestUser{Name: fmt.Sprintf("user_%d", j), Email: fmt.Sprintf("u%d@t.com", j), Age: j, Status: "active"}
+			}
+			_ = repo.CreateBatch(ctx, users...)
+			b.StartTimer()
+
+			// 批量删除：1 次 SQL
+			orGroup := NewFilterGroup(constants.LOGIC_OR)
+			for j := 0; j < N; j++ {
+				orGroup.AddFilter(NewEqFilter("name", fmt.Sprintf("user_%d", j)))
+			}
+			_ = repo.DeleteByFilterGroup(ctx, orGroup)
+		}
+	})
+}
+
+// dbHandler 辅助函数：包装 gormDB 为 db.Handler（与 newTestDBHandler 等价，缩短测试代码）
+func dbHandler(gormDB *gorm.DB) db.Handler {
+	return newTestDBHandler(gormDB)
+}

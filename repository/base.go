@@ -1081,6 +1081,59 @@ func (r *BaseRepository[T]) DeleteByFiltersWithCount(ctx context.Context, filter
 	return count, nil
 }
 
+// DeleteByFilterGroup 按 FilterGroup 删除记录
+// 支持 OR 复合条件，可将多组 AND 条件合并为单条 DELETE，N 次 IO 降为 1 次
+// 典型场景：批量删除多条策略，每条策略由 (p_type=? AND v0=? AND ...) 精确匹配
+//
+// 示例：构造 OR 组删除 alice/bob 的所有策略
+//
+//	orGroup := NewFilterGroup(LOGIC_OR)
+//	orGroup.AddGroup(NewFilterGroup(LOGIC_AND).AddFilter(NewEqFilter("v0","alice")).AddFilter(NewEqFilter("p_type","p")))
+//	orGroup.AddGroup(NewFilterGroup(LOGIC_AND).AddFilter(NewEqFilter("v0","bob")).AddFilter(NewEqFilter("p_type","p")))
+//	repo.DeleteByFilterGroup(ctx, orGroup)
+func (r *BaseRepository[T]) DeleteByFilterGroup(ctx context.Context, group *FilterGroup) error {
+	if group == nil || group.IsEmpty() {
+		return errorx.NewError(errors.ErrorCodeInvalidInput)
+	}
+	return ApplyFilterGroup(r.newDB(ctx), group).Delete(new(T)).Error
+}
+
+// DeleteByFilterGroupWithCount 按 FilterGroup 删除记录并返回删除数量
+// 先 COUNT 再 DELETE，避免全表扫描；语义与 DeleteByFiltersWithCount 对齐
+func (r *BaseRepository[T]) DeleteByFilterGroupWithCount(ctx context.Context, group *FilterGroup) (int64, error) {
+	if group == nil || group.IsEmpty() {
+		return 0, errorx.NewError(errors.ErrorCodeInvalidInput)
+	}
+	count, err := r.CountByFilterGroup(ctx, group)
+	if err != nil {
+		return 0, r.handleErrorWithContext(ctx, err, "count before delete by filter group")
+	}
+	if count == 0 {
+		return 0, nil
+	}
+	if err := ApplyFilterGroup(r.newDB(ctx), group).Delete(new(T)).Error; err != nil {
+		return 0, r.handleErrorWithContext(ctx, err, "delete by filter group with count")
+	}
+	return count, nil
+}
+
+// CountByFilterGroup 按 FilterGroup 计数
+// 支持 OR 复合条件，与 Count(filters...) 对齐
+func (r *BaseRepository[T]) CountByFilterGroup(ctx context.Context, group *FilterGroup) (int64, error) {
+	var count int64
+	if group == nil || group.IsEmpty() {
+		return 0, errorx.NewError(errors.ErrorCodeInvalidInput)
+	}
+	return count, ApplyFilterGroup(r.newDB(ctx), group).Count(&count).Error
+}
+
+// ExistsByFilterGroup 按 FilterGroup 检查记录是否存在
+// 与 Exists(filters...) 对齐
+func (r *BaseRepository[T]) ExistsByFilterGroup(ctx context.Context, group *FilterGroup) (bool, error) {
+	count, err := r.CountByFilterGroup(ctx, group)
+	return count > 0, err
+}
+
 // Transaction 事务支持
 func (r *BaseRepository[T]) Transaction(ctx context.Context, fn func(tx Transaction[T]) error) error {
 	return r.db.GetDB().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -1171,6 +1224,21 @@ func (r *BaseRepository[T]) UpdateFieldsByFilters(ctx context.Context, fields ma
 	}
 	r.normalizeJSONStringFieldMap(fields)
 	return ApplyFilters(r.newDB(ctx), filters).Updates(fields).Error
+}
+
+// UpdateFieldsByFilterGroup 按 FilterGroup 更新指定字段
+// 支持 OR 复合条件，可将多组 AND 条件合并为单条 UPDATE，N 次 IO 降为 1 次
+// 典型场景：批量更新多条策略，每条策略由 (p_type=? AND v0=? AND ...) 精确匹配定位
+// 与 UpdateFieldsByFilters 对齐，区别仅在于过滤条件改为支持 OR 的 FilterGroup
+func (r *BaseRepository[T]) UpdateFieldsByFilterGroup(ctx context.Context, fields map[string]interface{}, group *FilterGroup) error {
+	if len(fields) == 0 {
+		return nil
+	}
+	if group == nil || group.IsEmpty() {
+		return errorx.NewError(errors.ErrorCodeInvalidInput)
+	}
+	r.normalizeJSONStringFieldMap(fields)
+	return ApplyFilterGroup(r.newDB(ctx), group).Updates(fields).Error
 }
 
 // UpdateFieldsByQuery 按 Query 过滤条件更新指定字段
