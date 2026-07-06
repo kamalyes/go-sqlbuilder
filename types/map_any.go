@@ -15,6 +15,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/kamalyes/go-toolbox/pkg/convert"
 	"github.com/kamalyes/go-toolbox/pkg/serializer"
 	"google.golang.org/protobuf/types/known/structpb"
 )
@@ -250,6 +251,20 @@ func StructToMapAny(payload *structpb.Struct) MapAny {
 		return MapAny{}
 	}
 	return MapAny(payload.AsMap())
+}
+
+// StructToMapString 将 structpb.Struct 转换为 map[string]string
+// 标量值直接格式化为字符串，复合类型（嵌套 struct/list）序列化为 JSON 字符串
+func StructToMapString(payload *structpb.Struct) map[string]string {
+	if payload == nil {
+		return nil
+	}
+	m := payload.AsMap()
+	result := make(map[string]string, len(m))
+	for k, v := range m {
+		result[k] = convert.MustString(v)
+	}
+	return result
 }
 
 // MapAnyToJSONString 将 MapAny 转换为 JSON 字符串

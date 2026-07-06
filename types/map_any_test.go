@@ -343,6 +343,64 @@ func TestStructToMapAny(t *testing.T) {
 	assert.NotNil(t, result["struct_val"])
 }
 
+func TestStructToMapString(t *testing.T) {
+	// nil 输入返回 nil
+	assert.Nil(t, StructToMapString(nil))
+
+	// 空 Struct 返回空 map
+	emptyStruct, _ := structpb.NewStruct(map[string]interface{}{})
+	assert.Equal(t, map[string]string{}, StructToMapString(emptyStruct))
+
+	// 标量值：string/number/bool/null
+	simpleStruct, _ := structpb.NewStruct(map[string]interface{}{
+		"name":   "Alice",
+		"age":    float64(30),
+		"score":  42.5,
+		"active": true,
+		"null":   nil,
+	})
+	result := StructToMapString(simpleStruct)
+	assert.Equal(t, "Alice", result["name"])
+	assert.Equal(t, "30", result["age"])       // 整数浮点去掉小数点
+	assert.Equal(t, "42.5", result["score"])   // 非整数保留小数
+	assert.Equal(t, "true", result["active"])
+	assert.Equal(t, "", result["null"])
+
+	// 嵌套 struct 序列化为 JSON 字符串
+	nestedStruct, _ := structpb.NewStruct(map[string]interface{}{
+		"user": map[string]interface{}{
+			"name": "Bob",
+			"age":  float64(25),
+		},
+	})
+	result = StructToMapString(nestedStruct)
+	assert.JSONEq(t, `{"name":"Bob","age":25}`, result["user"])
+
+	// list 序列化为 JSON 字符串
+	listStruct, _ := structpb.NewStruct(map[string]interface{}{
+		"items": []interface{}{"item1", "item2", "item3"},
+	})
+	result = StructToMapString(listStruct)
+	assert.JSONEq(t, `["item1","item2","item3"]`, result["items"])
+
+	// 混合类型
+	mixedStruct, _ := structpb.NewStruct(map[string]interface{}{
+		"string_val": "hello",
+		"number_val": 42.5,
+		"bool_val":   false,
+		"null_val":   nil,
+		"list_val":   []interface{}{float64(1), float64(2), float64(3)},
+		"struct_val": map[string]interface{}{"key": "value"},
+	})
+	result = StructToMapString(mixedStruct)
+	assert.Equal(t, "hello", result["string_val"])
+	assert.Equal(t, "42.5", result["number_val"])
+	assert.Equal(t, "false", result["bool_val"])
+	assert.Equal(t, "", result["null_val"])
+	assert.JSONEq(t, `[1,2,3]`, result["list_val"])
+	assert.JSONEq(t, `{"key":"value"}`, result["struct_val"])
+}
+
 func TestMapAnyToStructAndBack(t *testing.T) {
 	// Test round-trip conversion
 	original := MapAny{
