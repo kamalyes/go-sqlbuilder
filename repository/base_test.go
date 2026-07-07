@@ -8610,6 +8610,14 @@ type gormDashModel struct {
 	Secret string `gorm:"-"`
 }
 
+// migrationIgnoredModel 包含 gorm:"-:migration" 非物理列字段，验证 GetStructFields/GetNonPhysicalFields 跳过逻辑
+type migrationIgnoredModel struct {
+	ID              int64  `json:"id" gorm:"column:id;primaryKey"`
+	Name            string `json:"name" gorm:"column:name;type:varchar(64)"`
+	LinkedCount     int64  `json:"linked_count" gorm:"-:migration;<-:false"` // 非物理列，由子查询动态计算
+	NotIgnoredField string `json:"not_ignored" gorm:"column:not_ignored;type:varchar(32)"`
+}
+
 // taglessSortableModel 无 gorm column / json tag，验证蛇形命名兜底
 type taglessSortableModel struct {
 	ID        uint
@@ -8681,6 +8689,44 @@ func TestGetStructFields_GormDashSkipped(t *testing.T) {
 	// Secret 字段 gorm:"-"，应被跳过
 	assert.Equal(t, []string{"id", "name"}, fields)
 	assert.NotContains(t, fields, "secret")
+}
+
+// TestGetStructFields_MigrationIgnoredSkipped 验证 gorm:"-:migration" 非物理列字段被跳过
+// 这类字段在数据库中不存在（由子查询动态计算），不应出现在 SELECT 字段列表中
+func TestGetStructFields_MigrationIgnoredSkipped(t *testing.T) {
+	fields := GetStructFields(migrationIgnoredModel{})
+	// LinkedCount 字段 gorm:"-:migration"，应被跳过
+	assert.Contains(t, fields, "id")
+	assert.Contains(t, fields, "name")
+	assert.Contains(t, fields, "not_ignored")
+	assert.NotContains(t, fields, "linked_count")
+}
+
+// TestGetNonPhysicalFields 验证 GetNonPhysicalFields 正确识别 gorm:"-:migration" 字段
+func TestGetNonPhysicalFields(t *testing.T) {
+	// 包含非物理列字段的模型
+	nonPhysical := GetNonPhysicalFields(migrationIgnoredModel{})
+	assert.Equal(t, []string{"linked_count"}, nonPhysical)
+
+	// 不包含非物理列字段的模型
+	nonPhysical = GetNonPhysicalFields(gormDashModel{})
+	assert.Empty(t, nonPhysical)
+
+	// 完全忽略的字段（gorm:"-"）不应出现在非物理列列表中
+	nonPhysical = GetNonPhysicalFields(sortableTestModel{})
+	assert.Empty(t, nonPhysical)
+
+	// 指针类型
+	nonPhysical = GetNonPhysicalFields(&migrationIgnoredModel{})
+	assert.Equal(t, []string{"linked_count"}, nonPhysical)
+
+	// 非结构体类型
+	nonPhysical = GetNonPhysicalFields("string")
+	assert.Empty(t, nonPhysical)
+
+	// nil
+	nonPhysical = GetNonPhysicalFields(nil)
+	assert.Empty(t, nonPhysical)
 }
 
 func TestGetStructFields_TaglessSnakeFallback(t *testing.T) {

@@ -269,11 +269,15 @@ func (r *RepositoryWithSoftDelete[T]) ListDeletedByIsDeleted(ctx context.Context
 // === 字段处理辅助函数 ===
 
 // extractFieldNames 提取结构体的数据库字段名（gorm column 优先，json tag 次之，蛇形兜底）
-// 跳过未导出字段和 gorm:"-" 字段；keep 为 nil 时保留全部数据库字段，否则仅保留 keep(gormTag) 为 true 的字段
+// 跳过未导出字段、gorm:"-" 字段以及 gorm:"-:migration" 非物理列字段（数据库不建列）
+// keep 为 nil 时保留全部物理列字段，否则仅保留 keep(gormTag) 为 true 的字段
 // GetStructFields 与 GetSortableFields 的公共实现，避免逻辑重复
 func extractFieldNames(model interface{}, keep func(gormTag string) bool) []string {
 	var fields []string
 	t := reflect.TypeOf(model)
+	if t == nil {
+		return fields
+	}
 
 	// 处理指针类型
 	if t.Kind() == reflect.Ptr {
@@ -297,6 +301,11 @@ func extractFieldNames(model interface{}, keep func(gormTag string) bool) []stri
 		// 优先使用 gorm 的 column tag
 		gormTag := field.Tag.Get("gorm")
 		if gormTag == "-" {
+			continue
+		}
+		// 跳过非物理列字段（gorm:"-:migration"），这些字段在数据库中不存在
+		// 避免 autoFields 模式与排序白名单误包含派生字段
+		if isMigrationIgnoredField(gormTag) {
 			continue
 		}
 		if keep != nil && !keep(gormTag) {
@@ -325,6 +334,67 @@ func extractFieldNames(model interface{}, keep func(gormTag string) bool) []stri
 // GetStructFields 获取结构体的所有数据库字段名（基于 gorm tag 或 json tag）
 func GetStructFields(model interface{}) []string {
 	return extractFieldNames(model, nil)
+}
+
+// GetNonPhysicalFields 获取模型中的非物理列字段名（gorm:"-:migration" 标记的字段）
+//
+// 这类字段在 AutoMigrate 时被忽略（数据库不建列），但 GORM 默认 SELECT 时仍会包含，
+// 导致 "column xxx does not exist" 错误常见于由子查询动态计算的派生字段，
+// 如 linked_tenant_count / linked_game_count 等
+//
+// Get/GetByFilter/First 等基础查询方法会 Omit 这些字段，避免查询不存在的列；
+// 需要填充派生值时通过 Query.AddComputedField 显式 SELECT
+func GetNonPhysicalFields(model interface{}) []string {
+	var nonPhysical []string
+	t := reflect.TypeOf(model)
+	if t == nil {
+		return nonPhysical
+	}
+	if t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+	if t.Kind() != reflect.Struct {
+		return nonPhysical
+	}
+
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		if !field.IsExported() {
+			continue
+		}
+		gormTag := field.Tag.Get("gorm")
+		// 完全忽略的字段（gorm:"-"）已被 GORM 排除，无需处理
+		if gormTag == "-" {
+			continue
+		}
+		// 识别 -:migration 标记：迁移时忽略但读写仍包含的派生字段
+		if isMigrationIgnoredField(gormTag) {
+			if columnName := extractColumnName(gormTag); columnName != "" {
+				nonPhysical = append(nonPhysical, columnName)
+				continue
+			}
+			if jsonTag := field.Tag.Get("json"); jsonTag != "" && jsonTag != "-" {
+				if jsonName := strings.Split(jsonTag, ",")[0]; jsonName != "" {
+					nonPhysical = append(nonPhysical, jsonName)
+					continue
+				}
+			}
+			nonPhysical = append(nonPhysical, toSnakeCase(field.Name))
+		}
+	}
+	return nonPhysical
+}
+
+// isMigrationIgnoredField 判断 gorm tag 是否包含 -:migration 标记
+// 该标记表示字段在 AutoMigrate 时被忽略（数据库不建列），属于非物理列
+func isMigrationIgnoredField(gormTag string) bool {
+	for _, part := range strings.Split(gormTag, ";") {
+		part = strings.TrimSpace(part)
+		if part == "-:migration" {
+			return true
+		}
+	}
+	return false
 }
 
 // GetSortableFields 返回模型中可排序的字段（排除 JSON/JSONB 类型字段，这类字段无法直接 ORDER BY）

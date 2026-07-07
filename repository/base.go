@@ -51,6 +51,7 @@ type BaseRepository[T any] struct {
 	autoCreateTimeIndexes []int          // 创建时间字段索引缓存
 	autoUpdateTimeIndexes []int          // 更新时间字段索引缓存
 	modelFields           []string       // 模型字段缓存（用于自动字段选择）
+	nonPhysicalFields     []string       // 非物理列字段缓存（gorm:"-:migration"，SELECT 时自动 Omit）
 	sortableFields        []string       // 可排序字段缓存（排除 JSON 类型，用于 ApplySort）
 	autoFields            bool           // 是否启用自动字段模式
 	normalizeEnabled      bool           // 是否启用 JSON 字段归一化
@@ -176,7 +177,7 @@ func NewBaseRepository[T any](dbHandler db.Handler, logger logger.ILogger, table
 	return r
 }
 
-// initFieldIndexes 初始化字段索引缓存（主键、创建时间、更新时间）
+// initFieldIndexes 初始化字段索引缓存（主键、创建时间、更新时间、非物理列）
 func (r *BaseRepository[T]) initFieldIndexes() {
 	var model T
 	entityType := reflect.TypeOf(model)
@@ -198,6 +199,9 @@ func (r *BaseRepository[T]) initFieldIndexes() {
 			r.autoUpdateTimeIndexes = append(r.autoUpdateTimeIndexes, i)
 		}
 	}
+
+	// 缓存非物理列字段（gorm:"-:migration"），基础查询方法 SELECT 时自动 Omit
+	r.nonPhysicalFields = GetNonPhysicalFields(model)
 }
 
 // GetDialect 获取当前数据库方言（基于 db handler 自动检测，结果不做缓存）
@@ -208,11 +212,29 @@ func (r *BaseRepository[T]) GetDialect() Dialect {
 	return DetectDialect(r.db.GetDB())
 }
 
+// omitNonPhysicalFields 在查询时自动排除非物理列字段（gorm:"-:migration"）
+// 避免查询数据库中不存在的列（如由子查询动态计算的派生字段）
+// 需要填充派生值时通过 Query.AddComputedField 显式 SELECT
+func (r *BaseRepository[T]) omitNonPhysicalFields(db *gorm.DB) *gorm.DB {
+	if len(r.nonPhysicalFields) == 0 {
+		return db
+	}
+	return db.Omit(r.nonPhysicalFields...)
+}
+
+// GetNonPhysicalFields 获取缓存的非物理列字段名（gorm:"-:migration" 标记的字段）
+func (r *BaseRepository[T]) GetNonPhysicalFields() []string {
+	return r.nonPhysicalFields
+}
+
 // ========== 辅助方法 ==========
 
 // newDB 创建带上下文和表名的DB实例
 func (r *BaseRepository[T]) newDB(ctx context.Context) *gorm.DB {
-	return r.db.GetDB().WithContext(ctx).Table(r.table)
+	db := r.db.GetDB().WithContext(ctx).Table(r.table)
+	// 统一排除非物理列字段（gorm:"-:migration"），避免 SELECT/INSERT 不存在的列
+	// 需要填充派生值时通过 Query.AddComputedField 显式 SELECT，会覆盖此 Omit
+	return r.omitNonPhysicalFields(db)
 }
 
 // checkReadOnly 检查是否为只读模式
@@ -787,7 +809,8 @@ func (r *BaseRepository[T]) GetByFilters(ctx context.Context, filters ...*Filter
 // List 列表查询
 func (r *BaseRepository[T]) List(ctx context.Context, query *Query) ([]*T, error) {
 	var entities []*T
-	db := r.db.GetDB().WithContext(ctx).Table(r.table)
+	// newDB 已统一 Omit 非物理列字段，ApplyQueryConditions 中 Joins/ComputedFields 的 Select 会覆盖 Omit
+	db := r.newDB(ctx)
 
 	// 应用所有查询条件
 	db = ApplyQueryConditions(r, db, query)
@@ -804,7 +827,7 @@ func (r *BaseRepository[T]) List(ctx context.Context, query *Query) ([]*T, error
 // ListWithPreloads 列表查询并指定预加载关联
 func (r *BaseRepository[T]) ListWithPreloads(ctx context.Context, query *Query, preloads ...string) ([]*T, error) {
 	var entities []*T
-	db := r.db.GetDB().WithContext(ctx).Table(r.table)
+	db := r.newDB(ctx)
 
 	// 应用所有查询条件（使用指定的预加载）
 	db = ApplyQueryConditions(r, db, query, preloads...)
@@ -820,8 +843,8 @@ func (r *BaseRepository[T]) ListWithPreloads(ctx context.Context, query *Query, 
 // FirstWithQuery 根据 Query 查询第一条记录
 func (r *BaseRepository[T]) FirstWithQuery(ctx context.Context, query *Query) (*T, error) {
 	var entity T
-	db := r.db.GetDB().WithContext(ctx).Table(r.table)
-	db = ApplyQueryConditions(r, db, query).Limit(1)
+	db := r.newDB(ctx)
+	db = ApplyQueryConditions(r, db, query)
 
 	if result := db.First(&entity); result.Error != nil {
 		return nil, r.handleErrorWithContext(ctx, result.Error, "first with query")
@@ -860,7 +883,8 @@ func ListWithPaginationT[T any, P types.Integer](r *BaseRepository[T], ctx conte
 	p.PageSize = mathx.IfDefaultAndClamp(p.PageSize, P(constants.DefaultPageSize), P(constants.MinPageSize), P(constants.MaxPageSize))
 
 	var entities []*T
-	db := r.db.GetDB().WithContext(ctx).Table(r.table)
+	// newDB 已统一 Omit 非物理列字段；ApplyJoins 中 Joins/ComputedFields 的 Select 会覆盖 Omit
+	db := r.newDB(ctx)
 
 	// 应用字段选择（Select/Omit）
 	db = ApplyFieldSelection(db, query.SelectFields, query.OmitFields, r.modelFields, r.autoFields)
@@ -1299,7 +1323,7 @@ func (r *BaseRepository[T]) RestoreBatch(ctx context.Context, ids []interface{},
 
 // CountByField 按字段计数（GROUP BY）
 func (r *BaseRepository[T]) CountByField(ctx context.Context, field string) (map[interface{}]int64, error) {
-	rows, err := r.db.GetDB().WithContext(ctx).Table(r.table).
+	rows, err := r.newDB(ctx).
 		Select(field + ", COUNT(*) as count").
 		Group(field).Rows()
 	if err != nil {
