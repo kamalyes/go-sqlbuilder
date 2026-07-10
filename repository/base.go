@@ -57,6 +57,7 @@ type BaseRepository[T any] struct {
 	normalizeEnabled      bool           // 是否启用 JSON 字段归一化
 	normalizeFunc         NormalizeFunc  // 自定义归一化函数
 	normalizeDefaultValue string         // JSON 字段默认值
+	desensitizeEnabled    bool           // 是否启用查询结果脱敏（基于 model 的 desensitize tag）
 }
 
 // 编译时检查 - 确保 BaseRepository 实现了 Repository 接口
@@ -152,6 +153,24 @@ func WithNormalizeConfig[T any](enabled bool, fn NormalizeFunc, defaultValue str
 		r.normalizeEnabled = enabled
 		r.normalizeFunc = fn
 		r.normalizeDefaultValue = defaultValue
+	}
+}
+
+// WithDesensitize 启用查询结果自动脱敏
+// 启用后，所有查询方法返回的 model 会自动扫描 desensitize tag 并脱敏对应字段
+// 仅对标记了 `desensitize:"类型"` 的 string/*string 字段生效
+//
+// 用法：
+//
+//	repo := NewBaseRepository[UserModel](db, logger, "users",
+//	    WithAutoFields[UserModel](),
+//	    WithDesensitize[UserModel](),
+//	)
+//	// 查询结果中 Email/Phone 等字段自动脱敏
+//	user, err := repo.Get(ctx, 1) // user.Email → "z***@example.com"
+func WithDesensitize[T any]() RepositoryOption[T] {
+	return func(r *BaseRepository[T]) {
+		r.desensitizeEnabled = true
 	}
 }
 
@@ -375,6 +394,49 @@ func (r *BaseRepository[T]) getNormalizeFunc() NormalizeFunc {
 // defaultNormalizeFunc 默认归一化函数
 func (r *BaseRepository[T]) defaultNormalizeFunc(value string) string {
 	return serializer.NormalizeJSONText(value, r.normalizeDefaultValue)
+}
+
+// ========== 脱敏辅助方法 ==========
+
+// shouldDesensitize 判断是否需要脱敏
+// 仓储级启用 或 查询级启用 任一为 true 即生效
+func (r *BaseRepository[T]) shouldDesensitize(query *Query) bool {
+	if r.desensitizeEnabled {
+		return true
+	}
+	if query != nil && query.Desensitize {
+		return true
+	}
+	return false
+}
+
+// applyDesensitizeIfNeeded 对单个实体按需脱敏
+func (r *BaseRepository[T]) applyDesensitizeIfNeeded(entity *T, query *Query) {
+	if r.shouldDesensitize(query) {
+		ApplyDesensitize(entity)
+	}
+}
+
+// applyDesensitizeSliceIfNeeded 对实体切片按需脱敏
+func (r *BaseRepository[T]) applyDesensitizeSliceIfNeeded(entities []*T, query *Query) {
+	if r.shouldDesensitize(query) {
+		ApplyDesensitizeSlice(entities)
+	}
+}
+
+// IsDesensitizeEnabled 检查仓储是否启用了脱敏
+func (r *BaseRepository[T]) IsDesensitizeEnabled() bool {
+	return r.desensitizeEnabled
+}
+
+// EnableDesensitize 启用仓储级脱敏
+func (r *BaseRepository[T]) EnableDesensitize() {
+	r.desensitizeEnabled = true
+}
+
+// DisableDesensitize 禁用仓储级脱敏
+func (r *BaseRepository[T]) DisableDesensitize() {
+	r.desensitizeEnabled = false
 }
 
 // buildFiltersFromArgs 从可变参数构建过滤器
@@ -760,6 +822,7 @@ func (r *BaseRepository[T]) Get(ctx context.Context, id interface{}) (*T, error)
 	if result := query.Where("id = ?", id).First(&entity); result.Error != nil {
 		return nil, r.handleErrorWithContext(ctx, result.Error, "get by id")
 	}
+	r.applyDesensitizeIfNeeded(&entity, nil)
 	return &entity, nil
 }
 
@@ -770,6 +833,7 @@ func (r *BaseRepository[T]) GetWithPreloads(ctx context.Context, id interface{},
 	if result := query.Where("id = ?", id).First(&entity); result.Error != nil {
 		return nil, r.handleErrorWithContext(ctx, result.Error, "get with preloads")
 	}
+	r.applyDesensitizeIfNeeded(&entity, nil)
 	return &entity, nil
 }
 
@@ -803,6 +867,7 @@ func (r *BaseRepository[T]) GetByFilters(ctx context.Context, filters ...*Filter
 	if result := query.First(&entity); result.Error != nil {
 		return nil, result.Error
 	}
+	r.applyDesensitizeIfNeeded(&entity, nil)
 	return &entity, nil
 }
 
@@ -821,6 +886,7 @@ func (r *BaseRepository[T]) List(ctx context.Context, query *Query) ([]*T, error
 		return nil, r.handleErrorWithContext(ctx, result.Error, "list")
 	}
 
+	r.applyDesensitizeSliceIfNeeded(entities, query)
 	return entities, nil
 }
 
@@ -837,6 +903,7 @@ func (r *BaseRepository[T]) ListWithPreloads(ctx context.Context, query *Query, 
 		return nil, r.handleErrorWithContext(ctx, result.Error, "list with preloads")
 	}
 
+	r.applyDesensitizeSliceIfNeeded(entities, query)
 	return entities, nil
 }
 
@@ -850,6 +917,7 @@ func (r *BaseRepository[T]) FirstWithQuery(ctx context.Context, query *Query) (*
 		return nil, r.handleErrorWithContext(ctx, result.Error, "first with query")
 	}
 
+	r.applyDesensitizeIfNeeded(&entity, query)
 	return &entity, nil
 }
 
@@ -917,7 +985,9 @@ func ListWithPaginationT[T any, P types.Integer](r *BaseRepository[T], ctx conte
 		if err := db.Offset(offset).Limit(int(p.PageSize)).Find(query.JoinScanDest).Error; err != nil {
 			return nil, nil, r.handleErrorWithContext(ctx, err, "list with join scan")
 		}
-		return extractJoinScanResults[T](query.JoinScanDest, query.JoinExtract), p, nil
+		entities := extractJoinScanResults[T](query.JoinScanDest, query.JoinExtract)
+		r.applyDesensitizeSliceIfNeeded(entities, query)
+		return entities, p, nil
 	}
 
 	// 默认路径：Find 到 []*T
@@ -926,6 +996,7 @@ func ListWithPaginationT[T any, P types.Integer](r *BaseRepository[T], ctx conte
 		return nil, nil, result.Error
 	}
 
+	r.applyDesensitizeSliceIfNeeded(entities, query)
 	return entities, p, nil
 }
 
@@ -1195,6 +1266,7 @@ func (r *BaseRepository[T]) GetAll(ctx context.Context) ([]*T, error) {
 	if result := r.newDB(ctx).Find(&entities); result.Error != nil {
 		return nil, result.Error
 	}
+	r.applyDesensitizeSliceIfNeeded(entities, nil)
 	return entities, nil
 }
 
@@ -1204,6 +1276,7 @@ func (r *BaseRepository[T]) First(ctx context.Context, filters ...*Filter) (*T, 
 	if result := ApplyFilters(r.newDB(ctx), filters).First(&entity); result.Error != nil {
 		return nil, result.Error
 	}
+	r.applyDesensitizeIfNeeded(&entity, nil)
 	return &entity, nil
 }
 
@@ -1213,6 +1286,7 @@ func (r *BaseRepository[T]) Last(ctx context.Context, filters ...*Filter) (*T, e
 	if result := ApplyFilters(r.newDB(ctx), filters).Last(&entity); result.Error != nil {
 		return nil, result.Error
 	}
+	r.applyDesensitizeIfNeeded(&entity, nil)
 	return &entity, nil
 }
 
@@ -1226,6 +1300,7 @@ func (r *BaseRepository[T]) FindOne(ctx context.Context, filters ...*Filter) (*T
 	if result.RowsAffected == 0 {
 		return nil, nil
 	}
+	r.applyDesensitizeIfNeeded(&entity, nil)
 	return &entity, nil
 }
 

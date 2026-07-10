@@ -401,8 +401,26 @@ type Query struct {
 	// ListWithPagination* 完成 Find 后会用反射逐行调用此回调，组装出 []*T 返回
 	JoinExtract interface{} // 类型必须为 func(E) *T
 
+	// Desensitize 是否对本次查询结果进行脱敏（基于 model 的 desensitize tag）
+	// 为 true 时，查询返回的 model 会自动扫描 desensitize tag 并脱敏对应字段
+	// 也可通过 WithDesensitize[T]() 仓储选项全局启用
+	Desensitize bool
+
 	// dialect 数据库方言（由 BaseRepository.ApplyQueryFilters 自动注入，供 OP_JSON_CONTAINS 等方言感知操作符使用）
 	dialect Dialect
+}
+
+// WithDesensitize 启用本次查询的脱敏（基于 model 的 desensitize tag 自动识别）
+// 仅对当前 Query 生效，不影响其他查询
+//
+// 示例：
+//
+//	query := NewQuery().WithDesensitize()
+//	items, _, err := repo.ListWithPagination32(ctx, query, paging)
+//	// items 中标记了 desensitize tag 的字段已自动脱敏
+func (q *Query) WithDesensitize() *Query {
+	q.Desensitize = true
+	return q
 }
 
 // SetDialect 设置数据库方言（供 OP_JSON_CONTAINS 等方言感知操作符使用，通常由 BaseRepository 自动注入）
