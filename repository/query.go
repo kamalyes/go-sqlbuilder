@@ -161,6 +161,31 @@ func (q *Query) WithFilterGroup(group *FilterGroup) *Query {
 	return q
 }
 
+// WithKeywordFilter 添加关键字多字段 OR 模糊匹配过滤组（链式）
+//
+// 内部调用 NewKeywordFilterGroup 构建过滤组并通过 WithFilterGroup 应用到查询，
+// 实现"一个关键字在多个字段中任一匹配"的搜索场景。
+//
+// 使用示例：
+//
+//	q := NewQuery().
+//	    AddSafeOrder("", "", "created_at", "DESC").
+//	    AddFilterIfNotEmpty("status", 1).
+//	    WithKeywordFilter(keyword,
+//	        []string{"tenant_id"},           // LIKE 匹配（大小写敏感），适用于 ID 等固定格式字段
+//	        []string{"name", "code"})        // ILIKE 匹配（大小写不敏感），适用于名称、编码等文本字段
+//
+// likeFields  使用 LIKE  匹配，适用于 ID 等固定格式字段
+// iLikeFields 使用 ILIKE 匹配，适用于名称、编码等文本字段
+// 当 keyword 为空或所有字段列表均为空时不添加任何过滤，直接返回原 query
+func (q *Query) WithKeywordFilter(keyword string, likeFields, iLikeFields []string) *Query {
+	keywordGroup := NewKeywordFilterGroup(keyword, likeFields, iLikeFields)
+	if keywordGroup == nil {
+		return q
+	}
+	return q.WithFilterGroup(keywordGroup)
+}
+
 // WithJoinScan 配置 JOIN 后扫描到扩展 struct 切片，再通过 extract 回调提取 []*T
 // 适用场景：主表 JOIN 关联表补充字段（如 dict_entries JOIN dict_groups 取
 // group_type/group_name），且补充字段在主模型上为 gorm:"-"（非持久化，

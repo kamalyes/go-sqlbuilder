@@ -582,3 +582,31 @@ func NewInSubQueryFilter(field, subSQL string, args ...interface{}) *Filter {
 func NewNotInSubQueryFilter(field, subSQL string, args ...interface{}) *Filter {
 	return &Filter{Field: field, Operator: constants.OP_NOT_IN, Value: NewSubQuery(subSQL, args...)}
 }
+
+// NewKeywordFilterGroup 创建关键字多字段 OR 模糊匹配过滤组
+//
+// 用于实现"一个关键字在多个字段中任一匹配"的搜索场景，逻辑为：
+//
+//	(field1 LIKE ? OR field2 ILIKE ? OR ...)
+//
+// likeFields  使用 LIKE  （大小写敏感）匹配，适用于 ID 等固定格式字段
+// iLikeFields 使用 ILIKE （大小写不敏感）匹配，适用于名称、编码等文本字段
+// 当 keyword 为空或所有字段列表均为空时返回 nil
+//
+// 用法：
+//
+//	keywordGroup := NewKeywordFilterGroup(keyword, []string{"id"}, []string{"name", "code"})
+//	q.WithFilterGroup(keywordGroup)
+func NewKeywordFilterGroup(keyword string, likeFields, iLikeFields []string) *FilterGroup {
+	if keyword == "" || (len(likeFields) == 0 && len(iLikeFields) == 0) {
+		return nil
+	}
+	keywordGroup := NewFilterGroup(constants.LOGIC_OR)
+	for _, field := range likeFields {
+		keywordGroup.AddLikeFilterIfNotEmpty(field, keyword)
+	}
+	for _, field := range iLikeFields {
+		keywordGroup.AddILikeFilterIfNotEmpty(field, keyword)
+	}
+	return keywordGroup
+}

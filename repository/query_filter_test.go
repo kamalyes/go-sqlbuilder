@@ -3031,6 +3031,131 @@ type ComputedTestPost struct {
 
 func (ComputedTestPost) TableName() string { return "computed_test_posts" }
 
+// ============================================================
+// NewKeywordFilterGroup / WithKeywordFilter
+// 关键字多字段 OR 模糊匹配
+// ============================================================
+
+func TestNewKeywordFilterGroup_EmptyKeyword(t *testing.T) {
+	// keyword 为空时返回 nil
+	group := NewKeywordFilterGroup("", []string{"id"}, []string{"name"})
+	assert.Nil(t, group)
+}
+
+func TestNewKeywordFilterGroup_EmptyFields(t *testing.T) {
+	// 字段列表均为空时返回 nil
+	group := NewKeywordFilterGroup("test", nil, nil)
+	assert.Nil(t, group)
+}
+
+func TestNewKeywordFilterGroup_OnlyLikeFields(t *testing.T) {
+	group := NewKeywordFilterGroup("test", []string{"id", "code"}, nil)
+	require.NotNil(t, group)
+	assert.Equal(t, constants.LOGIC_OR, group.LogicOp)
+	assert.Len(t, group.Filters, 2)
+	// 验证都是 LIKE 操作符，值均为 %keyword%
+	for _, f := range group.Filters {
+		assert.Equal(t, constants.OP_LIKE, f.Operator)
+		assert.Equal(t, "%test%", f.Value)
+	}
+}
+
+func TestNewKeywordFilterGroup_OnlyILikeFields(t *testing.T) {
+	group := NewKeywordFilterGroup("test", nil, []string{"name", "code"})
+	require.NotNil(t, group)
+	assert.Equal(t, constants.LOGIC_OR, group.LogicOp)
+	assert.Len(t, group.Filters, 2)
+	// 验证都是 ILIKE 操作符，值均为 %keyword%
+	for _, f := range group.Filters {
+		assert.Equal(t, constants.OP_ILIKE, f.Operator)
+		assert.Equal(t, "%test%", f.Value)
+	}
+}
+
+func TestNewKeywordFilterGroup_MixedFields(t *testing.T) {
+	// 同时有 likeFields 和 iLikeFields
+	group := NewKeywordFilterGroup("test", []string{"id"}, []string{"name", "code"})
+	require.NotNil(t, group)
+	assert.Equal(t, constants.LOGIC_OR, group.LogicOp)
+	assert.Len(t, group.Filters, 3)
+
+	// 统计操作符数量
+	opCount := map[constants.Operator]int{}
+	for _, f := range group.Filters {
+		opCount[f.Operator]++
+	}
+	assert.Equal(t, 1, opCount[constants.OP_LIKE])  // id 用 LIKE
+	assert.Equal(t, 2, opCount[constants.OP_ILIKE]) // name, code 用 ILIKE
+
+	// 验证字段集合与值
+	fields := map[string]bool{}
+	for _, f := range group.Filters {
+		fields[f.Field] = true
+		assert.Equal(t, "%test%", f.Value)
+	}
+	assert.True(t, fields["id"])
+	assert.True(t, fields["name"])
+	assert.True(t, fields["code"])
+}
+
+func TestWithKeywordFilter_EmptyKeyword(t *testing.T) {
+	q := NewQuery().AddLikeFilterIfNotEmpty("name", "existing")
+	originalFilterCount := len(q.Filters)
+	// keyword 为空时不修改 query
+	result := q.WithKeywordFilter("", []string{"id"}, []string{"name"})
+	assert.Equal(t, q, result)                         // 返回原 query
+	assert.Nil(t, result.FilterGroup)                  // 未设置 FilterGroup
+	assert.Len(t, result.Filters, originalFilterCount) // 原有 filter 不变
+}
+
+func TestWithKeywordFilter_EmptyFields(t *testing.T) {
+	q := NewQuery()
+	// 字段列表均为空时不修改 query
+	result := q.WithKeywordFilter("test", nil, nil)
+	assert.Equal(t, q, result)
+	assert.Nil(t, result.FilterGroup)
+}
+
+func TestWithKeywordFilter_SetsFilterGroup(t *testing.T) {
+	q := NewQuery().AddSafeOrder("", "", "created_at", "DESC")
+	result := q.WithKeywordFilter("test", []string{"tenant_id"}, []string{"name", "code"})
+
+	// 返回的是同一个 query（链式）
+	assert.Equal(t, q, result)
+
+	// FilterGroup 被设置
+	require.NotNil(t, result.FilterGroup)
+	assert.Equal(t, constants.LOGIC_OR, result.FilterGroup.LogicOp)
+	assert.Len(t, result.FilterGroup.Filters, 3)
+
+	// 验证字段与值
+	fields := map[string]bool{}
+	for _, f := range result.FilterGroup.Filters {
+		fields[f.Field] = true
+		assert.Equal(t, "%test%", f.Value)
+	}
+	assert.True(t, fields["tenant_id"])
+	assert.True(t, fields["name"])
+	assert.True(t, fields["code"])
+}
+
+func TestWithKeywordFilter_ChainedWithOtherFilters(t *testing.T) {
+	// 模拟实际场景：status 等值过滤 + keyword 多字段 OR（完整链式调用）
+	q := NewQuery().
+		AddSafeOrder("", "", "created_at", "DESC").
+		AddFilterIfNotEmpty("status", 1).
+		WithKeywordFilter("abc", []string{"tenant_id"}, []string{"name", "code"})
+
+	// 原有等值过滤保留
+	assert.Len(t, q.Filters, 1)
+	assert.Equal(t, "status", q.Filters[0].Field)
+
+	// FilterGroup 被设置
+	require.NotNil(t, q.FilterGroup)
+	assert.Equal(t, constants.LOGIC_OR, q.FilterGroup.LogicOp)
+	assert.Len(t, q.FilterGroup.Filters, 3)
+}
+
 // ComputedTestComment 关联表（评论）
 type ComputedTestComment struct {
 	ID     int `gorm:"column:id;primaryKey"`
