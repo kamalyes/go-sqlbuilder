@@ -733,6 +733,16 @@ func TestStructHasField_SnakeCaseFallback(t *testing.T) {
 	assert.False(t, StructHasField(taglessModel{}, "region_code"))
 }
 
+func TestStructHasField_TablePrefix(t *testing.T) {
+	// 多表 JOIN 场景为避免列名歧义会带 "table.column" 前缀
+	// FilterGroupByModel 应识别出该字段属于模型，不应剔除
+	assert.True(t, StructHasField(scopeFieldProbeModel{}, "tenant_id"))
+	assert.True(t, StructHasField(scopeFieldProbeModel{}, "some_table.tenant_id"))
+	assert.True(t, StructHasField(scopeFieldProbeModel{}, "schema.some_table.tenant_id"))
+	assert.False(t, StructHasField(scopeFieldProbeModel{}, "some_table.region_code"))
+	assert.False(t, StructHasField(scopeFieldProbeModel{}, "some_table.non_exist_field"))
+}
+
 // flattenFilterFields 递归收集 FilterGroup 中所有 Filter 的字段名（用于断言）
 func flattenFilterFields(group *FilterGroup) []string {
 	if group == nil {

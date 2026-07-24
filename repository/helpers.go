@@ -492,8 +492,16 @@ func StructHasField(model interface{}, field string) bool {
 	if t.Kind() != reflect.Struct {
 		return false
 	}
+	// 兼容带表名前缀的写法（如 "payment_merchants.id"）
+	// FilterGroupByModel 在执行层用本函数校验字段是否属于模型，
+	// 多表 JOIN 场景为避免列名歧义会带 "table.column" 前缀，
+	// 这里去掉前缀后与模型列名（纯列名）比较
+	columnName := field
+	if idx := strings.LastIndex(field, "."); idx >= 0 {
+		columnName = field[idx+1:]
+	}
 	for _, f := range GetStructFields(model) {
-		if f == field {
+		if f == columnName {
 			return true
 		}
 	}
