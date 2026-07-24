@@ -2589,6 +2589,18 @@ func TestFilterConstructorsExtended(t *testing.T) {
 		assert.Equal(t, 3, len(resultValues))
 	})
 
+	t.Run("NewInFilterWithTypedSlice", func(t *testing.T) {
+		// 传入 []int64 单个切片参数应自动展开为独立元素，避免生成 IN ((...)) 双重括号
+		ids := []int64{1, 2, 3}
+		f := NewInFilter("id", ids)
+		assert.Equal(t, "id", f.Field)
+		assert.Equal(t, constants.OP_IN, f.Operator)
+		resultValues := f.Value.([]interface{})
+		assert.Equal(t, 3, len(resultValues))
+		assert.Equal(t, int64(1), resultValues[0])
+		assert.Equal(t, int64(3), resultValues[2])
+	})
+
 	t.Run("NewNotInFilterSlice", func(t *testing.T) {
 		values := []interface{}{"a", "b"}
 		f := NewNotInFilterSlice("status", values)
@@ -2596,6 +2608,18 @@ func TestFilterConstructorsExtended(t *testing.T) {
 		assert.Equal(t, constants.OP_NOT_IN, f.Operator)
 		resultValues := f.Value.([]interface{})
 		assert.Equal(t, 2, len(resultValues))
+	})
+
+	t.Run("NewNotInFilterWithTypedSlice", func(t *testing.T) {
+		// 传入 []string 单个切片参数应自动展开为独立元素，避免生成 NOT IN ((...)) 双重括号
+		codes := []string{"a", "b", "c"}
+		f := NewNotInFilter("code", codes)
+		assert.Equal(t, "code", f.Field)
+		assert.Equal(t, constants.OP_NOT_IN, f.Operator)
+		resultValues := f.Value.([]interface{})
+		assert.Equal(t, 3, len(resultValues))
+		assert.Equal(t, "a", resultValues[0])
+		assert.Equal(t, "c", resultValues[2])
 	})
 
 	t.Run("NewRegexpFilter", func(t *testing.T) {

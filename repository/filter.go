@@ -454,9 +454,18 @@ func NewLteFilter(field string, value interface{}) *Filter {
 }
 
 // NewInFilter 创建 IN 过滤条件
+// 支持两种传参方式：
+//  1. 多个标量参数：NewInFilter("id", 1, 2, 3)
+//  2. 单个切片参数：NewInFilter("id", []int64{1, 2, 3})（自动展开，避免生成 IN ((...)) 双重括号）
 func NewInFilter(field string, values ...interface{}) *Filter {
 	if values == nil || (len(values) == 1 && values[0] == nil) {
 		return &Filter{Field: field, Operator: constants.OP_IN, Value: nil}
+	}
+	// 单个切片参数时展开为独立元素，与 AddInFilterIfNotEmpty 行为一致
+	if len(values) == 1 {
+		if slice := convert.AnySliceToInterfaceSlice(values[0]); len(slice) > 0 {
+			return NewFilter(field, constants.OP_IN, validator.NormalizeFilterValueSlice(slice))
+		}
 	}
 	return NewFilter(field, constants.OP_IN, validator.NormalizeFilterValueSlice(values))
 }
@@ -485,9 +494,18 @@ func NewBetweenFilter(field string, min, max interface{}) *Filter {
 }
 
 // NewNotInFilter 创建 NOT IN 过滤条件
+// 支持两种传参方式：
+//  1. 多个标量参数：NewNotInFilter("id", 1, 2, 3)
+//  2. 单个切片参数：NewNotInFilter("id", []int64{1, 2, 3})（自动展开，避免生成 NOT IN ((...)) 双重括号）
 func NewNotInFilter(field string, values ...interface{}) *Filter {
 	if values == nil || (len(values) == 1 && values[0] == nil) {
 		return &Filter{Field: field, Operator: constants.OP_NOT_IN, Value: nil}
+	}
+	// 单个切片参数时展开为独立元素，与 AddNotInFilterIfNotEmpty 行为一致
+	if len(values) == 1 {
+		if slice := convert.AnySliceToInterfaceSlice(values[0]); len(slice) > 0 {
+			return NewFilter(field, constants.OP_NOT_IN, validator.NormalizeFilterValueSlice(slice))
+		}
 	}
 	return NewFilter(field, constants.OP_NOT_IN, validator.NormalizeFilterValueSlice(values))
 }
