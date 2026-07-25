@@ -210,3 +210,244 @@ func TestJSONClone(t *testing.T) {
 	assert.Equal(t, j.Data, cloned.Data)
 	assert.NotSame(t, &j.Data, &cloned.Data)
 }
+
+func TestJSONIsNil(t *testing.T) {
+	t.Run("nil pointer", func(t *testing.T) {
+		j := JSON[*wrapperspb.StringValue]{}
+		assert.True(t, j.IsNil())
+		assert.False(t, j.IsPresent())
+	})
+
+	t.Run("non-nil pointer", func(t *testing.T) {
+		j := JSON[*wrapperspb.StringValue]{Data: wrapperspb.String("hi")}
+		assert.False(t, j.IsNil())
+		assert.True(t, j.IsPresent())
+	})
+
+	t.Run("nil slice", func(t *testing.T) {
+		j := JSON[[]string]{}
+		assert.True(t, j.IsNil())
+	})
+
+	t.Run("empty slice is NOT nil", func(t *testing.T) {
+		j := JSON[[]string]{Data: []string{}}
+		assert.False(t, j.IsNil())
+	})
+
+	t.Run("nil map", func(t *testing.T) {
+		j := JSON[map[string]string]{}
+		assert.True(t, j.IsNil())
+	})
+
+	t.Run("value type always non-nil", func(t *testing.T) {
+		type Person struct{ Name string }
+		j := JSON[Person]{}
+		assert.False(t, j.IsNil())
+	})
+
+	t.Run("int value type", func(t *testing.T) {
+		j := JSON[int]{}
+		assert.False(t, j.IsNil())
+	})
+}
+
+func TestJSONGetOrZero(t *testing.T) {
+	t.Run("nil pointer returns zero", func(t *testing.T) {
+		j := JSON[*wrapperspb.StringValue]{}
+		assert.Nil(t, j.GetOrZero())
+	})
+
+	t.Run("non-nil pointer returns data", func(t *testing.T) {
+		j := JSON[*wrapperspb.StringValue]{Data: wrapperspb.String("hi")}
+		assert.Equal(t, "hi", j.GetOrZero().GetValue())
+	})
+
+	t.Run("value type returns data", func(t *testing.T) {
+		type Person struct{ Name string }
+		j := JSON[Person]{Data: Person{Name: "Alice"}}
+		assert.Equal(t, "Alice", j.GetOrZero().Name)
+	})
+}
+
+func TestJSONGetOrDefault(t *testing.T) {
+	t.Run("nil pointer returns default", func(t *testing.T) {
+		j := JSON[*wrapperspb.StringValue]{}
+		def := wrapperspb.String("default")
+		assert.Same(t, def, j.GetOrDefault(def))
+	})
+
+	t.Run("non-nil pointer returns data", func(t *testing.T) {
+		data := wrapperspb.String("data")
+		j := JSON[*wrapperspb.StringValue]{Data: data}
+		def := wrapperspb.String("default")
+		assert.Same(t, data, j.GetOrDefault(def))
+	})
+}
+
+func TestJSONIfPresent(t *testing.T) {
+	t.Run("nil pointer does not invoke callback", func(t *testing.T) {
+		j := JSON[*wrapperspb.StringValue]{}
+		called := false
+		j.IfPresent(func(v *wrapperspb.StringValue) {
+			called = true
+		})
+		assert.False(t, called)
+	})
+
+	t.Run("non-nil pointer invokes callback", func(t *testing.T) {
+		j := JSON[*wrapperspb.StringValue]{Data: wrapperspb.String("hi")}
+		var got string
+		j.IfPresent(func(v *wrapperspb.StringValue) {
+			got = v.GetValue()
+		})
+		assert.Equal(t, "hi", got)
+	})
+
+	t.Run("value type always invokes callback", func(t *testing.T) {
+		type Person struct{ Name string }
+		j := JSON[Person]{Data: Person{Name: "Alice"}}
+		var got string
+		j.IfPresent(func(p Person) {
+			got = p.Name
+		})
+		assert.Equal(t, "Alice", got)
+	})
+}
+
+func TestJSONMap(t *testing.T) {
+	t.Run("nil Data returns nil", func(t *testing.T) {
+		j := JSON[*wrapperspb.StringValue]{}
+		got := MapJSON(j, func(v *wrapperspb.StringValue) *int {
+			i := int(len(v.GetValue()))
+			return &i
+		})
+		assert.Nil(t, got)
+	})
+
+	t.Run("non-nil Data applies fn", func(t *testing.T) {
+		j := JSON[*wrapperspb.StringValue]{Data: wrapperspb.String("hello")}
+		got := MapJSON(j, func(v *wrapperspb.StringValue) *int {
+			i := int(len(v.GetValue()))
+			return &i
+		})
+		require.NotNil(t, got)
+		assert.Equal(t, 5, *got)
+	})
+
+	t.Run("fn returns nil to break chain", func(t *testing.T) {
+		j := JSON[*wrapperspb.StringValue]{Data: wrapperspb.String("hello")}
+		got := MapJSON(j, func(v *wrapperspb.StringValue) *int {
+			return nil // 主动中断
+		})
+		assert.Nil(t, got)
+	})
+
+	t.Run("value type JSON also works", func(t *testing.T) {
+		type Person struct{ Name string }
+		j := JSON[Person]{Data: Person{Name: "Alice"}}
+		got := MapJSON(j, func(p Person) *string {
+			return &p.Name
+		})
+		require.NotNil(t, got)
+		assert.Equal(t, "Alice", *got)
+	})
+}
+
+func TestJSONMapPtr(t *testing.T) {
+	t.Run("nil ptr returns nil", func(t *testing.T) {
+		var fb *wrapperspb.StringValue
+		got := MapPtr(fb, func(v *wrapperspb.StringValue) *string {
+			return Ptr(v.GetValue())
+		})
+		assert.Nil(t, got)
+	})
+
+	t.Run("non-nil ptr applies fn", func(t *testing.T) {
+		fb := wrapperspb.String("facebook-id")
+		got := MapPtr(fb, func(v *wrapperspb.StringValue) *string {
+			return Ptr(v.GetValue())
+		})
+		require.NotNil(t, got)
+		assert.Equal(t, "facebook-id", *got)
+	})
+
+	t.Run("deep chain: Tracking → Facebook → PixelId", func(t *testing.T) {
+		type Facebook struct{ PixelId string }
+		type Tracking struct{ Facebook *Facebook }
+		tracking := &Tracking{Facebook: &Facebook{PixelId: "pixel-123"}}
+
+		// 第一层：JSON[*Tracking] → *Facebook
+		fb := MapJSON(JSON[*Tracking]{Data: tracking}, func(t *Tracking) *Facebook {
+			return t.Facebook
+		})
+		require.NotNil(t, fb)
+
+		// 第二层：*Facebook → *string
+		pixel := MapPtr(fb, func(f *Facebook) *string {
+			return Ptr(f.PixelId)
+		})
+		require.NotNil(t, pixel)
+		assert.Equal(t, "pixel-123", *pixel)
+	})
+
+	t.Run("deep chain breaks when intermediate nil", func(t *testing.T) {
+		type Facebook struct{ PixelId string }
+		type Tracking struct{ Facebook *Facebook }
+		tracking := &Tracking{Facebook: nil} // 中间层为 nil
+
+		fb := MapJSON(JSON[*Tracking]{Data: tracking}, func(t *Tracking) *Facebook {
+			return t.Facebook
+		})
+		assert.Nil(t, fb) // fb 为 nil
+
+		pixel := MapPtr(fb, func(f *Facebook) *string {
+			return Ptr(f.PixelId)
+		})
+		assert.Nil(t, pixel) // 链路中断，pixel 也为 nil
+	})
+}
+
+func TestPtr(t *testing.T) {
+	t.Run("int", func(t *testing.T) {
+		p := Ptr(42)
+		require.NotNil(t, p)
+		assert.Equal(t, 42, *p)
+	})
+
+	t.Run("string", func(t *testing.T) {
+		p := Ptr("hello")
+		require.NotNil(t, p)
+		assert.Equal(t, "hello", *p)
+	})
+
+	t.Run("struct", func(t *testing.T) {
+		type S struct{ X int }
+		p := Ptr(S{X: 1})
+		require.NotNil(t, p)
+		assert.Equal(t, 1, p.X)
+	})
+}
+
+func TestJSONToOptional(t *testing.T) {
+	t.Run("nil Data returns empty Optional", func(t *testing.T) {
+		j := JSON[*wrapperspb.StringValue]{}
+		opt := j.ToOptional()
+		assert.False(t, opt.IsPresent())
+		assert.True(t, opt.IsNil())
+	})
+
+	t.Run("non-nil Data returns present Optional", func(t *testing.T) {
+		j := JSON[*wrapperspb.StringValue]{Data: wrapperspb.String("hi")}
+		opt := j.ToOptional()
+		assert.True(t, opt.IsPresent())
+		assert.Equal(t, "hi", opt.GetOrZero().GetValue())
+	})
+
+	t.Run("value type JSON always returns present Optional", func(t *testing.T) {
+		type Person struct{ Name string }
+		j := JSON[Person]{Data: Person{Name: "Alice"}}
+		opt := j.ToOptional()
+		assert.True(t, opt.IsPresent())
+		assert.Equal(t, "Alice", opt.GetOrZero().Name)
+	})
+}
