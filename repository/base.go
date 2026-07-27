@@ -50,6 +50,7 @@ type BaseRepository[T any] struct {
 	primaryKeyIndexes     []int          // 主键字段索引缓存
 	autoCreateTimeIndexes []int          // 创建时间字段索引缓存
 	autoUpdateTimeIndexes []int          // 更新时间字段索引缓存
+	autoUpdateTimeColumns []string       // 更新时间字段列名缓存（Update 时自动注入，弥补 .Table 模式下 gorm 不自动刷新 autoUpdateTime 的缺陷）
 	modelFields           []string       // 模型字段缓存（用于自动字段选择）
 	nonPhysicalFields     []string       // 非物理列字段缓存（gorm:"-:migration"，SELECT 时自动 Omit）
 	sortableFields        []string       // 可排序字段缓存（排除 JSON 类型，用于 ApplySort）
@@ -216,6 +217,7 @@ func (r *BaseRepository[T]) initFieldIndexes() {
 		}
 		if strings.Contains(gormTag, "autoUpdateTime") {
 			r.autoUpdateTimeIndexes = append(r.autoUpdateTimeIndexes, i)
+			r.autoUpdateTimeColumns = append(r.autoUpdateTimeColumns, fieldColumnName(field))
 		}
 	}
 
@@ -352,6 +354,21 @@ func (r *BaseRepository[T]) resetAutoUpdateTime(entity *T) {
 		entityField := entityValue.Field(idx)
 		if entityField.CanSet() {
 			entityField.Set(reflect.Zero(field.Type))
+		}
+	}
+}
+
+// injectAutoUpdateTime 在 fields 非空时自动注入 autoUpdateTime 字段（如 updated_at）
+// 弥补 .Table 模式下 gorm 无法识别 model schema、不自动刷新 autoUpdateTime 的缺陷
+// 调用方已显式传入同名字段则不覆盖；fields 为空时不注入（避免无字段更新时误刷时间）
+func (r *BaseRepository[T]) injectAutoUpdateTime(fields map[string]interface{}) {
+	if len(fields) == 0 || len(r.autoUpdateTimeColumns) == 0 {
+		return
+	}
+	now := time.Now()
+	for _, col := range r.autoUpdateTimeColumns {
+		if _, exists := fields[col]; !exists {
+			fields[col] = now
 		}
 	}
 }
@@ -1310,6 +1327,7 @@ func (r *BaseRepository[T]) UpdateFields(ctx context.Context, id interface{}, fi
 		return nil
 	}
 	r.normalizeJSONStringFieldMap(fields)
+	r.injectAutoUpdateTime(fields)
 	return r.newDB(ctx).Where("id = ?", id).Updates(fields).Error
 }
 
@@ -1322,6 +1340,7 @@ func (r *BaseRepository[T]) UpdateFieldsByFilters(ctx context.Context, fields ma
 		return errorx.NewError(errors.ErrorCodeInvalidInput)
 	}
 	r.normalizeJSONStringFieldMap(fields)
+	r.injectAutoUpdateTime(fields)
 	return ApplyFilters(r.newDB(ctx), filters).Updates(fields).Error
 }
 
@@ -1337,6 +1356,7 @@ func (r *BaseRepository[T]) UpdateFieldsByFilterGroup(ctx context.Context, field
 		return errorx.NewError(errors.ErrorCodeInvalidInput)
 	}
 	r.normalizeJSONStringFieldMap(fields)
+	r.injectAutoUpdateTime(fields)
 	return ApplyFilterGroup(r.newDB(ctx), group).Updates(fields).Error
 }
 
@@ -1349,6 +1369,7 @@ func (r *BaseRepository[T]) UpdateFieldsByQuery(ctx context.Context, fields map[
 		return errorx.NewError(errors.ErrorCodeInvalidInput)
 	}
 	r.normalizeJSONStringFieldMap(fields)
+	r.injectAutoUpdateTime(fields)
 	return r.ApplyQueryFilters(r.newDB(ctx), query).Updates(fields).Error
 }
 

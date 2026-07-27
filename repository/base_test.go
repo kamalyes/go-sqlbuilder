@@ -66,6 +66,14 @@ type TestJSONConfig struct {
 	Plain       string `json:"plain" gorm:"column:plain;type:text"`
 }
 
+// TestAutoTimeModel 用于验证 autoUpdateTime 字段在 map 更新路径下自动注入的测试模型
+type TestAutoTimeModel struct {
+	ID        int64     `json:"id" gorm:"primaryKey;autoIncrement"`
+	Name      string    `json:"name" gorm:"column:name"`
+	CreatedAt time.Time `json:"created_at" gorm:"column:created_at;autoCreateTime"`
+	UpdatedAt time.Time `json:"updated_at" gorm:"column:updated_at;autoUpdateTime"`
+}
+
 // getFloat64 从 map[string]interface{} 中安全获取 float64 值 (处理SQLite和MySQL差异)
 func getFloat64(m map[string]interface{}, key string) float64 {
 	v := m[key]
@@ -123,9 +131,10 @@ func setupTestDB() (*gorm.DB, error) {
 	// 删除旧表以确保每个测试都是干净的环境
 	gormDB.Exec("DROP TABLE IF EXISTS test_users")
 	gormDB.Exec("DROP TABLE IF EXISTS test_posts")
+	gormDB.Exec("DROP TABLE IF EXISTS test_auto_time_models")
 
 	// 自动迁移表结构
-	err = gormDB.AutoMigrate(&TestUser{}, &TestPost{})
+	err = gormDB.AutoMigrate(&TestUser{}, &TestPost{}, &TestAutoTimeModel{})
 	if err != nil {
 		return nil, err
 	}
@@ -9397,4 +9406,102 @@ func BenchmarkDeleteByFiltersLoopVsFilterGroup(b *testing.B) {
 // dbHandler 辅助函数：包装 gormDB 为 db.Handler（与 newTestDBHandler 等价，缩短测试代码）
 func dbHandler(gormDB *gorm.DB) db.Handler {
 	return newTestDBHandler(gormDB)
+}
+
+// newAutoTimeRepo 构造 TestAutoTimeModel 的仓库，复用 setupTestDB
+func newAutoTimeRepo(t *testing.T) (*BaseRepository[TestAutoTimeModel], *gorm.DB) {
+	gormDB, err := setupTestDB()
+	assert.NoError(t, err)
+	return NewBaseRepository[TestAutoTimeModel](newTestDBHandler(gormDB), logger.NewLogger(), "test_auto_time_models"), gormDB
+}
+
+// TestInjectAutoUpdateTime_UpdateFields 验证 UpdateFields 自动注入 updated_at
+// 弥补 .Table 模式下 gorm 不自动刷新 autoUpdateTime 的缺陷
+func TestInjectAutoUpdateTime_UpdateFields(t *testing.T) {
+	repo, _ := newAutoTimeRepo(t)
+	ctx := context.Background()
+
+	created, err := repo.Create(ctx, &TestAutoTimeModel{Name: "orig"})
+	assert.NoError(t, err)
+
+	before, err := repo.Get(ctx, created.ID)
+	assert.NoError(t, err)
+	baseUpdated := before.UpdatedAt
+
+	time.Sleep(20 * time.Millisecond) // 确保注入时间晚于 base
+	err = repo.UpdateFields(ctx, created.ID, map[string]interface{}{"name": "updated"})
+	assert.NoError(t, err)
+
+	after, err := repo.Get(ctx, created.ID)
+	assert.NoError(t, err)
+	assert.Equal(t, "updated", after.Name)
+	assert.True(t, after.UpdatedAt.After(baseUpdated),
+		"updated_at 应被自动注入为当前时间,base=%v, after=%v", baseUpdated, after.UpdatedAt)
+}
+
+// TestInjectAutoUpdateTime_RespectExplicitValue 验证调用方已显式传入 updated_at 时不被覆盖
+func TestInjectAutoUpdateTime_RespectExplicitValue(t *testing.T) {
+	repo, _ := newAutoTimeRepo(t)
+	ctx := context.Background()
+
+	created, err := repo.Create(ctx, &TestAutoTimeModel{Name: "orig"})
+	assert.NoError(t, err)
+
+	// 显式传入一个特征时间（未来 2 小时），秒级截断以适配 SQLite 存储精度
+	explicit := time.Now().Add(2 * time.Hour).UTC().Truncate(time.Second)
+	err = repo.UpdateFields(ctx, created.ID, map[string]interface{}{
+		"name":       "x",
+		"updated_at": explicit,
+	})
+	assert.NoError(t, err)
+
+	after, err := repo.Get(ctx, created.ID)
+	assert.NoError(t, err)
+	assert.WithinDuration(t, explicit, after.UpdatedAt, time.Second,
+		"显式传入的 updated_at 应被保留,不被 time.Now() 覆盖")
+}
+
+// TestInjectAutoUpdateTime_UpdateFieldsByFilters 验证 UpdateFieldsByFilters 同样自动注入
+func TestInjectAutoUpdateTime_UpdateFieldsByFilters(t *testing.T) {
+	repo, _ := newAutoTimeRepo(t)
+	ctx := context.Background()
+
+	created, err := repo.Create(ctx, &TestAutoTimeModel{Name: "orig"})
+	assert.NoError(t, err)
+
+	before, err := repo.Get(ctx, created.ID)
+	assert.NoError(t, err)
+	baseUpdated := before.UpdatedAt
+
+	time.Sleep(20 * time.Millisecond)
+	err = repo.UpdateFieldsByFilters(ctx,
+		map[string]interface{}{"name": "by-filter"},
+		NewEqFilter("id", created.ID))
+	assert.NoError(t, err)
+
+	after, err := repo.Get(ctx, created.ID)
+	assert.NoError(t, err)
+	assert.Equal(t, "by-filter", after.Name)
+	assert.True(t, after.UpdatedAt.After(baseUpdated),
+		"UpdateFieldsByFilters 也应自动注入 updated_at,base=%v, after=%v", baseUpdated, after.UpdatedAt)
+}
+
+// TestInjectAutoUpdateTime_EmptyFieldsNoOp 验证 fields 为空时不执行更新也不报错
+func TestInjectAutoUpdateTime_EmptyFieldsNoOp(t *testing.T) {
+	repo, _ := newAutoTimeRepo(t)
+	ctx := context.Background()
+
+	created, err := repo.Create(ctx, &TestAutoTimeModel{Name: "orig"})
+	assert.NoError(t, err)
+
+	before, err := repo.Get(ctx, created.ID)
+	assert.NoError(t, err)
+
+	// 空 map：UpdateFields 直接 return，不应触发任何 SQL，updated_at 保持不变
+	err = repo.UpdateFields(ctx, created.ID, map[string]interface{}{})
+	assert.NoError(t, err)
+
+	after, err := repo.Get(ctx, created.ID)
+	assert.NoError(t, err)
+	assert.Equal(t, before.UpdatedAt, after.UpdatedAt, "空 fields 不应刷新 updated_at")
 }

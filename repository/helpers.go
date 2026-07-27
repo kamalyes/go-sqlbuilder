@@ -431,6 +431,21 @@ func extractColumnName(gormTag string) string {
 	return ""
 }
 
+// fieldColumnName 解析 struct 字段的数据库列名
+// 解析顺序：gorm column tag > json tag > 字段名蛇形命名
+// 与 extractFieldNames 中的列名解析逻辑保持一致
+func fieldColumnName(field reflect.StructField) string {
+	if col := extractColumnName(field.Tag.Get("gorm")); col != "" {
+		return col
+	}
+	if jsonTag := field.Tag.Get("json"); jsonTag != "" && jsonTag != "-" {
+		if name := strings.Split(jsonTag, ",")[0]; name != "" {
+			return name
+		}
+	}
+	return toSnakeCase(field.Name)
+}
+
 // toSnakeCase 将驼峰命名转换为蛇形命名
 func toSnakeCase(s string) string {
 	var result strings.Builder
