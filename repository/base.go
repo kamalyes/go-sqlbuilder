@@ -1271,6 +1271,26 @@ func (r *BaseRepository[T]) Count(ctx context.Context, filters ...*Filter) (int6
 	return count, ApplyFilters(r.newDB(ctx), filters).Count(&count).Error
 }
 
+// GetRandom 随机获取一条记录（方言感知，一次 SQL 完成）
+// query 可附加业务排序（如 usage_count ASC）与过滤条件，方言随机排序表达式会追加到 ORDER BY 末尾，
+// 实现"按业务字段优先 + 随机打散"的选取（例如负载均衡场景下的最小计数随机）
+// 无匹配记录时返回 gorm.ErrRecordNotFound
+func (r *BaseRepository[T]) GetRandom(ctx context.Context, query *Query) (*T, error) {
+	if query == nil {
+		query = NewQuery()
+	}
+	db := r.newDB(ctx)
+	query.AddRawOrder(DetectDialect(db).RandomOrderExpr())
+	query.Limit(1)
+	db = ApplyQueryConditions(r, db, query)
+	var entity T
+	if err := db.Take(&entity).Error; err != nil {
+		return nil, err
+	}
+	r.applyDesensitizeIfNeeded(&entity, query)
+	return &entity, nil
+}
+
 // Exists 检查记录是否存在
 func (r *BaseRepository[T]) Exists(ctx context.Context, filters ...*Filter) (bool, error) {
 	count, err := r.Count(ctx, filters...)

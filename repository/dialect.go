@@ -40,6 +40,12 @@ type Dialect interface {
 	//   PostgreSQL/CRDB: column->>'key'
 	//   SQLite:          json_extract(column, '$.key')
 	JsonFieldExtract(column, jsonKey string) string
+	// RandomOrderExpr 返回用于 ORDER BY 的随机排序表达式（无方向，直接拼入 ORDER BY）
+	//   MySQL:           RAND()
+	//   PostgreSQL/CRDB: RANDOM()
+	//   SQLite:          RANDOM()
+	//   ClickHouse:      rand()
+	RandomOrderExpr() string
 }
 
 // formatTimeGroup 获取格式化字符串
@@ -81,6 +87,11 @@ func (d *MySQLDialect) JsonFieldExtract(column, jsonKey string) string {
 	return fmt.Sprintf("JSON_UNQUOTE(JSON_EXTRACT(%s, '$.%s'))", column, jsonKey)
 }
 
+// RandomOrderExpr MySQL: RAND()
+func (d *MySQLDialect) RandomOrderExpr() string {
+	return "RAND()"
+}
+
 // SQLiteDialect SQLite 方言
 type SQLiteDialect struct{}
 
@@ -111,6 +122,11 @@ func (d *SQLiteDialect) JsonArrayCountSubQuery(table, jsonColumn, valueColumn st
 // JsonFieldExtract SQLite: json_extract(column, '$.key')
 func (d *SQLiteDialect) JsonFieldExtract(column, jsonKey string) string {
 	return fmt.Sprintf("json_extract(%s, '$.%s')", column, jsonKey)
+}
+
+// RandomOrderExpr SQLite: RANDOM()
+func (d *SQLiteDialect) RandomOrderExpr() string {
+	return "RANDOM()"
 }
 
 // PostgreSQLDialect PostgreSQL 方言
@@ -144,6 +160,11 @@ func (d *PostgreSQLDialect) JsonFieldExtract(column, jsonKey string) string {
 	return fmt.Sprintf("%s->>'%s'", column, jsonKey)
 }
 
+// RandomOrderExpr PostgreSQL: RANDOM()
+func (d *PostgreSQLDialect) RandomOrderExpr() string {
+	return "RANDOM()"
+}
+
 // CockroachDBDialect CockroachDB 方言（兼容PostgreSQL语法）
 type CockroachDBDialect struct{}
 
@@ -172,6 +193,11 @@ func (d *CockroachDBDialect) JsonArrayCountSubQuery(table, jsonColumn, valueColu
 // JsonFieldExtract CockroachDB: 兼容 PostgreSQL 的 ->> 操作符
 func (d *CockroachDBDialect) JsonFieldExtract(column, jsonKey string) string {
 	return fmt.Sprintf("%s->>'%s'", column, jsonKey)
+}
+
+// RandomOrderExpr CockroachDB: RANDOM()
+func (d *CockroachDBDialect) RandomOrderExpr() string {
+	return "RANDOM()"
 }
 
 // ClickHouseDialect ClickHouse 方言
@@ -203,6 +229,11 @@ func (d *ClickHouseDialect) JsonArrayCountSubQuery(table, jsonColumn, valueColum
 // JsonFieldExtract ClickHouse: JSONExtractString(column, 'key')
 func (d *ClickHouseDialect) JsonFieldExtract(column, jsonKey string) string {
 	return fmt.Sprintf("JSONExtractString(%s, '%s')", column, jsonKey)
+}
+
+// RandomOrderExpr ClickHouse: rand()
+func (d *ClickHouseDialect) RandomOrderExpr() string {
+	return "rand()"
 }
 
 // DetectDialect 自动检测数据库方言
