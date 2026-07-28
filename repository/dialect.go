@@ -34,6 +34,12 @@ type Dialect interface {
 	//   PostgreSQL/CRDB: (SELECT COUNT(*) FROM table WHERE jsonColumn @> CAST('[' || valueColumn::text || ']' AS JSONB))
 	//   SQLite:          (SELECT COUNT(*) FROM table t2 WHERE EXISTS(SELECT 1 FROM json_each(t2.jsonColumn) WHERE json_each.value = table.valueColumn))
 	JsonArrayCountSubQuery(table, jsonColumn, valueColumn string) string
+	// JsonFieldExtract 构建JSON对象字段提取的SQL表达式（返回无引号字符串）
+	// 用于从JSON列中提取指定键的值，可用于 WHERE 等值/LIKE 等比较
+	//   MySQL:           JSON_UNQUOTE(JSON_EXTRACT(column, '$.key'))
+	//   PostgreSQL/CRDB: column->>'key'
+	//   SQLite:          json_extract(column, '$.key')
+	JsonFieldExtract(column, jsonKey string) string
 }
 
 // formatTimeGroup 获取格式化字符串
@@ -70,6 +76,11 @@ func (d *MySQLDialect) JsonArrayCountSubQuery(table, jsonColumn, valueColumn str
 	return fmt.Sprintf("(SELECT COUNT(*) FROM %s WHERE JSON_CONTAINS(%s, CAST(%s AS JSON)))", table, jsonColumn, valueColumn)
 }
 
+// JsonFieldExtract MySQL: JSON_UNQUOTE(JSON_EXTRACT(column, '$.key'))
+func (d *MySQLDialect) JsonFieldExtract(column, jsonKey string) string {
+	return fmt.Sprintf("JSON_UNQUOTE(JSON_EXTRACT(%s, '$.%s'))", column, jsonKey)
+}
+
 // SQLiteDialect SQLite 方言
 type SQLiteDialect struct{}
 
@@ -95,6 +106,11 @@ func (d *SQLiteDialect) JsonArrayContains(column, placeholder string) string {
 // valueColumn 应为外部主表的完整列引用（如 "payment_channels.id"）
 func (d *SQLiteDialect) JsonArrayCountSubQuery(table, jsonColumn, valueColumn string) string {
 	return fmt.Sprintf("(SELECT COUNT(*) FROM %s t2 WHERE EXISTS(SELECT 1 FROM json_each(t2.%s) WHERE json_each.value = %s))", table, jsonColumn, valueColumn)
+}
+
+// JsonFieldExtract SQLite: json_extract(column, '$.key')
+func (d *SQLiteDialect) JsonFieldExtract(column, jsonKey string) string {
+	return fmt.Sprintf("json_extract(%s, '$.%s')", column, jsonKey)
 }
 
 // PostgreSQLDialect PostgreSQL 方言
@@ -123,6 +139,11 @@ func (d *PostgreSQLDialect) JsonArrayCountSubQuery(table, jsonColumn, valueColum
 	return fmt.Sprintf("(SELECT COUNT(*) FROM %s WHERE %s @> CAST('[' || %s::text || ']' AS JSONB))", table, jsonColumn, valueColumn)
 }
 
+// JsonFieldExtract PostgreSQL: column->>'key'（返回 text 类型）
+func (d *PostgreSQLDialect) JsonFieldExtract(column, jsonKey string) string {
+	return fmt.Sprintf("%s->>'%s'", column, jsonKey)
+}
+
 // CockroachDBDialect CockroachDB 方言（兼容PostgreSQL语法）
 type CockroachDBDialect struct{}
 
@@ -146,6 +167,11 @@ func (d *CockroachDBDialect) JsonArrayContains(column, placeholder string) strin
 // JsonArrayCountSubQuery CockroachDB: 同 PostgreSQL，用 @> + CAST
 func (d *CockroachDBDialect) JsonArrayCountSubQuery(table, jsonColumn, valueColumn string) string {
 	return fmt.Sprintf("(SELECT COUNT(*) FROM %s WHERE %s @> CAST('[' || %s::text || ']' AS JSONB))", table, jsonColumn, valueColumn)
+}
+
+// JsonFieldExtract CockroachDB: 兼容 PostgreSQL 的 ->> 操作符
+func (d *CockroachDBDialect) JsonFieldExtract(column, jsonKey string) string {
+	return fmt.Sprintf("%s->>'%s'", column, jsonKey)
 }
 
 // ClickHouseDialect ClickHouse 方言
@@ -172,6 +198,11 @@ func (d *ClickHouseDialect) JsonArrayContains(column, placeholder string) string
 // JsonArrayCountSubQuery ClickHouse: 用 hasAny 计数
 func (d *ClickHouseDialect) JsonArrayCountSubQuery(table, jsonColumn, valueColumn string) string {
 	return fmt.Sprintf("(SELECT COUNT(*) FROM %s WHERE hasAny(CAST(%s AS Array(String)), [toString(%s)]))", table, jsonColumn, valueColumn)
+}
+
+// JsonFieldExtract ClickHouse: JSONExtractString(column, 'key')
+func (d *ClickHouseDialect) JsonFieldExtract(column, jsonKey string) string {
+	return fmt.Sprintf("JSONExtractString(%s, '%s')", column, jsonKey)
 }
 
 // DetectDialect 自动检测数据库方言

@@ -106,6 +106,38 @@ func JsonArrayContainsDB(db *gorm.DB, column string, value interface{}) *gorm.DB
 	return db.Where(sql, args...)
 }
 
+// JsonFieldEqualsExpr 构建 JSON 对象字段等值查询的 WHERE 表达式与参数（方言感知）
+// 供 OP_JSON_FIELD_EQ 操作符在 ApplyFilter / buildFilterCondition 中内部调用
+//
+// 参数：
+//
+//	dialect  数据库方言（通过 DetectDialect(db) 获取）
+//	column   JSON 对象列名（如 "package_config"）
+//	jsonKey  JSON 键名（如 "apk_package_prefix"）
+//	value    待比较的标量值（string/int 等）
+//
+// 返回：
+//
+//	sql   可直接拼入 WHERE 的表达式（含 ? 占位符）
+//	args  占位符参数
+func JsonFieldEqualsExpr(dialect Dialect, column, jsonKey string, value interface{}) (sql string, args []interface{}) {
+	if dialect == nil {
+		dialect = &MySQLDialect{}
+	}
+	return dialect.JsonFieldExtract(column, jsonKey) + " = ?", []interface{}{value}
+}
+
+// parseJsonFieldExpr 解析 "column:jsonKey" 格式的 Field，返回方言感知的字段提取表达式
+// 用于 OP_JSON_FIELD_EQ 操作符在 ApplyFilter / buildFilterCondition 中统一调用
+// 若 Field 不含 ":" 分隔符，则原样返回（兼容直接传入列名）
+func parseJsonFieldExpr(dialect Dialect, field string) string {
+	idx := strings.Index(field, ":")
+	if idx < 0 {
+		return field
+	}
+	return dialect.JsonFieldExtract(field[:idx], field[idx+1:])
+}
+
 // JsonArrayContainsStr 便捷函数：构建 JSON 数组包含查询的完整 SQL 字符串（用于调试/日志输出）
 // 将 ? 占位符替换为实际参数值，JSON 方言（MySQL/PG/CRDB）参数加单引号，SQLite/ClickHouse 参数为原始值
 func JsonArrayContainsStr(dialect Dialect, column string, value interface{}) string {

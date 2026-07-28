@@ -73,6 +73,7 @@ const (
 	OpRaw          Operator = "RAW"            // 原始 SQL 条件（直接使用 Field 作为条件）
 	OpJsonbLike    Operator = "JSONB_LIKE"     // jsonb 字段文本搜索（PostgreSQL: field::text LIKE ?）
 	OpJsonContains Operator = "JSON_CONTAINS"  // JSON 数组包含查询（方言感知，WHERE 子句用）
+	OpJsonFieldEq  Operator = "JSON_FIELD_EQ"  // JSON 对象字段等值查询（方言感知，Field 格式为 "column:jsonKey"）
 )
 
 // ==================== 逻辑操作符 ====================
@@ -115,6 +116,7 @@ const (
 	OP_RAW            = OpRaw          // 原始 SQL 条件
 	OP_JSONB_LIKE     = OpJsonbLike    // jsonb 字段文本搜索
 	OP_JSON_CONTAINS  = OpJsonContains // JSON 数组包含查询
+	OP_JSON_FIELD_EQ  = OpJsonFieldEq  // JSON 对象字段等值查询
 	OP_ALL            = OpAll
 	OP_ANY            = OpAny
 	OP_SOME           = OpSome

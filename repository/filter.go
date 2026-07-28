@@ -318,6 +318,18 @@ func (fg *FilterGroup) AddJsonArrayContainsFilterIfNotEmpty(field string, value 
 	return fg
 }
 
+// AddJsonFieldEqFilterIfNotEmpty 当值不为空时添加 JSON 对象字段等值过滤条件（方言感知）
+// 用于从 JSON 列中提取指定键的值并做等值比较
+// value 支持 string 等标量类型及对应指针类型
+func (fg *FilterGroup) AddJsonFieldEqFilterIfNotEmpty(column, jsonKey string, value interface{}) *FilterGroup {
+	deref, empty := validator.NormalizeFilterValueIfNotEmpty(value)
+	if empty {
+		return fg
+	}
+	fg.AddFilter(NewJsonFieldEqFilter(column, jsonKey, deref))
+	return fg
+}
+
 // AddGroupIf 当条件为真时添加嵌套条件组
 func (fg *FilterGroup) AddGroupIf(condition bool, group *FilterGroup) *FilterGroup {
 	if condition && group != nil && !group.IsEmpty() {
@@ -580,6 +592,19 @@ func NewJsonbLikeFilter(field string, value string) *Filter {
 // value 为待检查的标量值（int64/string 等），参数序列化由方言自动处理
 func NewJsonArrayContainsFilter(field string, value interface{}) *Filter {
 	return NewFilter(field, constants.OP_JSON_CONTAINS, value)
+}
+
+// NewJsonFieldEqFilter 创建 JSON 对象字段等值过滤条件（方言感知）
+// 用于从 JSON 列中提取指定键的值并做等值比较，Field 编码为 "column:jsonKey"
+// SQL 表达式由各方言在 ApplyFilter 时生成：
+//
+//	MySQL:           JSON_UNQUOTE(JSON_EXTRACT(column, '$.jsonKey')) = ?
+//	PostgreSQL/CRDB: column->>'jsonKey' = ?
+//	SQLite:          json_extract(column, '$.jsonKey') = ?
+//
+// 用法：NewJsonFieldEqFilter("app_params", "app_name", "MyApp")
+func NewJsonFieldEqFilter(column, jsonKey string, value interface{}) *Filter {
+	return NewFilter(column+":"+jsonKey, constants.OP_JSON_FIELD_EQ, value)
 }
 
 // NewFilter 创建通用过滤条件(支持任意操作符)

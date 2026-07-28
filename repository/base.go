@@ -1520,6 +1520,10 @@ func ApplyFilter(dbQuery *gorm.DB, filter *Filter) *gorm.DB {
 		// JSON 数组包含查询：方言感知，从 dbQuery 自动检测方言生成对应 SQL
 		sql, args := JsonArrayContainsExpr(DetectDialect(dbQuery), filter.Field, value)
 		return dbQuery.Where(sql, args...)
+	case constants.OP_JSON_FIELD_EQ:
+		// JSON 对象字段等值查询：方言感知，Field 格式为 "column:jsonKey"
+		expr := parseJsonFieldExpr(DetectDialect(dbQuery), filter.Field)
+		return dbQuery.Where(expr+" = ?", value)
 	}
 
 	return dbQuery
@@ -1904,6 +1908,9 @@ func buildFilterCondition(filter *Filter, dialect Dialect) (string, interface{})
 			return sql, args[0]
 		}
 		return sql, nil
+	case constants.OP_JSON_FIELD_EQ:
+		// JSON 对象字段等值查询：方言感知，Field 格式为 "column:jsonKey"
+		return parseJsonFieldExpr(dialect, filter.Field) + " = ?", filter.Value
 	}
 
 	// 通用处理：使用 map 查找模板
