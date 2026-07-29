@@ -46,6 +46,21 @@ type Dialect interface {
 	//   SQLite:          RANDOM()
 	//   ClickHouse:      rand()
 	RandomOrderExpr() string
+	// UpsertColumnRef 返回 UPSERT 场景下引用"待插入行"中指定列值的 SQL 表达式
+	// 用于 INSERT ... ON CONFLICT/ON DUPLICATE KEY UPDATE 的赋值子句，引用新插入行的列值
+	//   MySQL:           VALUES(column)
+	//   SQLite:          excluded.column
+	//   PostgreSQL/CRDB: excluded.column
+	//   ClickHouse:      excluded.column（ClickHouse 无标准 UPSERT，此为兼容占位）
+	UpsertColumnRef(column string) string
+	// JsonArrayAppend 构建向 JSON 数组列追加元素的 SQL 表达式（UPDATE SET 赋值用）
+	// column 为 JSON 数组列名，placeholder 为待追加 JSON 元素的参数占位符（如 "?"）
+	// 当列为 NULL 时初始化为空数组再追加
+	//   MySQL:           JSON_ARRAY_APPEND(IFNULL(column, JSON_ARRAY()), '$', CAST(placeholder AS JSON))
+	//   SQLite:          json_insert(IFNULL(column, json_array()), '$[#]', json(placeholder))
+	//   PostgreSQL/CRDB: COALESCE(column::jsonb, '[]'::jsonb) || placeholder::jsonb
+	//   ClickHouse:      arrayPushBack(CAST(column AS Array(String)), toString(placeholder))
+	JsonArrayAppend(column, placeholder string) string
 }
 
 // formatTimeGroup 获取格式化字符串
@@ -92,6 +107,17 @@ func (d *MySQLDialect) RandomOrderExpr() string {
 	return "RAND()"
 }
 
+// UpsertColumnRef MySQL: VALUES(column)
+// MySQL 专有的 VALUES() 函数，在 ON DUPLICATE KEY UPDATE 中引用待插入行的列值
+func (d *MySQLDialect) UpsertColumnRef(column string) string {
+	return fmt.Sprintf("VALUES(%s)", column)
+}
+
+// JsonArrayAppend MySQL: JSON_ARRAY_APPEND + IFNULL + JSON_ARRAY + CAST AS JSON
+func (d *MySQLDialect) JsonArrayAppend(column, placeholder string) string {
+	return fmt.Sprintf("JSON_ARRAY_APPEND(IFNULL(%s, JSON_ARRAY()), '$', CAST(%s AS JSON))", column, placeholder)
+}
+
 // SQLiteDialect SQLite 方言
 type SQLiteDialect struct{}
 
@@ -127,6 +153,18 @@ func (d *SQLiteDialect) JsonFieldExtract(column, jsonKey string) string {
 // RandomOrderExpr SQLite: RANDOM()
 func (d *SQLiteDialect) RandomOrderExpr() string {
 	return "RANDOM()"
+}
+
+// UpsertColumnRef SQLite: excluded.column
+// SQLite 的 ON CONFLICT ... DO UPDATE 用 excluded.column 引用待插入行的列值
+func (d *SQLiteDialect) UpsertColumnRef(column string) string {
+	return fmt.Sprintf("excluded.%s", column)
+}
+
+// JsonArrayAppend SQLite: json_insert + IFNULL + json_array + json()
+// SQLite 无 JSON_ARRAY_APPEND，用 json_insert 配合 '$[#]'（数组长度占位）实现尾部追加
+func (d *SQLiteDialect) JsonArrayAppend(column, placeholder string) string {
+	return fmt.Sprintf("json_insert(IFNULL(%s, json_array()), '$[#]', json(%s))", column, placeholder)
 }
 
 // PostgreSQLDialect PostgreSQL 方言
@@ -165,6 +203,18 @@ func (d *PostgreSQLDialect) RandomOrderExpr() string {
 	return "RANDOM()"
 }
 
+// UpsertColumnRef PostgreSQL: excluded.column
+// PostgreSQL 的 ON CONFLICT ... DO UPDATE 用 excluded.column 引用待插入行的列值
+func (d *PostgreSQLDialect) UpsertColumnRef(column string) string {
+	return fmt.Sprintf("excluded.%s", column)
+}
+
+// JsonArrayAppend PostgreSQL: COALESCE + || + ::jsonb
+// PostgreSQL 用 jsonb 的 || 操作符将元素追加到数组末尾
+func (d *PostgreSQLDialect) JsonArrayAppend(column, placeholder string) string {
+	return fmt.Sprintf("COALESCE(%s::jsonb, '[]'::jsonb) || %s::jsonb", column, placeholder)
+}
+
 // CockroachDBDialect CockroachDB 方言（兼容PostgreSQL语法）
 type CockroachDBDialect struct{}
 
@@ -198,6 +248,16 @@ func (d *CockroachDBDialect) JsonFieldExtract(column, jsonKey string) string {
 // RandomOrderExpr CockroachDB: RANDOM()
 func (d *CockroachDBDialect) RandomOrderExpr() string {
 	return "RANDOM()"
+}
+
+// UpsertColumnRef CockroachDB: excluded.column（兼容 PostgreSQL 语法）
+func (d *CockroachDBDialect) UpsertColumnRef(column string) string {
+	return fmt.Sprintf("excluded.%s", column)
+}
+
+// JsonArrayAppend CockroachDB: 兼容 PostgreSQL 的 COALESCE + || + ::jsonb
+func (d *CockroachDBDialect) JsonArrayAppend(column, placeholder string) string {
+	return fmt.Sprintf("COALESCE(%s::jsonb, '[]'::jsonb) || %s::jsonb", column, placeholder)
 }
 
 // ClickHouseDialect ClickHouse 方言
@@ -234,6 +294,17 @@ func (d *ClickHouseDialect) JsonFieldExtract(column, jsonKey string) string {
 // RandomOrderExpr ClickHouse: rand()
 func (d *ClickHouseDialect) RandomOrderExpr() string {
 	return "rand()"
+}
+
+// UpsertColumnRef ClickHouse: excluded.column
+// ClickHouse 无标准 UPSERT 语法，此处提供兼容占位实现，与 SQLite/PostgreSQL 保持一致
+func (d *ClickHouseDialect) UpsertColumnRef(column string) string {
+	return fmt.Sprintf("excluded.%s", column)
+}
+
+// JsonArrayAppend ClickHouse: arrayPushBack（ClickHouse 推荐用 Array 类型而非 JSON）
+func (d *ClickHouseDialect) JsonArrayAppend(column, placeholder string) string {
+	return fmt.Sprintf("arrayPushBack(CAST(%s AS Array(String)), toString(%s))", column, placeholder)
 }
 
 // DetectDialect 自动检测数据库方言
