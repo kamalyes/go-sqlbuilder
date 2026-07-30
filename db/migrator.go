@@ -12,6 +12,7 @@ package db
 
 import (
 	"fmt"
+	"reflect"
 	"regexp"
 	"strings"
 
@@ -157,6 +158,19 @@ type TableComment struct {
 	Comment string // 注释内容
 }
 
+// ClickHouseTableDefinition ClickHouse MergeTree 建表定义
+// 用于在 ClickHouse 上创建 MergeTree 引擎表，支持分区、排序、TTL、列覆盖与表注释
+type ClickHouseTableDefinition struct {
+	TableName       string            // 表名（为空时从 Model 推断）
+	Columns         string            // 列定义 SQL 片段（不含外层括号，为空时从 Model 自动生成）
+	Model           interface{}       // GORM 模型（Columns 为空时从模型 tag 自动生成列定义，TableName 为空时从模型推断）
+	ColumnOverrides map[string]string // 列类型覆盖：字段名→ClickHouse 类型（优先级最高，用于 kind→LowCardinality(String) 等 CH 专属优化）
+	OrderBy         string            // ORDER BY 表达式（必填，MergeTree 引擎要求）
+	PartitionBy     string            // PARTITION BY 表达式（可选）
+	TTL             string            // TTL 表达式（可选）
+	Comment         string            // 表注释（可选）
+}
+
 // MigratorConfig 迁移器配置
 type MigratorConfig struct {
 	// Models 需要迁移的模型列表
@@ -165,12 +179,16 @@ type MigratorConfig struct {
 	Indexes []IndexDefinition
 	// Comments 表注释列表
 	Comments []TableComment
+	// MergeTreeTables ClickHouse MergeTree 表定义列表（仅在 ClickHouse 方言下生效）
+	MergeTreeTables []ClickHouseTableDefinition
 	// Logger 日志记录器（可选，默认使用 go-logger 创建新实例）
 	Logger logger.ILogger
 	// SkipIndexOnError 索引创建失败时是否跳过（默认 true）
 	SkipIndexOnError bool
 	// SkipCommentOnError 注释添加失败时是否跳过（默认 true）
 	SkipCommentOnError bool
+	// SkipMergeTreeOnError MergeTree 建表失败时是否跳过（默认 true）
+	SkipMergeTreeOnError bool
 }
 
 // Migrator 数据库迁移器
@@ -184,8 +202,9 @@ type Migrator struct {
 func NewMigrator(db *gorm.DB, config *MigratorConfig) *Migrator {
 	if config == nil {
 		config = &MigratorConfig{
-			SkipIndexOnError:   true,
-			SkipCommentOnError: true,
+			SkipIndexOnError:     true,
+			SkipCommentOnError:   true,
+			SkipMergeTreeOnError: true,
 		}
 	}
 
@@ -201,7 +220,7 @@ func NewMigrator(db *gorm.DB, config *MigratorConfig) *Migrator {
 	}
 }
 
-// AutoMigrate 执行完整的自动迁移（表结构 + 索引 + 注释）
+// AutoMigrate 执行完整的自动迁移（表结构 + 索引 + 注释 + ClickHouse MergeTree 表）
 func (m *Migrator) AutoMigrate() error {
 	m.logger.Info("🗄️ 开始数据库自动迁移...")
 
@@ -217,6 +236,11 @@ func (m *Migrator) AutoMigrate() error {
 
 	// 3. 添加表注释
 	if err := m.AddComments(); err != nil && !m.config.SkipCommentOnError {
+		return err
+	}
+
+	// 4. 创建 ClickHouse MergeTree 表（仅在 ClickHouse 方言下执行）
+	if err := m.MigrateMergeTreeTables(); err != nil && !m.config.SkipMergeTreeOnError {
 		return err
 	}
 
@@ -410,6 +434,175 @@ func (m *Migrator) createClickHouseIndex(idx IndexDefinition, indexName string) 
 	return m.db.Exec(materializeSQL).Error
 }
 
+// MigrateMergeTreeTables 创建所有 ClickHouse MergeTree 表
+// 仅在 ClickHouse 方言下生效，其它方言直接跳过（便于在统一配置中携带定义而不报错）
+func (m *Migrator) MigrateMergeTreeTables() error {
+	if len(m.config.MergeTreeTables) == 0 {
+		return nil
+	}
+
+	dialector := m.db.Dialector.Name()
+	if !constants.IsClickHouseDialector(dialector) {
+		m.logger.Debug("当前数据库 %s 非 ClickHouse，跳过 MergeTree 建表", dialector)
+		return nil
+	}
+
+	m.logger.Info("🟧 开始创建 ClickHouse MergeTree 表...")
+
+	var lastErr error
+	for i := range m.config.MergeTreeTables {
+		t := &m.config.MergeTreeTables[i]
+		if err := m.createMergeTreeTable(t); err != nil {
+			m.logger.Warn("创建 ClickHouse 表 %s 失败: %v", t.TableName, err)
+			lastErr = err
+			if !m.config.SkipMergeTreeOnError {
+				return err
+			}
+			continue
+		}
+		m.logger.Debug("✅ ClickHouse 表 %s 创建成功", t.TableName)
+	}
+
+	return lastErr
+}
+
+// createMergeTreeTable 按定义生成 CREATE TABLE IF NOT EXISTS（MergeTree 引擎）
+// 列定义优先取 Columns（手写），为空时从 Model 的 gorm tag 自动生成
+func (m *Migrator) createMergeTreeTable(t *ClickHouseTableDefinition) error {
+	tableName := t.TableName
+	columns := t.Columns
+
+	// Columns 为空时从 Model 自动生成列定义
+	if columns == "" && t.Model != nil {
+		inferredTable, inferredColumns, err := m.buildClickHouseColumnsFromModel(t.Model, t.ColumnOverrides)
+		if err != nil {
+			return err
+		}
+		if tableName == "" {
+			tableName = inferredTable
+			t.TableName = tableName // 回写，供调用方日志使用
+		}
+		columns = inferredColumns
+	}
+
+	if tableName == "" {
+		return fmt.Errorf("ClickHouse 表定义缺少 TableName")
+	}
+	if t.OrderBy == "" {
+		return fmt.Errorf("ClickHouse 表 %s 缺少 OrderBy（MergeTree 引擎要求）", tableName)
+	}
+	if columns == "" {
+		return fmt.Errorf("ClickHouse 表 %s 缺少列定义（Columns 和 Model 均为空）", tableName)
+	}
+
+	sql := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS "%s" (%s) ENGINE = MergeTree()`, tableName, columns)
+	if t.PartitionBy != "" {
+		sql += fmt.Sprintf(" PARTITION BY %s", t.PartitionBy)
+	}
+	sql += fmt.Sprintf(" ORDER BY %s", t.OrderBy)
+	if t.TTL != "" {
+		sql += fmt.Sprintf(" TTL %s", t.TTL)
+	}
+	if t.Comment != "" {
+		sql += fmt.Sprintf(" COMMENT '%s'", strings.ReplaceAll(t.Comment, "'", "\\'"))
+	}
+	return m.db.Exec(sql).Error
+}
+
+// buildClickHouseColumnsFromModel 从 GORM 模型的 tag 自动生成 ClickHouse 列定义
+// 读取 gorm tag 中的 type（ClickHouse 类型）、default（默认值）、comment（列注释）
+// 类型推导优先级：ColumnOverrides > gorm type: tag > Go 类型自动映射
+// 未指定 type 时按 Go 类型自动映射（string→String, int32→Int32, time.Time→DateTime64(3) 等）
+func (m *Migrator) buildClickHouseColumnsFromModel(model interface{}, columnOverrides map[string]string) (tableName, columns string, err error) {
+	stmt := &gorm.Statement{DB: m.db}
+	if err = stmt.Parse(model); err != nil {
+		return "", "", fmt.Errorf("解析模型 %T 失败: %w", model, err)
+	}
+
+	tableName = stmt.Table
+
+	var cols []string
+	for _, field := range stmt.Schema.Fields {
+		if field.DBName == "" {
+			continue
+		}
+
+		// 类型推导优先级：ColumnOverrides > gorm type: tag > GormDBDataType > Go 类型映射
+		chType := columnOverrides[field.DBName]
+		if chType == "" {
+			chType = field.TagSettings["TYPE"]
+		}
+		if chType == "" {
+			chType = mapGoTypeToClickHouse(field.FieldType)
+		}
+
+		colDef := fmt.Sprintf("`%s` %s", field.DBName, chType)
+
+		// 从 gorm tag 直接读取 DEFAULT 值（field.DefaultValue 可能被 gorm 内部处理）
+		if defaultVal := field.TagSettings["DEFAULT"]; defaultVal != "" {
+			colDef += fmt.Sprintf(" DEFAULT %s", defaultVal)
+		}
+
+		if field.Comment != "" {
+			colDef += fmt.Sprintf(" COMMENT '%s'", strings.ReplaceAll(field.Comment, "'", "\\'"))
+		}
+
+		cols = append(cols, colDef)
+	}
+
+	if len(cols) == 0 {
+		return "", "", fmt.Errorf("模型 %T 没有可映射的数据库字段", model)
+	}
+
+	return tableName, strings.Join(cols, ", "), nil
+}
+
+// mapGoTypeToClickHouse 将 Go 类型映射到 ClickHouse 列类型
+// 仅在 gorm tag 未指定 type: 时作为兜底
+func mapGoTypeToClickHouse(t reflect.Type) string {
+	for t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+
+	switch t.Kind() {
+	case reflect.String:
+		return "String"
+	case reflect.Bool:
+		return "UInt8"
+	case reflect.Int:
+		return "Int64"
+	case reflect.Int8:
+		return "Int8"
+	case reflect.Int16:
+		return "Int16"
+	case reflect.Int32:
+		return "Int32"
+	case reflect.Int64:
+		return "Int64"
+	case reflect.Uint:
+		return "UInt64"
+	case reflect.Uint8:
+		return "UInt8"
+	case reflect.Uint16:
+		return "UInt16"
+	case reflect.Uint32:
+		return "UInt32"
+	case reflect.Uint64:
+		return "UInt64"
+	case reflect.Float32:
+		return "Float32"
+	case reflect.Float64:
+		return "Float64"
+	case reflect.Struct:
+		if t.String() == "time.Time" {
+			return "DateTime64(3)"
+		}
+		return "String"
+	default:
+		return "String"
+	}
+}
+
 // hasIndex 检查索引是否存在
 func (m *Migrator) hasIndex(table, indexName string) bool {
 	return m.db.Migrator().HasIndex(table, indexName)
@@ -463,8 +656,8 @@ func (m *Migrator) addComment(c TableComment, dialector string) error {
 }
 
 // DropTables 删除指定的表（危险操作）
-// MySQL/PostgreSQL/SQLite/ClickHouse 均支持 DROP TABLE IF EXISTS t1, t2, t3 语法，
-// 用一条 SQL 替代 N 次往返；其它 dialector 回退到逐张删除
+// MySQL/PostgreSQL/ClickHouse 支持 DROP TABLE IF EXISTS t1, t2, t3 语法，
+// 用一条 SQL 替代 N 次往返；SQLite 及其它 dialector 回退到逐张删除
 func (m *Migrator) DropTables(tables ...string) error {
 	if len(tables) == 0 {
 		return nil
@@ -475,7 +668,6 @@ func (m *Migrator) DropTables(tables ...string) error {
 	dialector := m.db.Dialector.Name()
 	batchSupported := constants.IsMySQLDialector(dialector) ||
 		constants.IsPostgreSQLFamilyDialector(dialector) ||
-		constants.IsSQLiteDialector(dialector) ||
 		constants.IsClickHouseDialector(dialector)
 
 	if batchSupported {

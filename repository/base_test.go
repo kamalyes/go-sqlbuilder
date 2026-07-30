@@ -3563,10 +3563,10 @@ func TestToSnakeCase(t *testing.T) {
 		expected string
 	}{
 		{"UserName", "user_name"},
-		{"ID", "i_d"},
+		{"ID", "id"},
 		{"EmailAddress", "email_address"},
 		{"createdAt", "created_at"},
-		{"APIKey", "a_p_i_key"},
+		{"APIKey", "api_key"},
 		{"simple", "simple"},
 		{"", ""},
 	}
@@ -8823,7 +8823,7 @@ func TestAddSafeOrderBool_EmptyFieldFallback(t *testing.T) {
 	q.AddSafeOrderBool("", true, "created_at", "DESC")
 	assert.Len(t, q.Orders, 1)
 	assert.Equal(t, "created_at", q.Orders[0].Field)
-	assert.Equal(t, "ASC", q.Orders[0].Direction) // ascending=true → ASC
+	assert.Equal(t, "DESC", q.Orders[0].Direction) // 字段为空时回退默认方向
 }
 
 func TestAddSafeOrderBool_FieldNotInWhitelist(t *testing.T) {

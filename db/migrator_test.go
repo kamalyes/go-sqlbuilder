@@ -13,6 +13,8 @@ package db
 import (
 	"fmt"
 	"os"
+	"reflect"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -2431,4 +2433,309 @@ func TestMySQLAutoMigrate_FullFlow(t *testing.T) {
 	assert.Equal(t, "用户姓名", comments["name"])
 
 	t.Log("✅ MySQL 完整流程测试通过")
+}
+
+// --- ClickHouse MergeTree 表迁移测试 ---
+
+// TestClickHouseTableDefinition 测试 ClickHouse 表定义结构
+func TestClickHouseTableDefinition(t *testing.T) {
+	def := ClickHouseTableDefinition{
+		TableName:   "login_logs",
+		Columns:     "'log_id' String, 'tenant_id' String",
+		OrderBy:     "(tenant_id, log_id)",
+		PartitionBy: "toYYYYMM(login_at)",
+		TTL:         "login_at + INTERVAL 30 DAY",
+		Comment:     "登录日志表",
+	}
+
+	assert.Equal(t, "login_logs", def.TableName)
+	assert.Equal(t, "'log_id' String, 'tenant_id' String", def.Columns)
+	assert.Equal(t, "(tenant_id, log_id)", def.OrderBy)
+	assert.Equal(t, "toYYYYMM(login_at)", def.PartitionBy)
+	assert.Equal(t, "login_at + INTERVAL 30 DAY", def.TTL)
+	assert.Equal(t, "登录日志表", def.Comment)
+}
+
+// TestMigratorMergeTreeTablesEmpty 测试空 MergeTree 表列表
+func TestMigratorMergeTreeTablesEmpty(t *testing.T) {
+	gormDB, err := setupMigratorTestDB()
+	assert.NoError(t, err)
+
+	config := &MigratorConfig{
+		MergeTreeTables: []ClickHouseTableDefinition{},
+	}
+
+	migrator := NewMigrator(gormDB, config)
+
+	err = migrator.MigrateMergeTreeTables()
+	assert.NoError(t, err, "空 MergeTree 表列表不应出错")
+}
+
+// TestMigratorMergeTreeTablesNonClickHouse 测试非 ClickHouse 方言跳过建表
+func TestMigratorMergeTreeTablesNonClickHouse(t *testing.T) {
+	gormDB, err := setupMigratorTestDB()
+	assert.NoError(t, err)
+
+	config := &MigratorConfig{
+		MergeTreeTables: []ClickHouseTableDefinition{
+			{
+				TableName: "login_logs",
+				Columns:   "'log_id' String",
+				OrderBy:   "(log_id)",
+			},
+		},
+	}
+
+	migrator := NewMigrator(gormDB, config)
+
+	// SQLite 非 ClickHouse，应静默跳过
+	err = migrator.MigrateMergeTreeTables()
+	assert.NoError(t, err, "非 ClickHouse 方言应跳过 MergeTree 建表")
+}
+
+// TestMigratorMergeTreeTablesAutoMigrateIntegration 测试 AutoMigrate 携带 MergeTreeTables 在非 ClickHouse 下不报错
+func TestMigratorMergeTreeTablesAutoMigrateIntegration(t *testing.T) {
+	gormDB, err := setupMigratorTestDB()
+	assert.NoError(t, err)
+
+	config := &MigratorConfig{
+		Models: []interface{}{&TestMigrateUser{}},
+		MergeTreeTables: []ClickHouseTableDefinition{
+			{
+				TableName: "login_logs",
+				Columns:   "'log_id' String",
+				OrderBy:   "(log_id)",
+			},
+		},
+		SkipMergeTreeOnError: true,
+	}
+
+	migrator := NewMigrator(gormDB, config)
+
+	err = migrator.AutoMigrate()
+	assert.NoError(t, err, "AutoMigrate 在非 ClickHouse 下应跳过 MergeTree 步骤")
+	assert.True(t, migrator.HasTable("test_migrate_users"))
+}
+
+// TestCreateMergeTreeTableValidation 测试 createMergeTreeTable 参数校验
+func TestCreateMergeTreeTableValidation(t *testing.T) {
+	gormDB, err := setupMigratorTestDB()
+	assert.NoError(t, err)
+
+	migrator := NewMigrator(gormDB, nil)
+
+	// 缺少 TableName
+	err = migrator.createMergeTreeTable(&ClickHouseTableDefinition{
+		Columns: "'log_id' String",
+		OrderBy: "(log_id)",
+	})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "TableName")
+
+	// 缺少 OrderBy
+	err = migrator.createMergeTreeTable(&ClickHouseTableDefinition{
+		TableName: "login_logs",
+		Columns:   "'log_id' String",
+	})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "OrderBy")
+}
+
+// TestCreateMergeTreeTableSQLError 测试 createMergeTreeTable 在 SQLite 上执行 MergeTree SQL 失败
+func TestCreateMergeTreeTableSQLError(t *testing.T) {
+	gormDB, err := setupMigratorTestDB()
+	assert.NoError(t, err)
+
+	migrator := NewMigrator(gormDB, nil)
+
+	// 校验通过但 SQLite 不支持 MergeTree 引擎，SQL 执行应失败
+	err = migrator.createMergeTreeTable(&ClickHouseTableDefinition{
+		TableName:   "ch_test_table",
+		Columns:     "'log_id' String",
+		OrderBy:     "(log_id)",
+		PartitionBy: "toYYYYMM(now())",
+		Comment:     "测试表",
+	})
+	assert.Error(t, err, "SQLite 不支持 MergeTree 引擎，应返回 SQL 执行错误")
+}
+
+// TestMigratorConfigSkipMergeTreeOnError 测试 SkipMergeTreeOnError 默认值
+func TestMigratorConfigSkipMergeTreeOnError(t *testing.T) {
+	gormDB, err := setupMigratorTestDB()
+	assert.NoError(t, err)
+
+	// nil 配置应默认 SkipMergeTreeOnError=true
+	migrator := NewMigrator(gormDB, nil)
+	assert.True(t, migrator.config.SkipMergeTreeOnError, "nil 配置应默认 SkipMergeTreeOnError=true")
+
+	// 显式设为 false
+	migrator2 := NewMigrator(gormDB, &MigratorConfig{
+		SkipMergeTreeOnError: false,
+	})
+	assert.False(t, migrator2.config.SkipMergeTreeOnError)
+}
+
+// --- 从 Model 自动生成 ClickHouse 列定义测试 ---
+
+// chTestModel 专用于 ClickHouse 列定义生成的测试模型
+type chTestModel struct {
+	ID        string    `gorm:"column:id;type:FixedString(36);comment:主键ID"`
+	Name      string    `gorm:"column:name;type:String;default:'';comment:名称"`
+	Count     int32     `gorm:"column:count;type:Int32;default:0;comment:计数"`
+	Score     float64   `gorm:"column:score;type:Float64;comment:分数"`
+	CreatedAt time.Time `gorm:"column:created_at;type:DateTime;default:now();comment:创建时间"`
+	NoType    string    `gorm:"column:no_type;comment:无显式类型"`
+}
+
+func (chTestModel) TableName() string {
+	return "ch_test_models"
+}
+
+// chTestModelWithOverride 带 ColumnOverrides 的测试模型
+// 显式声明 kind 为 LowCardinality(String)，time.Time 未指定 type
+type chTestModelWithOverride struct {
+	ID        string    `gorm:"column:id;type:FixedString(36);comment:主键ID"`
+	Kind      string    `gorm:"column:kind;comment:日志类型"`
+	CreatedAt time.Time `gorm:"column:created_at;comment:创建时间"`
+}
+
+func (chTestModelWithOverride) TableName() string {
+	return "ch_test_override"
+}
+
+// TestBuildClickHouseColumnsFromModelWithOverride 测试 ColumnOverrides 优先级
+func TestBuildClickHouseColumnsFromModelWithOverride(t *testing.T) {
+	gormDB, err := setupMigratorTestDB()
+	assert.NoError(t, err)
+
+	migrator := NewMigrator(gormDB, nil)
+
+	overrides := map[string]string{
+		"kind": "LowCardinality(String)",
+	}
+	tableName, columns, err := migrator.buildClickHouseColumnsFromModel(chTestModelWithOverride{}, overrides)
+	assert.NoError(t, err)
+	assert.Equal(t, "ch_test_override", tableName)
+	assert.Contains(t, columns, "`kind` LowCardinality(String)")
+	assert.Contains(t, columns, "`created_at` DateTime64(3)")
+	assert.Contains(t, columns, "`id` FixedString(36)")
+}
+
+// TestBuildClickHouseColumnsFromModel 测试从 model 生成列定义
+func TestBuildClickHouseColumnsFromModel(t *testing.T) {
+	gormDB, err := setupMigratorTestDB()
+	assert.NoError(t, err)
+
+	migrator := NewMigrator(gormDB, nil)
+
+	tableName, columns, err := migrator.buildClickHouseColumnsFromModel(chTestModel{}, nil)
+	assert.NoError(t, err)
+	assert.Equal(t, "ch_test_models", tableName)
+
+	// 验证每列的生成内容
+	expectedCols := map[string]bool{
+		"`id` FixedString(36) COMMENT '主键ID'":                true,
+		"`name` String DEFAULT '' COMMENT '名称'":              true,
+		"`count` Int32 DEFAULT 0 COMMENT '计数'":               true,
+		"`score` Float64 COMMENT '分数'":                       true,
+		"`created_at` DateTime DEFAULT now() COMMENT '创建时间'": true,
+		"`no_type` String COMMENT '无显式类型'":                   true,
+	}
+
+	for _, col := range strings.Split(columns, ", ") {
+		assert.True(t, expectedCols[col], "未预期的列定义: %s", col)
+	}
+}
+
+// TestBuildClickHouseColumnsFromModelPriority 测试 Columns 优先于 Model
+func TestBuildClickHouseColumnsFromModelPriority(t *testing.T) {
+	gormDB, err := setupMigratorTestDB()
+	assert.NoError(t, err)
+
+	migrator := NewMigrator(gormDB, nil)
+
+	// 同时设置 Columns 和 Model，Columns 应优先
+	err = migrator.createMergeTreeTable(&ClickHouseTableDefinition{
+		TableName: "test_priority",
+		Columns:   "'manual_col' String",
+		Model:     chTestModel{},
+		OrderBy:   "(manual_col)",
+	})
+	// SQLite 不支持 MergeTree，SQL 执行会失败，但验证逻辑走到 SQL 执行阶段而非 Model 解析阶段
+	assert.Error(t, err)
+	// 错误应该是 SQL 执行错误而非模型解析错误
+	assert.NotContains(t, err.Error(), "解析模型")
+}
+
+// TestBuildClickHouseColumnsFromModelInferTableName 测试 TableName 从 Model 推断
+func TestBuildClickHouseColumnsFromModelInferTableName(t *testing.T) {
+	gormDB, err := setupMigratorTestDB()
+	assert.NoError(t, err)
+
+	migrator := NewMigrator(gormDB, nil)
+
+	// 不设置 TableName，应从 Model 推断
+	err = migrator.createMergeTreeTable(&ClickHouseTableDefinition{
+		Model:   chTestModel{},
+		OrderBy: "(id)",
+	})
+	assert.Error(t, err) // SQLite 不支持 MergeTree
+	assert.NotContains(t, err.Error(), "TableName", "TableName 应从 Model 推断，不报缺失错误")
+	assert.NotContains(t, err.Error(), "解析模型")
+}
+
+// TestMapGoTypeToClickHouse 测试 Go 类型到 ClickHouse 类型的映射
+func TestMapGoTypeToClickHouse(t *testing.T) {
+	tests := []struct {
+		goType   interface{}
+		expected string
+	}{
+		{string(""), "String"},
+		{int32(0), "Int32"},
+		{int64(0), "Int64"},
+		{uint8(0), "UInt8"},
+		{float32(0), "Float32"},
+		{float64(0), "Float64"},
+		{bool(false), "UInt8"},
+		{time.Time{}, "DateTime64(3)"},
+	}
+
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("%T→%s", tt.goType, tt.expected), func(t *testing.T) {
+			result := mapGoTypeToClickHouse(reflect.TypeOf(tt.goType))
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+// TestBuildClickHouseColumnsFromModelEmptyModel 测试空模型报错
+func TestBuildClickHouseColumnsFromModelEmptyModel(t *testing.T) {
+	gormDB, err := setupMigratorTestDB()
+	assert.NoError(t, err)
+
+	migrator := NewMigrator(gormDB, nil)
+
+	// 没有 Columns 也没有 Model
+	err = migrator.createMergeTreeTable(&ClickHouseTableDefinition{
+		TableName: "test_empty",
+		OrderBy:   "(id)",
+	})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "列定义")
+}
+
+// TestBuildClickHouseColumnsFromModelNilModel 测试 Model 为 nil 且 Columns 为空
+func TestBuildClickHouseColumnsFromModelNilModel(t *testing.T) {
+	gormDB, err := setupMigratorTestDB()
+	assert.NoError(t, err)
+
+	migrator := NewMigrator(gormDB, nil)
+
+	err = migrator.createMergeTreeTable(&ClickHouseTableDefinition{
+		TableName: "test_nil_model",
+		OrderBy:   "(id)",
+		// Columns 和 Model 都为零值
+	})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "列定义")
 }

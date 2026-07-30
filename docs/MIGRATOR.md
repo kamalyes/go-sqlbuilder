@@ -58,11 +58,13 @@ err := db.QuickAutoMigrate(gormDB, config)
 1. **表结构迁移** - 使用 GORM 的 AutoMigrate 创建/更新表结构
 2. **索引创建** - 创建自定义索引（支持普通索引和唯一索引）
 3. **表注释添加** - 为表添加注释（支持 MySQL 和 PostgreSQL）
+4. **ClickHouse MergeTree 建表** - 仅在 ClickHouse 方言下执行，创建 MergeTree 引擎表（支持分区、排序、TTL）
 
 ### 错误处理策略
 
 - `SkipIndexOnError`: 索引创建失败时是否继续执行（默认 `true`）
 - `SkipCommentOnError`: 注释添加失败时是否继续执行（默认 `true`）
+- `SkipMergeTreeOnError`: MergeTree 建表失败时是否继续执行（默认 `true`）
 
 这种设计允许迁移过程在遇到非致命错误时继续执行。
 
@@ -75,9 +77,11 @@ err := db.QuickAutoMigrate(gormDB, config)
 | `Models` | `[]interface{}` | 需要迁移的 GORM 模型列表 | `nil` |
 | `Indexes` | `[]IndexDefinition` | 自定义索引定义列表 | `nil` |
 | `Comments` | `[]TableComment` | 表注释定义列表 | `nil` |
+| `MergeTreeTables` | `[]ClickHouseTableDefinition` | ClickHouse MergeTree 表定义列表（仅在 ClickHouse 方言下生效） | `nil` |
 | `Logger` | `logger.ILogger` | 日志记录器 | 自动创建 |
 | `SkipIndexOnError` | `bool` | 索引失败时跳过 | `true` |
 | `SkipCommentOnError` | `bool` | 注释失败时跳过 | `true` |
+| `SkipMergeTreeOnError` | `bool` | MergeTree 建表失败时跳过 | `true` |
 
 ### IndexDefinition
 
@@ -105,6 +109,39 @@ err := db.QuickAutoMigrate(gormDB, config)
 |------|------|------|------|
 | `Table` | `string` | 表名 | `"users"` |
 | `Comment` | `string` | 注释内容 | `"用户信息表"` |
+
+### ClickHouseTableDefinition
+
+用于在 ClickHouse 上创建 MergeTree 引擎表，支持分区、排序、TTL 与表注释。仅在 ClickHouse 方言下生效，其它方言会静默跳过，便于在统一配置中携带定义而不报错。
+
+支持两种列定义方式：
+1. **手写 Columns** — 直接提供 SQL 片段，适合需要 ClickHouse 特有语法（如 `LowCardinality`、`Array`、`Nested`）的场景
+2. **从 Model 自动生成** — 提供 GORM 模型，从 `gorm` tag 的 `type:`/`default:`/`comment:` 自动生成列定义，实现 DRY
+
+| 字段 | 类型 | 说明 | 是否必填 | 示例 |
+|------|------|------|---------|------|
+| `TableName` | `string` | 表名（为空时从 Model 推断） | ✅ 是* | `"login_logs"` |
+| `Columns` | `string` | 列定义 SQL 片段（为空时从 Model 生成） | ✅ 是* | `"'log_id' FixedString(36), 'tenant_id' String DEFAULT ''"` |
+| `Model` | `interface{}` | GORM 模型（Columns 为空时从 tag 自动生成列定义） | ✅ 是* | `LoginLogModel{}` |
+| `OrderBy` | `string` | ORDER BY 表达式（MergeTree 引擎要求） | ✅ 是 | `"(tenant_id, toYYYYMMDD(login_at))"` |
+| `PartitionBy` | `string` | PARTITION BY 表达式 | ❌ 否 | `"toYYYYMM(login_at)"` |
+| `TTL` | `string` | TTL 表达式 | ❌ 否 | `"login_at + INTERVAL 30 DAY"` |
+| `Comment` | `string` | 表注释 | ❌ 否 | `"登录日志表"` |
+
+> \* `TableName`、`Columns`、`Model` 三者中，`Columns` 和 `Model` 至少提供一个。`Columns` 非空时优先使用手写列定义；为空时从 `Model` 的 gorm tag 自动生成。`TableName` 为空时从 `Model` 的 `TableName()` 方法推断。
+
+#### Model tag 约定
+
+从 Model 自动生成列定义时，读取以下 gorm tag：
+
+| tag | 用途 | 示例 |
+|-----|------|------|
+| `column:` | 列名 | `column:log_id` |
+| `type:` | ClickHouse 列类型（优先于 Go 类型自动映射） | `type:FixedString(36)` |
+| `default:` | DEFAULT 表达式（原样输出） | `default:''`、`default:now()`、`default:0` |
+| `comment:` | 列注释 | `comment:日志ID` |
+
+未指定 `type:` 时按 Go 类型自动映射：`string→String`、`int32→Int32`、`time.Time→DateTime`、`bool→UInt8` 等。
 
 ## API 参考
 
@@ -215,6 +252,32 @@ func (m *Migrator) AddComments() error
 ```
 
 添加配置中定义的所有表注释。
+
+#### MigrateMergeTreeTables
+
+```go
+func (m *Migrator) MigrateMergeTreeTables() error
+```
+
+创建所有配置中定义的 ClickHouse MergeTree 表。仅在 ClickHouse 方言下执行，其它方言直接跳过。已内置 `CREATE TABLE IF NOT EXISTS` 幂等语义。
+
+```go
+config := &db.MigratorConfig{
+    MergeTreeTables: []db.ClickHouseTableDefinition{
+        {
+            TableName:   "login_logs",
+            Columns:     `'log_id' FixedString(36) COMMENT '日志ID', 'tenant_id' String DEFAULT '' COMMENT '租户ID'`,
+            OrderBy:     "(tenant_id, toYYYYMMDD(login_at))",
+            PartitionBy: "toYYYYMM(login_at)",
+            Comment:     "登录日志表",
+        },
+    },
+    SkipMergeTreeOnError: true,
+}
+
+migrator := db.NewMigrator(chDB, config)
+err := migrator.MigrateMergeTreeTables()
+```
 
 ### 工具方法
 
@@ -633,6 +696,62 @@ fmt.Println("步骤 3: 添加注释")
 if err := migrator.AddComments(); err != nil {
     log.Printf("注释添加有错误: %v", err)
 }
+
+fmt.Println("步骤 4: 创建 ClickHouse MergeTree 表")
+if err := migrator.MigrateMergeTreeTables(); err != nil {
+    log.Printf("MergeTree 建表有错误: %v", err)
+}
+```
+
+### 示例 7: ClickHouse MergeTree 表迁移
+
+针对 ClickHouse 分析库（如登录日志、事件流等），使用 `MergeTreeTables` 在统一迁移流程中创建 MergeTree 引擎表，支持分区、排序和 TTL。
+
+**方式一：从 Model 自动生成（推荐，DRY）**
+
+Model 的 gorm tag 中通过 `type:` 指定 ClickHouse 类型，`default:` 指定默认值，`comment:` 指定列注释：
+
+```go
+type LoginLogModel struct {
+    LogId    string    `gorm:"column:log_id;type:FixedString(36);comment:日志ID"`
+    TenantId string    `gorm:"column:tenant_id;type:FixedString(36);default:'';comment:租户ID"`
+    Account  string    `gorm:"column:account;type:String;default:'';comment:登录账号"`
+    LoginAt  time.Time `gorm:"column:login_at;type:DateTime;default:now();comment:登录时间"`
+}
+
+// 迁移定义 — 无需手写 Columns
+config := &db.MigratorConfig{
+    MergeTreeTables: []db.ClickHouseTableDefinition{
+        {
+            Model:       LoginLogModel{},
+            OrderBy:     "(tenant_id, toYYYYMMDD(login_at), login_ip)",
+            PartitionBy: "toYYYYMM(login_at)",
+            TTL:         "login_at + INTERVAL 90 DAY",
+            Comment:     "登录日志表（ClickHouse）",
+        },
+    },
+}
+
+migrator := db.NewMigrator(chDB, config)
+err := migrator.MigrateMergeTreeTables()
+```
+
+**方式二：手写 Columns（适合需要 ClickHouse 特有语法的场景）**
+
+```go
+config := &db.MigratorConfig{
+    MergeTreeTables: []db.ClickHouseTableDefinition{
+        {
+            TableName: "event_stream",
+            Columns: `'event_id' UUID,
+  'data' LowCardinality(String),
+  'tags' Array(String)`,
+            OrderBy:     "(event_id)",
+            PartitionBy: "toYYYYMM(created_at)",
+            Comment:     "事件流表",
+        },
+    },
+}
 ```
 
 ## 最佳实践
@@ -706,15 +825,16 @@ err := migrator.AutoMigrate()
 
 ### 4. 数据库兼容性
 
-| 特性 | MySQL | PostgreSQL | SQLite | SQL Server |
-|------|-------|------------|--------|------------|
-| 表迁移 | ✅ | ✅ | ✅ | ✅ |
-| 索引创建 | ✅ | ✅ | ✅ | ✅ |
-| 索引幂等创建 | ✅ | ✅ | ✅ | ✅ |
-| 表注释 | ✅ | ✅ | ❌ | ❌ |
-| 字段注释同步 | ✅ | ✅ | ❌ | ❌ |
+| 特性 | MySQL | PostgreSQL | SQLite | ClickHouse | SQL Server |
+|------|-------|------------|--------|------------|------------|
+| 表迁移 | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 索引创建 | ✅ | ✅ | ✅ | ✅ (ALTER TABLE ADD INDEX) | ✅ |
+| 索引幂等创建 | ✅ | ✅ | ✅ | ✅ | ✅ |
+| 表注释 | ✅ | ✅ | ❌ | ✅ | ❌ |
+| 字段注释同步 | ✅ | ✅ | ❌ | ❌ | ❌ |
+| MergeTree 建表 | ❌ | ❌ | ❌ | ✅ | ❌ |
 
-> 💡 **提示**: 表注释和字段注释在 SQLite 和 SQL Server 中会被静默跳过，不会报错。
+> 💡 **提示**: 表注释和字段注释在不支持的数据库中会被静默跳过，不会报错。`MergeTreeTables` 配置在非 ClickHouse 方言下也会静默跳过，便于在统一配置中携带定义。
 
 ## 📚 相关文档
 

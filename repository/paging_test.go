@@ -241,12 +241,13 @@ func TestGetTodayRange(t *testing.T) {
 	})
 
 	t.Run("结束时间为明天00:00:00", func(t *testing.T) {
-		assert.Equal(t, end.Year(), now.Year())
-		assert.Equal(t, end.Month(), now.Month())
-		assert.Equal(t, end.Day(), now.Day()+1)
-		assert.Equal(t, end.Hour(), 0)
-		assert.Equal(t, end.Minute(), 0)
-		assert.Equal(t, end.Second(), 0)
+		expectedEnd := start.AddDate(0, 0, 1)
+		assert.Equal(t, expectedEnd.Year(), end.Year())
+		assert.Equal(t, expectedEnd.Month(), end.Month())
+		assert.Equal(t, expectedEnd.Day(), end.Day())
+		assert.Equal(t, 0, end.Hour())
+		assert.Equal(t, 0, end.Minute())
+		assert.Equal(t, 0, end.Second())
 	})
 }
 

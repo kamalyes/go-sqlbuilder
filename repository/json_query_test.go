@@ -816,7 +816,7 @@ func TestJsonArrayCountComputedField_QueryE2E(t *testing.T) {
 
 	// 用 map 接收结果，避免模型字段不匹配
 	var results []map[string]interface{}
-	require.NoError(t, db.Order("id ASC").Find(&results).Error)
+	require.NoError(t, db.Table("json_items").Order("id ASC").Find(&results).Error)
 	require.Len(t, results, 3)
 	// 验证计算字段存在（SQLite 返回的列名可能为 linked_count）
 	// id=1: json_items 中 channel_ids 包含 1 的有 a(1,2,3)、c(1,4,7) -> 2

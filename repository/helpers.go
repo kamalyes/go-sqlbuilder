@@ -447,11 +447,18 @@ func fieldColumnName(field reflect.StructField) string {
 }
 
 // toSnakeCase 将驼峰命名转换为蛇形命名
+// 连续大写字母视为缩写词整体转换：ID→id, APIKey→api_key, HTTPServer→http_server
 func toSnakeCase(s string) string {
 	var result strings.Builder
-	for i, r := range s {
+	runes := []rune(s)
+	for i, r := range runes {
 		if i > 0 && r >= 'A' && r <= 'Z' {
-			result.WriteRune('_')
+			prev := runes[i-1]
+			// 前一个字符是小写 → 需要下划线 (userName → user_name)
+			// 前一个字符是大写且下一个字符是小写 → 缩写词结束，需要下划线 (APIKey → api_key)
+			if (prev >= 'a' && prev <= 'z') || (prev >= 'A' && prev <= 'Z' && i+1 < len(runes) && runes[i+1] >= 'a' && runes[i+1] <= 'z') {
+				result.WriteRune('_')
+			}
 		}
 		if r >= 'A' && r <= 'Z' {
 			result.WriteRune(r + 32) // 转换为小写
