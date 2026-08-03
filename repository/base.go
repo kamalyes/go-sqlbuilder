@@ -1478,6 +1478,25 @@ func (r *BaseRepository[T]) Distinct(ctx context.Context, field string, filters 
 	return values, err
 }
 
+// PluckInto 提取单个字段的值到指定类型切片 V，避免调用方对 []interface{} 做手动类型断言
+// 直接 Pluck 进 []V，比 Pluck 更省一次内存拷贝，也规避部分驱动把字符串列扫描成 []byte 的问题
+//
+// 用法：hosts, err := repository.PluckInto[string](repo, ctx, "domain", filters...)
+func PluckInto[V any, T any](repo *BaseRepository[T], ctx context.Context, field string, filters ...*Filter) ([]V, error) {
+	var values []V
+	err := ApplyFilters(repo.newDB(ctx), filters).Pluck(field, &values).Error
+	return values, err
+}
+
+// DistinctInto 获取去重后的字段值到指定类型切片 V
+//
+// 用法：statuses, err := repository.DistinctInto[string](repo, ctx, "status", filters...)
+func DistinctInto[V any, T any](repo *BaseRepository[T], ctx context.Context, field string, filters ...*Filter) ([]V, error) {
+	var values []V
+	err := ApplyFilters(repo.newDB(ctx).Distinct(field), filters).Pluck(field, &values).Error
+	return values, err
+}
+
 // ApplyFilter 应用单个过滤条件到 GORM 查询
 func ApplyFilter(dbQuery *gorm.DB, filter *Filter) *gorm.DB {
 	if filter == nil {

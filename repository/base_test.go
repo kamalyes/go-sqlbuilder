@@ -2505,6 +2505,105 @@ func TestBaseRepositoryPluckDistinct(t *testing.T) {
 	assert.Len(t, activeStatuses, 2) // active, inactive (Bob和Charlie)
 }
 
+// TestPluckInto 测试泛型 PluckInto：直接返回强类型切片，无需手动类型断言
+func TestPluckInto(t *testing.T) {
+	gormDB, err := setupTestDB()
+	assert.NoError(t, err)
+
+	dbHandler := db.MustNewGormHandler(gormDB)
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
+
+	ctx := context.Background()
+
+	// 插入测试数据
+	users := []*TestUser{
+		{Name: "Alice", Email: "alice@test.com", Age: 25, Status: "active"},
+		{Name: "Bob", Email: "bob@test.com", Age: 30, Status: "active"},
+		{Name: "Charlie", Email: "charlie@test.com", Age: 35, Status: "inactive"},
+	}
+	for _, user := range users {
+		_, err = repo.Create(ctx, user)
+		assert.NoError(t, err)
+	}
+
+	// 提取字符串字段 -> []string，无需类型断言（T 由 repo 自动推断）
+	names, err := PluckInto[string](repo, ctx, "name")
+	assert.NoError(t, err)
+	assert.Len(t, names, 3)
+	assert.Contains(t, names, "Alice")
+	assert.Contains(t, names, "Bob")
+	assert.Contains(t, names, "Charlie")
+
+	// 提取整数字段 -> []int
+	ages, err := PluckInto[int](repo, ctx, "age")
+	assert.NoError(t, err)
+	assert.Len(t, ages, 3)
+	assert.Contains(t, ages, 25)
+	assert.Contains(t, ages, 30)
+	assert.Contains(t, ages, 35)
+
+	// 带过滤条件：仅活跃用户名
+	activeNames, err := PluckInto[string](repo, ctx, "name",
+		&Filter{Field: "status", Operator: constants.OP_EQ, Value: "active"})
+	assert.NoError(t, err)
+	assert.Len(t, activeNames, 2)
+	assert.Contains(t, activeNames, "Alice")
+	assert.Contains(t, activeNames, "Bob")
+
+	// 空结果：返回空切片
+	empty, err := PluckInto[string](repo, ctx, "name",
+		&Filter{Field: "status", Operator: constants.OP_EQ, Value: "nonexistent"})
+	assert.NoError(t, err)
+	assert.Empty(t, empty)
+
+	// 不存在的字段：应返回错误
+	_, err = PluckInto[string](repo, ctx, "nonexistent_field")
+	assert.Error(t, err)
+}
+
+// TestDistinctInto 测试泛型 DistinctInto：去重后直接返回强类型切片
+func TestDistinctInto(t *testing.T) {
+	gormDB, err := setupTestDB()
+	assert.NoError(t, err)
+
+	dbHandler := db.MustNewGormHandler(gormDB)
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
+
+	ctx := context.Background()
+
+	// 插入带重复 status 的数据
+	users := []*TestUser{
+		{Name: "User1", Email: "u1@test.com", Age: 25, Status: "active"},
+		{Name: "User2", Email: "u2@test.com", Age: 30, Status: "active"},
+		{Name: "User3", Email: "u3@test.com", Age: 35, Status: "inactive"},
+		{Name: "User4", Email: "u4@test.com", Age: 40, Status: "active"},
+	}
+	for _, user := range users {
+		_, err = repo.Create(ctx, user)
+		assert.NoError(t, err)
+	}
+
+	// 去重提取 status -> []string
+	statuses, err := DistinctInto[string](repo, ctx, "status")
+	assert.NoError(t, err)
+	assert.Len(t, statuses, 2)
+	assert.Contains(t, statuses, "active")
+	assert.Contains(t, statuses, "inactive")
+
+	// 带过滤条件的去重：age > 25 的 status（User2/User3/User4 -> active+inactive）
+	filtered, err := DistinctInto[string](repo, ctx, "status",
+		&Filter{Field: "age", Operator: constants.OP_GT, Value: 25})
+	assert.NoError(t, err)
+	assert.Len(t, filtered, 2)
+
+	// 仅 active 过滤下去重，结果应只有 active
+	activeOnly, err := DistinctInto[string](repo, ctx, "status",
+		&Filter{Field: "status", Operator: constants.OP_EQ, Value: "active"})
+	assert.NoError(t, err)
+	assert.Len(t, activeOnly, 1)
+	assert.Equal(t, "active", activeOnly[0])
+}
+
 // TestBuildFilterCondition 测试过滤条件构建函数
 func TestBuildFilterCondition(t *testing.T) {
 	gormDB, err := setupTestDB()
