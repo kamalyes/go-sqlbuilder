@@ -2739,3 +2739,230 @@ func TestBuildClickHouseColumnsFromModelNilModel(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "列定义")
 }
+
+// --- 覆盖索引（STORING）与部分索引（WHERE）测试 ---
+
+// TestWithStoring 测试 WithStoring 链式方法
+func TestWithStoring(t *testing.T) {
+	idx := NewIndex("users", "name").WithStoring("email", "age")
+	assert.Equal(t, "users", idx.Table)
+	assert.Equal(t, "(name)", idx.Columns)
+	assert.Equal(t, []string{"email", "age"}, idx.Storing)
+	assert.False(t, idx.Unique)
+}
+
+// TestWithWhere 测试 WithWhere 链式方法
+func TestWithWhere(t *testing.T) {
+	idx := NewIndex("users", "name").WithWhere("status = 1")
+	assert.Equal(t, "users", idx.Table)
+	assert.Equal(t, "status = 1", idx.Where)
+}
+
+// TestWithStoringAndWhereChaining 测试链式组合 STORING + WHERE
+func TestWithStoringAndWhereChaining(t *testing.T) {
+	idx := NewIndexWithName("summaries", "idx_settlement_covering", "(platform_id, bucket_no, user_id)", false).
+		WithStoring("wager_amount", "profit_amount").
+		WithWhere("status = 3")
+
+	assert.Equal(t, "idx_settlement_covering", idx.Name)
+	assert.Equal(t, "(platform_id, bucket_no, user_id)", idx.Columns)
+	assert.Equal(t, []string{"wager_amount", "profit_amount"}, idx.Storing)
+	assert.Equal(t, "status = 3", idx.Where)
+	assert.False(t, idx.Unique)
+}
+
+// TestWithStoringEmpty 测试空 Storing 列表
+func TestWithStoringEmpty(t *testing.T) {
+	idx := NewIndex("users", "name").WithStoring()
+	assert.Empty(t, idx.Storing)
+}
+
+// TestWithWhereEmpty 测试空 Where 条件
+func TestWithWhereEmpty(t *testing.T) {
+	idx := NewIndex("users", "name").WithWhere("")
+	assert.Empty(t, idx.Where)
+}
+
+// TestWithStoringDoesNotMutateOriginal 测试链式方法不污染原始定义
+func TestWithStoringDoesNotMutateOriginal(t *testing.T) {
+	base := NewIndex("users", "name")
+	derived := base.WithStoring("email")
+
+	assert.Empty(t, base.Storing, "原始定义不应被修改")
+	assert.Equal(t, []string{"email"}, derived.Storing, "派生定义应包含 Storing")
+}
+
+// TestCreateIndexWithWhereOnSQLite 测试 SQLite 支持部分索引（WHERE 子句）
+// SQLite 3.8.0+ 原生支持部分索引
+func TestCreateIndexWithWhereOnSQLite(t *testing.T) {
+	gormDB, err := setupMigratorTestDB()
+	assert.NoError(t, err)
+
+	err = gormDB.AutoMigrate(&TestMigrateUser{})
+	assert.NoError(t, err)
+
+	idx := NewIndexWithName("test_migrate_users", "idx_partial_active", "(status)", false).
+		WithWhere("status = 'active'")
+
+	migrator := NewMigrator(gormDB, nil)
+	err = migrator.createIndex(idx)
+	assert.NoError(t, err, "SQLite 应支持部分索引（WHERE 子句）")
+
+	// 验证索引已创建
+	assert.True(t, migrator.hasIndex("test_migrate_users", "idx_partial_active"))
+}
+
+// TestCreateIndexWithStoringOnSQLite 测试 SQLite 不支持 STORING（应失败）
+func TestCreateIndexWithStoringOnSQLite(t *testing.T) {
+	gormDB, err := setupMigratorTestDB()
+	assert.NoError(t, err)
+
+	err = gormDB.AutoMigrate(&TestMigrateUser{})
+	assert.NoError(t, err)
+
+	idx := NewIndex("test_migrate_users", "status").WithStoring("name", "age")
+	migrator := NewMigrator(gormDB, nil)
+
+	err = migrator.createIndex(idx)
+	assert.Error(t, err, "SQLite 不支持 STORING 子句，应返回错误")
+}
+
+// TestCreateIndexWithStoringAndWhereSkipped 测试 SkipIndexOnError 模式下 STORING 索引被跳过
+func TestCreateIndexWithStoringAndWhereSkipped(t *testing.T) {
+	gormDB, err := setupMigratorTestDB()
+	assert.NoError(t, err)
+
+	err = gormDB.AutoMigrate(&TestMigrateUser{})
+	assert.NoError(t, err)
+
+	config := &MigratorConfig{
+		Indexes: []IndexDefinition{
+			NewIndex("test_migrate_users", "status").
+				WithStoring("name", "age").
+				WithWhere("status = 'active'"),
+			// STORING 失败后，后续普通索引仍应成功创建
+			NewIndex("test_migrate_users", "name"),
+		},
+		SkipIndexOnError: true,
+	}
+
+	migrator := NewMigrator(gormDB, config)
+
+	// SkipIndexOnError=true 时 CreateIndexes 会继续执行但仍返回最后一个错误
+	err = migrator.CreateIndexes()
+	assert.Error(t, err, "STORING 不支持应返回错误")
+
+	// 关键验证：后续普通索引仍应成功创建（未被阻断）
+	assert.True(t, migrator.hasIndex("test_migrate_users", "idx_test_migrate_users_name"),
+		"SkipIndexOnError 应保证后续索引继续创建")
+}
+
+// TestCreateIndexWithStoringStrict 测试严格模式下 STORING 索引失败返回错误
+func TestCreateIndexWithStoringStrict(t *testing.T) {
+	gormDB, err := setupMigratorTestDB()
+	assert.NoError(t, err)
+
+	err = gormDB.AutoMigrate(&TestMigrateUser{})
+	assert.NoError(t, err)
+
+	config := &MigratorConfig{
+		Indexes: []IndexDefinition{
+			NewIndex("test_migrate_users", "status").
+				WithStoring("name").
+				WithWhere("status = 'active'"),
+		},
+		SkipIndexOnError: false,
+	}
+
+	migrator := NewMigrator(gormDB, config)
+
+	err = migrator.CreateIndexes()
+	assert.Error(t, err, "严格模式下 STORING 不支持应返回错误")
+}
+
+// TestCreateIndexWithWhereIdempotent 测试部分索引幂等性
+func TestCreateIndexWithWhereIdempotent(t *testing.T) {
+	gormDB, err := setupMigratorTestDB()
+	assert.NoError(t, err)
+
+	err = gormDB.AutoMigrate(&TestMigrateUser{})
+	assert.NoError(t, err)
+
+	config := &MigratorConfig{
+		Indexes: []IndexDefinition{
+			NewIndexWithName("test_migrate_users", "idx_partial_status", "(status)", false).
+				WithWhere("status = 'active'"),
+		},
+		SkipIndexOnError: false,
+	}
+
+	migrator := NewMigrator(gormDB, config)
+
+	// 第一次创建
+	err = migrator.CreateIndexes()
+	assert.NoError(t, err)
+
+	// 第二次创建（幂等性测试）- 应跳过已存在的索引
+	err = migrator.CreateIndexes()
+	assert.NoError(t, err, "重复创建部分索引应跳过，不报错")
+}
+
+// TestCreateIndexWithWhereOnly 测试仅 WHERE 无 STORING 在严格模式下成功
+func TestCreateIndexWithWhereOnly(t *testing.T) {
+	gormDB, err := setupMigratorTestDB()
+	assert.NoError(t, err)
+
+	err = gormDB.AutoMigrate(&TestMigrateUser{})
+	assert.NoError(t, err)
+
+	config := &MigratorConfig{
+		Indexes: []IndexDefinition{
+			NewIndex("test_migrate_users", "age").WithWhere("age > 18"),
+		},
+		SkipIndexOnError: false,
+	}
+
+	migrator := NewMigrator(gormDB, config)
+
+	err = migrator.CreateIndexes()
+	assert.NoError(t, err, "仅 WHERE 子句在 SQLite 应成功")
+}
+
+// TestMySQLCreateIndexWithStoringAndWhere_RealDB 真实 MySQL 测试 - 覆盖+部分索引
+// MySQL 不支持 STORING/WHERE 语法，验证 SkipIndexOnError 模式下优雅降级
+func TestMySQLCreateIndexWithStoringAndWhere_RealDB(t *testing.T) {
+	if os.Getenv("SKIP_MYSQL_TEST") == "1" {
+		t.Skip("跳过 MySQL 真实数据库测试")
+	}
+
+	gormDB, err := setupMySQLTestDB()
+	if err != nil {
+		t.Skipf("无法连接 MySQL 数据库，跳过测试: %v", err)
+	}
+
+	tableName := setupMySQLTestTable(t, gormDB)
+
+	err = gormDB.AutoMigrate(&TestMySQLUserWithComment{})
+	assert.NoError(t, err)
+
+	config := &MigratorConfig{
+		Indexes: []IndexDefinition{
+			NewIndexWithName(tableName, "idx_covering_partial", "(status, age)", false).
+				WithStoring("name", "email").
+				WithWhere("status = 'active'"),
+			// 普通索引应正常创建
+			NewIndex(tableName, "created_at"),
+		},
+		SkipIndexOnError: true,
+	}
+
+	migrator := NewMigrator(gormDB, config)
+
+	// MySQL 不支持 STORING/WHERE，SkipIndexOnError=true 会继续执行但仍返回错误
+	err = migrator.CreateIndexes()
+	assert.Error(t, err, "MySQL 不支持 STORING 应返回错误")
+
+	// 关键验证：普通索引仍应成功创建（未被阻断）
+	assert.True(t, migrator.hasIndex(tableName, "idx_"+tableName+"_created_at"),
+		"SkipIndexOnError 应保证后续索引继续创建")
+}

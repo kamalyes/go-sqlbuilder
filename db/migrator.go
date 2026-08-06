@@ -36,6 +36,10 @@ type IndexDefinition struct {
 	// ClickHouse 特有参数
 	ClickHouseType        string // ClickHouse 索引类型（如 bloom_filter, minmax, set 等），默认 bloom_filter
 	ClickHouseGranularity int    // ClickHouse 索引粒度，默认 1
+
+	// 覆盖索引/部分索引参数（TiDB、PostgreSQL 等支持）
+	Storing []string // STORING 子句列列表（覆盖索引，将附加列存入索引避免回表）
+	Where   string   // WHERE 条件（部分索引，仅索引满足条件的行）
 }
 
 // GenerateIndexName 根据命名规范自动生成索引名
@@ -142,6 +146,20 @@ func NewIndexDesc(table string, columns ...string) IndexDefinition {
 		Unique:  false,
 		columns: columns, // 保存原始列名
 	}
+}
+
+// WithStoring 设置覆盖索引的 STORING 列（TiDB/PostgreSQL）
+// 示例: NewIndex("t", "a").WithStoring("b", "c") => CREATE INDEX ... STORING (b, c)
+func (idx IndexDefinition) WithStoring(columns ...string) IndexDefinition {
+	idx.Storing = columns
+	return idx
+}
+
+// WithWhere 设置部分索引的 WHERE 条件
+// 示例: NewIndex("t", "a").WithWhere("status = 3") => CREATE INDEX ... WHERE status = 3
+func (idx IndexDefinition) WithWhere(condition string) IndexDefinition {
+	idx.Where = condition
+	return idx
 }
 
 // formatColumns 格式化列名为 SQL 格式
@@ -395,6 +413,16 @@ func (m *Migrator) createIndex(idx IndexDefinition) error {
 		sql = fmt.Sprintf("CREATE UNIQUE INDEX %s ON %s %s", indexName, idx.Table, idx.Columns)
 	default:
 		sql = fmt.Sprintf("CREATE INDEX %s ON %s %s", indexName, idx.Table, idx.Columns)
+	}
+
+	// 覆盖索引：STORING 子句（TiDB/PostgreSQL）
+	if len(idx.Storing) > 0 {
+		sql += fmt.Sprintf(" STORING (%s)", strings.Join(idx.Storing, ", "))
+	}
+
+	// 部分索引：WHERE 子句
+	if idx.Where != "" {
+		sql += fmt.Sprintf(" WHERE %s", idx.Where)
 	}
 
 	return m.db.Exec(sql).Error
