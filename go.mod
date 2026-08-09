@@ -5,8 +5,8 @@ go 1.25.0
 require (
 	github.com/go-sql-driver/mysql v1.8.1
 	github.com/kamalyes/go-argus v0.3.1
-	github.com/kamalyes/go-logger v0.5.6
-	github.com/kamalyes/go-toolbox v0.15.6
+	github.com/kamalyes/go-logger v0.5.7
+	github.com/kamalyes/go-toolbox v0.15.8
 	github.com/lib/pq v1.10.9
 	github.com/stretchr/testify v1.11.1
 	google.golang.org/protobuf v1.36.11
