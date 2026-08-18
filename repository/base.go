@@ -874,6 +874,50 @@ func (r *BaseRepository[T]) GetByFilter(ctx context.Context, filter *Filter) (*T
 	return r.GetByFilters(ctx, filter)
 }
 
+// GetByField 根据单个字段获取记录（等值匹配）
+func (r *BaseRepository[T]) GetByField(ctx context.Context, field string, value interface{}) (*T, error) {
+	return r.GetByFilter(ctx, NewEqFilter(field, value))
+}
+
+// ListByIDs 根据主键 ID 列表查询（按 id 升序）
+// ids 支持 []int64 / []string 等任意切片类型；空列表直接返回空结果，不发起 SQL
+func (r *BaseRepository[T]) ListByIDs(ctx context.Context, ids interface{}) ([]*T, error) {
+	if !hasElements(ids) {
+		return []*T{}, nil
+	}
+	var entities []*T
+	if result := r.newDB(ctx).Where("id IN ?", ids).Order("id ASC").Find(&entities); result.Error != nil {
+		return nil, result.Error
+	}
+	return entities, nil
+}
+
+// hasElements 判断切片/数组参数是否含元素（非集合类型判断非 nil）
+func hasElements(v interface{}) bool {
+	if v == nil {
+		return false
+	}
+	rv := reflect.ValueOf(v)
+	switch rv.Kind() {
+	case reflect.Slice, reflect.Array:
+		return rv.Len() > 0
+	default:
+		return true
+	}
+}
+
+// ExistsByField 检查字段值是否已被占用（唯一性检查）
+// excludeField 为空时不排除任何记录；非空时额外排除 excludeField = excludeValue 的记录（编辑场景排除自身）
+//
+//	r.ExistsByField(ctx, "code", req.Code, "id", req.Id)
+func (r *BaseRepository[T]) ExistsByField(ctx context.Context, field string, value interface{}, excludeField string, excludeValue interface{}) (bool, error) {
+	filters := []*Filter{NewEqFilter(field, value)}
+	if excludeField != "" {
+		filters = append(filters, NewNeqFilter(excludeField, excludeValue))
+	}
+	return r.Exists(ctx, filters...)
+}
+
 // GetByFilters 按多个过滤条件获取记录
 func (r *BaseRepository[T]) GetByFilters(ctx context.Context, filters ...*Filter) (*T, error) {
 	if len(filters) == 0 {
@@ -1349,6 +1393,28 @@ func (r *BaseRepository[T]) UpdateFields(ctx context.Context, id interface{}, fi
 	r.normalizeJSONStringFieldMap(fields)
 	r.injectAutoUpdateTime(fields)
 	return r.newDB(ctx).Where("id = ?", id).Updates(fields).Error
+}
+
+// UpdateFieldsWithOptimisticLock 乐观锁更新指定字段
+// WHERE id = ? AND version = ?，version 原子递增（不污染调用方传入的 fields，内部拷贝）
+// 返回是否更新成功（false = 版本冲突或记录不存在，由调用方映射乐观锁错误码）
+func (r *BaseRepository[T]) UpdateFieldsWithOptimisticLock(ctx context.Context, id interface{}, currentVersion int64, fields map[string]interface{}) (bool, error) {
+	if len(fields) == 0 {
+		return false, errorx.NewError(errors.ErrorCodeInvalidInput)
+	}
+	values := make(map[string]interface{}, len(fields)+1)
+	for k, v := range fields {
+		values[k] = v
+	}
+	r.normalizeJSONStringFieldMap(values)
+	r.injectAutoUpdateTime(values)
+	values["version"] = gorm.Expr("version + 1")
+
+	result := r.newDB(ctx).Where("id = ? AND version = ?", id, currentVersion).Updates(values)
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected > 0, nil
 }
 
 // UpdateFieldsByFilters 按过滤条件更新指定字段

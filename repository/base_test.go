@@ -9604,3 +9604,207 @@ func TestInjectAutoUpdateTime_EmptyFieldsNoOp(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, before.UpdatedAt, after.UpdatedAt, "空 fields 不应刷新 updated_at")
 }
+
+// TestVersionedModel 带乐观锁版本的测试模型
+type TestVersionedModel struct {
+	ID        int64     `json:"id" gorm:"primaryKey;autoIncrement"`
+	Code      string    `json:"code" gorm:"column:code;unique"`
+	Name      string    `json:"name" gorm:"column:name"`
+	TenantID  string    `json:"tenant_id" gorm:"column:tenant_id;index"`
+	Version   int64     `json:"version" gorm:"column:version;not null;default:0"`
+	CreatedAt time.Time `json:"created_at" gorm:"column:created_at;autoCreateTime"`
+	UpdatedAt time.Time `json:"updated_at" gorm:"column:updated_at;autoUpdateTime"`
+}
+
+// setupConvenienceTestDB 独立内存库（memdb2），避免与 base_test 共享环境互相干扰
+func setupConvenienceTestDB(t *testing.T) *BaseRepository[TestVersionedModel] {
+	t.Helper()
+
+	gormDB, err := gorm.Open(sqlite.Open("file:memdb2?mode=memory&cache=shared"), &gorm.Config{
+		DisableForeignKeyConstraintWhenMigrating: true,
+		Logger:                                   gormLogger.Default.LogMode(gormLogger.Silent),
+	})
+	require.NoError(t, err)
+
+	// 单连接串行化访问：共享内存库多连接并发写会触发 SQLITE_LOCKED（busy_timeout 无法重试该错误）
+	// 乐观锁竞争语义由 SQL 层 WHERE version = ? 保证，不受连接池串行化影响
+	sqlDB, err := gormDB.DB()
+	require.NoError(t, err)
+	sqlDB.SetMaxOpenConns(1)
+	gormDB.Exec("PRAGMA busy_timeout=5000")
+
+	gormDB.Exec("DROP TABLE IF EXISTS test_versioned_models")
+	require.NoError(t, gormDB.AutoMigrate(&TestVersionedModel{}))
+
+	return NewBaseRepository[TestVersionedModel](newTestDBHandler(gormDB), logger.NewLogger(), "test_versioned_models")
+}
+
+// seedVersioned 写入基础测试数据
+func seedVersioned(t *testing.T, repo *BaseRepository[TestVersionedModel]) []*TestVersionedModel {
+	t.Helper()
+	rows := []*TestVersionedModel{
+		{ID: 1, Code: "cfg_a", Name: "alpha", TenantID: "t1"},
+		{ID: 2, Code: "cfg_b", Name: "beta", TenantID: "t1"},
+		{ID: 3, Code: "cfg_c", Name: "gamma", TenantID: "t2"},
+	}
+	for _, row := range rows {
+		_, err := repo.Create(context.Background(), row)
+		require.NoError(t, err)
+	}
+	return rows
+}
+
+func TestGetByField(t *testing.T) {
+	repo := setupConvenienceTestDB(t)
+	seedVersioned(t, repo)
+	ctx := context.Background()
+
+	// 命中
+	m, err := repo.GetByField(ctx, "code", "cfg_b")
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), m.ID)
+	assert.Equal(t, "beta", m.Name)
+
+	// 未命中返回 gorm.ErrRecordNotFound
+	_, err = repo.GetByField(ctx, "code", "not_exist")
+	assert.ErrorIs(t, err, gorm.ErrRecordNotFound)
+
+	// 多字段组合命中（GetByFields）
+	m, err = repo.GetByFields(ctx, map[string]interface{}{"tenant_id": "t2", "code": "cfg_c"})
+	require.NoError(t, err)
+	assert.Equal(t, int64(3), m.ID)
+
+	// 多字段组合未命中
+	_, err = repo.GetByFields(ctx, map[string]interface{}{"tenant_id": "t2", "code": "cfg_a"})
+	assert.ErrorIs(t, err, gorm.ErrRecordNotFound)
+}
+
+func TestListByIDs(t *testing.T) {
+	repo := setupConvenienceTestDB(t)
+	seedVersioned(t, repo)
+	ctx := context.Background()
+
+	// 子集查询 + 按 id 升序（乱序传入）
+	items, err := repo.ListByIDs(ctx, []int64{3, 1})
+	require.NoError(t, err)
+	require.Len(t, items, 2)
+	assert.Equal(t, int64(1), items[0].ID)
+	assert.Equal(t, int64(3), items[1].ID)
+
+	// 字符串主键切片同样支持
+	items, err = repo.ListByIDs(ctx, []string{})
+	require.NoError(t, err)
+	assert.Empty(t, items)
+
+	// 空列表不发起 SQL，直接返回空结果
+	items, err = repo.ListByIDs(ctx, []int64{})
+	require.NoError(t, err)
+	assert.Empty(t, items)
+
+	// nil 切片
+	items, err = repo.ListByIDs(ctx, nil)
+	require.NoError(t, err)
+	assert.Empty(t, items)
+
+	// 含不存在 id：只返回存在的
+	items, err = repo.ListByIDs(ctx, []int64{1, 999})
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+	assert.Equal(t, int64(1), items[0].ID)
+}
+
+func TestExistsByField(t *testing.T) {
+	repo := setupConvenienceTestDB(t)
+	seedVersioned(t, repo)
+	ctx := context.Background()
+
+	// 已占用
+	exists, err := repo.ExistsByField(ctx, "code", "cfg_a", "", nil)
+	require.NoError(t, err)
+	assert.True(t, exists)
+
+	// 未占用
+	exists, err = repo.ExistsByField(ctx, "code", "cfg_new", "", nil)
+	require.NoError(t, err)
+	assert.False(t, exists)
+
+	// 编辑场景：排除自身 → 不算占用
+	exists, err = repo.ExistsByField(ctx, "code", "cfg_a", "id", int64(1))
+	require.NoError(t, err)
+	assert.False(t, exists)
+
+	// 编辑场景：值被其他记录占用
+	exists, err = repo.ExistsByField(ctx, "code", "cfg_a", "id", int64(2))
+	require.NoError(t, err)
+	assert.True(t, exists)
+}
+
+func TestUpdateFieldsWithOptimisticLock(t *testing.T) {
+	repo := setupConvenienceTestDB(t)
+	seedVersioned(t, repo)
+	ctx := context.Background()
+
+	t.Run("成功更新并递增版本", func(t *testing.T) {
+		ok, err := repo.UpdateFieldsWithOptimisticLock(ctx, int64(1), 0, map[string]interface{}{"name": "alpha-v2"})
+		require.NoError(t, err)
+		assert.True(t, ok)
+
+		m, err := repo.Get(ctx, int64(1))
+		require.NoError(t, err)
+		assert.Equal(t, "alpha-v2", m.Name)
+		assert.Equal(t, int64(1), m.Version) // 0 → 1
+	})
+
+	t.Run("版本冲突返回false", func(t *testing.T) {
+		// 旧版本号 0 再次更新（实际已是 1）
+		ok, err := repo.UpdateFieldsWithOptimisticLock(ctx, int64(1), 0, map[string]interface{}{"name": "stale"})
+		require.NoError(t, err)
+		assert.False(t, ok)
+
+		m, err := repo.Get(ctx, int64(1))
+		require.NoError(t, err)
+		assert.Equal(t, "alpha-v2", m.Name) // 数据未被污染
+		assert.Equal(t, int64(1), m.Version)
+	})
+
+	t.Run("记录不存在返回false", func(t *testing.T) {
+		ok, err := repo.UpdateFieldsWithOptimisticLock(ctx, int64(999), 0, map[string]interface{}{"name": "ghost"})
+		require.NoError(t, err)
+		assert.False(t, ok)
+	})
+
+	t.Run("空字段返回错误", func(t *testing.T) {
+		ok, err := repo.UpdateFieldsWithOptimisticLock(ctx, int64(1), 1, map[string]interface{}{})
+		assert.Error(t, err)
+		assert.False(t, ok)
+	})
+
+	t.Run("并发竞争仅一个成功", func(t *testing.T) {
+		// 并发 10 个 goroutine 用同一版本号更新，只有 1 个成功
+		const workers = 10
+		results := make(chan bool, workers)
+		for i := 0; i < workers; i++ {
+			go func() {
+				ok, err := repo.UpdateFieldsWithOptimisticLock(ctx, int64(2), 0, map[string]interface{}{"name": "race"})
+				assert.NoError(t, err)
+				results <- ok
+			}()
+		}
+		success := 0
+		for i := 0; i < workers; i++ {
+			if <-results {
+				success++
+			}
+		}
+		assert.Equal(t, 1, success, "同一版本号并发更新只应成功一次")
+	})
+}
+
+func TestHasElements(t *testing.T) {
+	assert.False(t, hasElements(nil))
+	assert.False(t, hasElements([]int64{}))
+	assert.False(t, hasElements([]string{}))
+	assert.True(t, hasElements([]int64{1}))
+	assert.True(t, hasElements([2]int{1, 2}))
+	assert.True(t, hasElements("not-slice"))
+}
