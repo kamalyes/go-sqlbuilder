@@ -7332,6 +7332,107 @@ func TestCollectFilterConditionsWithArgsRefactored(t *testing.T) {
 		assert.Len(t, conditions, 3)
 		assert.Len(t, args, 4) // 1 + 2 (BETWEEN) + 1 = 4
 	})
+
+	t.Run("IN切片参数不拆包", func(t *testing.T) {
+		// 归一化后的 IN 值为 []interface{}，必须整体传递给 gORM 展开，不能拆包为独立参数
+		filters := []*Filter{
+			{Field: "platform_id", Operator: constants.OP_IN, Value: []interface{}{"p1", "p2", "p3"}},
+		}
+
+		var conditions []string
+		var args []interface{}
+		collectFilterConditionsWithArgs(filters, &conditions, &args, nil)
+
+		assert.Len(t, conditions, 1)
+		assert.Equal(t, "platform_id IN (?)", conditions[0])
+		assert.Len(t, args, 1) // 切片整体作为一个参数传递
+		assert.Equal(t, []interface{}{"p1", "p2", "p3"}, args[0])
+	})
+
+	t.Run("NOT_IN切片参数不拆包", func(t *testing.T) {
+		filters := []*Filter{
+			{Field: "status", Operator: constants.OP_NOT_IN, Value: []string{"a", "b"}},
+		}
+
+		var conditions []string
+		var args []interface{}
+		collectFilterConditionsWithArgs(filters, &conditions, &args, nil)
+
+		assert.Len(t, conditions, 1)
+		assert.Len(t, args, 1)
+	})
+
+	t.Run("IN与BETWEEN混合时仅BETWEEN拆包", func(t *testing.T) {
+		filters := []*Filter{
+			{Field: "platform_id", Operator: constants.OP_IN, Value: []interface{}{"p1", "p2"}},
+			{Field: "age", Operator: constants.OP_BETWEEN, Value: []interface{}{20, 40}},
+		}
+
+		var conditions []string
+		var args []interface{}
+		collectFilterConditionsWithArgs(filters, &conditions, &args, nil)
+
+		assert.Len(t, conditions, 2)
+		assert.Len(t, args, 3) // IN 整体 1 个 + BETWEEN 拆包 2 个
+	})
+}
+
+// TestNestedFilterGroupINCondition 测试嵌套过滤组中的 IN 切片条件
+// 回归场景：作用域注入的嵌套 FilterGroup（外层 AND + 内层 OR 子组）携带 IN 条件时，
+// 切片参数被错误拆包为独立参数，导致占位符错位生成非法 SQL（如 "at or near ..." syntax error）
+func TestNestedFilterGroupINCondition(t *testing.T) {
+	gormDB, err := setupTestDB()
+	require.NoError(t, err)
+
+	dbHandler := newTestDBHandler(gormDB)
+	repo := NewBaseRepository[TestUser](dbHandler, logger.NewLogger(), "test_users")
+
+	users := []*TestUser{
+		{Name: "Alice", Email: "alice_ni@test.com", Age: 25, Status: "active"},
+		{Name: "Bob", Email: "bob_ni@test.com", Age: 30, Status: "inactive"},
+		{Name: "Charlie", Email: "charlie_ni@test.com", Age: 35, Status: "active"},
+	}
+	for _, user := range users {
+		_, err := repo.Create(context.Background(), user)
+		require.NoError(t, err)
+	}
+
+	t.Run("嵌套子组中的IN条件整体传递", func(t *testing.T) {
+		// 模拟作用域结构：tenant 级 AND（status 过滤）+ OR 子组（name IN / age IN）
+		innerGroup := NewFilterGroup(constants.LOGIC_OR)
+		innerGroup.AddFilter(NewInFilter("name", "Alice", "Charlie"))
+		innerGroup.AddFilter(NewInFilter("age", 30))
+
+		outerGroup := NewFilterGroup(constants.LOGIC_AND)
+		outerGroup.AddFilter(NewEqFilter("status", "active"))
+		outerGroup.AddGroup(innerGroup)
+
+		query := NewQuery().WithFilterGroup(outerGroup)
+		results, err := repo.List(context.Background(), query)
+		require.NoError(t, err) // 拆包 bug 场景下此处会触发 SQL 语法错误
+		assert.Len(t, results, 2)
+
+		names := []string{results[0].Name, results[1].Name}
+		assert.ElementsMatch(t, []string{"Alice", "Charlie"}, names)
+	})
+
+	t.Run("深层嵌套IN条件", func(t *testing.T) {
+		// 三层嵌套：OR > AND > IN 条件（NewInFilter 归一化为 []interface{}，走拆包路径）
+		leafGroup := NewFilterGroup(constants.LOGIC_AND)
+		leafGroup.AddFilter(NewInFilter("age", 25, 35))
+
+		midGroup := NewFilterGroup(constants.LOGIC_OR)
+		midGroup.AddGroup(leafGroup)
+		midGroup.AddFilter(NewEqFilter("name", "Bob"))
+
+		outerGroup := NewFilterGroup(constants.LOGIC_AND)
+		outerGroup.AddGroup(midGroup)
+
+		query := NewQuery().WithFilterGroup(outerGroup)
+		results, err := repo.List(context.Background(), query)
+		require.NoError(t, err)
+		assert.Len(t, results, 3) // Alice(25), Charlie(35), Bob
+	})
 }
 
 // TestComplexNestedFilterGroups 测试复杂嵌套过滤场景

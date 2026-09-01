@@ -31,11 +31,11 @@ const (
 	// SQL_LESS_EQUAL 小于等于条件模板
 	SQL_LESS_EQUAL = "%s <= ?"
 
-	// SQL_IN IN条件模板
-	SQL_IN = "%s IN ?"
+	// SQL_IN IN条件模板（占位符带括号，切片参数由 gORM 展开为 (v1, v2, ...)）
+	SQL_IN = "%s IN (?)"
 
-	// SQL_NOT_IN NOT IN条件模板
-	SQL_NOT_IN = "%s NOT IN ?"
+	// SQL_NOT_IN NOT IN条件模板（占位符带括号，切片参数由 gORM 展开为 (v1, v2, ...)）
+	SQL_NOT_IN = "%s NOT IN (?)"
 
 	// SQL_LIKE LIKE条件模板
 	SQL_LIKE = "%s LIKE ?"

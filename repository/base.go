@@ -2113,14 +2113,19 @@ func collectFilterConditionsWithArgs(filters []*Filter, conditions *[]string, ar
 		condition, arg := buildFilterCondition(filter, dialect)
 		if condition != "" {
 			*conditions = append(*conditions, condition)
-			if arg != nil {
-				// 处理BETWEEN操作的多个参数
+			if arg == nil {
+				continue
+			}
+			// 仅 BETWEEN 模板含两个占位符，需拆包为独立参数；
+			// IN/NOT IN 等切片参数必须整体传递，由 gORM 展开为 (v1, v2, ...)，
+			// 若在此拆包会导致占位符与参数错位，生成非法 SQL
+			if filter.Operator == constants.OP_BETWEEN {
 				if values, ok := arg.([]interface{}); ok {
 					*args = append(*args, values...)
-				} else {
-					*args = append(*args, arg)
+					continue
 				}
 			}
+			*args = append(*args, arg)
 		}
 	}
 }
