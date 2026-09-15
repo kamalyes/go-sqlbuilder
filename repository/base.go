@@ -1417,6 +1417,30 @@ func (r *BaseRepository[T]) UpdateFieldsWithOptimisticLock(ctx context.Context, 
 	return result.RowsAffected > 0, nil
 }
 
+// UpdateFieldsByFiltersWithVersion 按 Filter 定位并带乐观锁更新指定字段
+// 与 UpdateFieldsWithOptimisticLock 对齐，区别在于定位条件由 id 列改为任意 Filter 组合，
+// 适用于主键不是 id 列的模型（如 agent_line_id / config_id 业务主键）
+// CAS: WHERE <filters> AND version = ? SET ... version = version + 1
+// 返回是否更新成功（false = 版本冲突或记录不存在，由调用方映射乐观锁错误码）
+func (r *BaseRepository[T]) UpdateFieldsByFiltersWithVersion(ctx context.Context, fields map[string]interface{}, currentVersion int64, filters ...*Filter) (bool, error) {
+	if len(fields) == 0 || len(filters) == 0 {
+		return false, errorx.NewError(errors.ErrorCodeInvalidInput)
+	}
+	values := make(map[string]interface{}, len(fields)+1)
+	for k, v := range fields {
+		values[k] = v
+	}
+	r.normalizeJSONStringFieldMap(values)
+	r.injectAutoUpdateTime(values)
+	values["version"] = gorm.Expr("version + 1")
+
+	result := ApplyFilters(r.newDB(ctx), filters).Where("version = ?", currentVersion).Updates(values)
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected > 0, nil
+}
+
 // UpdateFieldsByFilters 按过滤条件更新指定字段
 func (r *BaseRepository[T]) UpdateFieldsByFilters(ctx context.Context, fields map[string]interface{}, filters ...*Filter) error {
 	if len(fields) == 0 {
