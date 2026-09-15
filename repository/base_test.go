@@ -9901,6 +9901,145 @@ func TestUpdateFieldsWithOptimisticLock(t *testing.T) {
 	})
 }
 
+func TestUpdateFieldsByFiltersWithVersion(t *testing.T) {
+	repo := setupConvenienceTestDB(t)
+	seedVersioned(t, repo)
+	ctx := context.Background()
+
+	t.Run("按业务主键成功更新并递增版本", func(t *testing.T) {
+		// 模拟 agent_line_id / config_id 这类业务主键定位（非 id 列）
+		ok, err := repo.UpdateFieldsByFiltersWithVersion(ctx,
+			map[string]interface{}{"name": "alpha-v2"}, 0, NewEqFilter("code", "cfg_a"))
+		require.NoError(t, err)
+		assert.True(t, ok)
+
+		m, err := repo.Get(ctx, int64(1))
+		require.NoError(t, err)
+		assert.Equal(t, "alpha-v2", m.Name)
+		assert.Equal(t, int64(1), m.Version) // 0 → 1
+	})
+
+	t.Run("多条件组合定位", func(t *testing.T) {
+		ok, err := repo.UpdateFieldsByFiltersWithVersion(ctx,
+			map[string]interface{}{"name": "gamma-v2"}, 0,
+			NewEqFilter("code", "cfg_c"), NewEqFilter("tenant_id", "t2"))
+		require.NoError(t, err)
+		assert.True(t, ok)
+
+		m, err := repo.Get(ctx, int64(3))
+		require.NoError(t, err)
+		assert.Equal(t, "gamma-v2", m.Name)
+		assert.Equal(t, int64(1), m.Version)
+	})
+
+	t.Run("版本冲突返回false且数据未污染", func(t *testing.T) {
+		// 先更新 cfg_b 到版本 1
+		ok, err := repo.UpdateFieldsByFiltersWithVersion(ctx,
+			map[string]interface{}{"name": "beta-v2"}, 0, NewEqFilter("code", "cfg_b"))
+		require.NoError(t, err)
+		require.True(t, ok)
+
+		// 用过期版本 0 再更新应冲突
+		ok, err = repo.UpdateFieldsByFiltersWithVersion(ctx,
+			map[string]interface{}{"name": "stale"}, 0, NewEqFilter("code", "cfg_b"))
+		require.NoError(t, err)
+		assert.False(t, ok, "版本已到 1，旧版本 0 应冲突")
+
+		m, err := repo.Get(ctx, int64(2))
+		require.NoError(t, err)
+		assert.Equal(t, "beta-v2", m.Name)
+		assert.Equal(t, int64(1), m.Version)
+	})
+
+	t.Run("记录不存在返回false", func(t *testing.T) {
+		ok, err := repo.UpdateFieldsByFiltersWithVersion(ctx,
+			map[string]interface{}{"name": "ghost"}, 0, NewEqFilter("code", "not_exist"))
+		require.NoError(t, err)
+		assert.False(t, ok)
+	})
+
+	t.Run("空字段或空filters返回错误", func(t *testing.T) {
+		ok, err := repo.UpdateFieldsByFiltersWithVersion(ctx,
+			map[string]interface{}{}, 0, NewEqFilter("code", "cfg_a"))
+		assert.Error(t, err)
+		assert.False(t, ok)
+
+		ok, err = repo.UpdateFieldsByFiltersWithVersion(ctx,
+			map[string]interface{}{"name": "x"}, 0)
+		assert.Error(t, err)
+		assert.False(t, ok)
+	})
+
+	t.Run("自动注入updated_at", func(t *testing.T) {
+		before, err := repo.Get(ctx, int64(1))
+		require.NoError(t, err)
+		baseUpdated := before.UpdatedAt
+		require.Equal(t, int64(1), before.Version)
+
+		time.Sleep(20 * time.Millisecond)
+		ok, err := repo.UpdateFieldsByFiltersWithVersion(ctx,
+			map[string]interface{}{"name": "alpha-v3"}, 1, NewEqFilter("code", "cfg_a"))
+		require.NoError(t, err)
+		assert.True(t, ok)
+
+		after, err := repo.Get(ctx, int64(1))
+		require.NoError(t, err)
+		assert.Equal(t, "alpha-v3", after.Name)
+		assert.Equal(t, int64(2), after.Version)
+		assert.True(t, after.UpdatedAt.After(baseUpdated),
+			"updated_at 应被自动注入,base=%v, after=%v", baseUpdated, after.UpdatedAt)
+	})
+
+	t.Run("显式传入updated_at不被覆盖", func(t *testing.T) {
+		explicit := time.Now().Add(2 * time.Hour).UTC().Truncate(time.Second)
+		ok, err := repo.UpdateFieldsByFiltersWithVersion(ctx,
+			map[string]interface{}{"name": "alpha-v4", "updated_at": explicit}, 2, NewEqFilter("code", "cfg_a"))
+		require.NoError(t, err)
+		assert.True(t, ok)
+
+		after, err := repo.Get(ctx, int64(1))
+		require.NoError(t, err)
+		assert.WithinDuration(t, explicit, after.UpdatedAt, time.Second,
+			"显式传入的 updated_at 应被保留")
+	})
+
+	t.Run("不污染调用方传入的fields", func(t *testing.T) {
+		fields := map[string]interface{}{"name": "beta-v3"}
+		ok, err := repo.UpdateFieldsByFiltersWithVersion(ctx, fields, 1, NewEqFilter("code", "cfg_b"))
+		require.NoError(t, err)
+		assert.True(t, ok)
+
+		_, hasVersion := fields["version"]
+		_, hasUpdated := fields["updated_at"]
+		assert.False(t, hasVersion, "调用方 fields 不应被注入 version")
+		assert.False(t, hasUpdated, "调用方 fields 不应被注入 updated_at")
+	})
+
+	t.Run("并发竞争仅一个成功", func(t *testing.T) {
+		// 取当前真实版本，避免被前置子测试更新过导致全部冲突
+		m, err := repo.Get(ctx, int64(3))
+		require.NoError(t, err)
+
+		const workers = 10
+		results := make(chan bool, workers)
+		for i := 0; i < workers; i++ {
+			go func() {
+				ok, err := repo.UpdateFieldsByFiltersWithVersion(ctx,
+					map[string]interface{}{"name": "race"}, m.Version, NewEqFilter("code", "cfg_c"))
+				assert.NoError(t, err)
+				results <- ok
+			}()
+		}
+		success := 0
+		for i := 0; i < workers; i++ {
+			if <-results {
+				success++
+			}
+		}
+		assert.Equal(t, 1, success, "同一版本号并发更新只应成功一次")
+	})
+}
+
 func TestHasElements(t *testing.T) {
 	assert.False(t, hasElements(nil))
 	assert.False(t, hasElements([]int64{}))
