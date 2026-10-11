@@ -2943,6 +2943,31 @@ func TestAddInSubQueryFilterIfNotEmpty_IntSlice(t *testing.T) {
 	assert.Equal(t, "SELECT user_id FROM orders WHERE amount > ?", sq.SQL)
 }
 
+func TestAddInSubQueryFilterIfNotEmpty_MultiScalarArgs(t *testing.T) {
+	// 多占位符子查询：多参数按顺序逐个绑定，参数数量须与占位符一致
+	q := NewQuery().AddInSubQueryFilterIfNotEmpty("user_id",
+		"SELECT user_id FROM scope_bindings WHERE domain = ? AND tenant_id = ? AND (scope_type = ? OR (scope_type IN (?, ?) AND region_code = ?))",
+		1, "tenant-a", 2, 3, 4, "CN")
+
+	assert.Len(t, q.Filters, 1)
+	sq, ok := q.Filters[0].Value.(*SubQuery)
+	require.True(t, ok, "Value 应为 *SubQuery")
+	assert.Len(t, sq.Args, 6, "多参数应全部保留，不得丢弃导致占位符悬空")
+	assert.Equal(t, []interface{}{1, "tenant-a", 2, 3, 4, "CN"}, sq.Args)
+}
+
+func TestAddInSubQueryFilterIfNotEmpty_MultiArgs_WithPointerDeref(t *testing.T) {
+	// 多参数场景下指针参数应解引用
+	region := "CN"
+	q := NewQuery().AddInSubQueryFilterIfNotEmpty("user_id",
+		"SELECT user_id FROM scope_bindings WHERE domain = ? AND region_code = ?",
+		1, &region)
+
+	sq, ok := q.Filters[0].Value.(*SubQuery)
+	require.True(t, ok)
+	assert.Equal(t, []interface{}{1, "CN"}, sq.Args)
+}
+
 func TestAddInSubQueryFilterIfNotEmpty_PointerToSlice(t *testing.T) {
 	types := []string{"a", "b"}
 	q := NewQuery().AddInSubQueryFilterIfNotEmpty("group_id",
@@ -3015,9 +3040,9 @@ func TestSubQueryArgsIfNotEmpty_NonEmptySliceFirstArg(t *testing.T) {
 
 func TestSubQueryArgsIfNotEmpty_ScalarFirstArg(t *testing.T) {
 	// 非空标量值（如字符串）应判定为非空
-	deref, empty := subQueryArgsIfNotEmpty([]interface{}{"active"})
+	args, empty := subQueryArgsIfNotEmpty([]interface{}{"active"})
 	assert.False(t, empty)
-	assert.Equal(t, "active", deref)
+	assert.Equal(t, []interface{}{"active"}, args)
 }
 
 // ============================================================

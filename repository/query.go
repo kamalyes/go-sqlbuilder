@@ -509,38 +509,53 @@ func (q *Query) AddNotInFilterIfNotEmpty(field string, values interface{}) *Quer
 // AddInSubQueryFilterIfNotEmpty 添加 IN 子查询过滤条件（仅当首个参数非空时）
 // 用于 "field IN (SELECT id FROM xxx WHERE col IN (?))" 场景，替代手动
 // query.AddFilter(NewFilter(field, OP_IN, NewSubQuery(sql, args)))
-// args 通常传入单个切片（如 []string、[]enumspb.Xxx）；nil/空切片时跳过
-// 多占位符子查询请直接使用 NewInSubQueryFilter 手动构造
+// args 传单个切片（如 []string、[]enumspb.Xxx）时由 gorm 展开匹配 IN (?)，nil/空切片时跳过
+// args 传多个参数时按 subSQL 中 ? 占位符顺序逐个绑定，数量需与占位符一致
 func (q *Query) AddInSubQueryFilterIfNotEmpty(field, subSQL string, args ...interface{}) *Query {
-	deref, empty := subQueryArgsIfNotEmpty(args)
+	normalized, empty := subQueryArgsIfNotEmpty(args)
 	if empty {
 		return q
 	}
-	return q.AddFilter(NewInSubQueryFilter(field, subSQL, deref))
+	return q.AddFilter(NewInSubQueryFilter(field, subSQL, normalized...))
 }
 
 // AddNotInSubQueryFilterIfNotEmpty 添加 NOT IN 子查询过滤条件（仅当首个参数非空时）
 // 用于 "field NOT IN (SELECT id FROM xxx WHERE col IN (?))" 场景
-// args 通常传入单个切片；nil/空切片时跳过
+// args 传单个切片；nil/空切片时跳过；多参数用法同 AddInSubQueryFilterIfNotEmpty
 func (q *Query) AddNotInSubQueryFilterIfNotEmpty(field, subSQL string, args ...interface{}) *Query {
-	deref, empty := subQueryArgsIfNotEmpty(args)
+	normalized, empty := subQueryArgsIfNotEmpty(args)
 	if empty {
 		return q
 	}
-	return q.AddFilter(NewNotInSubQueryFilter(field, subSQL, deref))
+	return q.AddFilter(NewNotInSubQueryFilter(field, subSQL, normalized...))
 }
 
-// subQueryArgsIfNotEmpty 校验子查询参数是否非空
-// 返回归一化后的值与是否为空；空 args 或首参为空切片/nil 时 empty=true
-func subQueryArgsIfNotEmpty(args []interface{}) (interface{}, bool) {
+// subQueryArgsIfNotEmpty 校验子查询参数是否非空并归一化
+// 返回归一化后的参数列表与是否为空；空 args 或首参为空切片/nil 时 empty=true
+// 单参数：解引用后原样保留（切片整体交给 gorm 展开）；多参数：逐个解引用后整体返回，
+// 不做空值跳过以免占位符与参数错位
+func subQueryArgsIfNotEmpty(args []interface{}) ([]interface{}, bool) {
 	if len(args) == 0 {
 		return nil, true
 	}
-	deref, empty := validator.NormalizeFilterValueIfNotEmpty(args[0])
-	if empty {
-		return nil, true
+	if len(args) == 1 {
+		deref, empty := validator.NormalizeFilterValueIfNotEmpty(args[0])
+		if empty {
+			return nil, true
+		}
+		return []interface{}{deref}, false
 	}
-	return deref, false
+	normalized := make([]interface{}, 0, len(args))
+	for _, arg := range args {
+		// 多参数场景逐个解引用（nil 指针归一为 nil 由驱动绑定为 NULL），再归一化枚举/包装类型
+		deref, ok := validator.DerefValue(arg)
+		if !ok {
+			normalized = append(normalized, nil)
+			continue
+		}
+		normalized = append(normalized, validator.NormalizeFilterValue(deref))
+	}
+	return normalized, false
 }
 
 // AddBetweenFilterIfNotEmpty 添加 BETWEEN 过滤条件（仅当最小值和最大值都不为空时）
