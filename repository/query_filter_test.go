@@ -1726,8 +1726,39 @@ func TestQueryTimeMethods(t *testing.T) {
 		assert.Equal(t, constants.OP_BETWEEN, q.Filters[0].Operator)
 		values := q.Filters[0].Value.([]interface{})
 		assert.Equal(t, 2, len(values))
-		duration := values[1].(time.Time).Sub(values[0].(time.Time))
-		assert.True(t, duration >= 6*24*time.Hour && duration < 7*24*time.Hour+time.Second)
+
+		start := values[0].(time.Time)
+		end := values[1].(time.Time)
+
+		// 按墙上时钟断言区间边界，而不是按时长
+		//
+		// 原先断言 duration < 7*24h+1s，把「一周恒等于 168 小时」写进了测试
+		// 夏令时切换那一周并不是：2026-10-26 ~ 11-01 这周美国时区在 11-01 回拨
+		// 一小时，区间实际跨 168h59m59.999999999s，于是每年固定有一周会挂
+		// 而「本周」要的本来就是墙上时钟语义——周一零点到周日最后一刻，
+		// 这也正是 SQL BETWEEN 需要的边界，实现没有问题
+		//
+		// [EN] The bounds are asserted on the wall clock rather than on the
+		// elapsed duration. The old assertion baked in "a week is 168 hours",
+		// which the DST-transition week is not: in US zones the week of
+		// 2026-10-26 falls back an hour on 11-01 and spans 168h59m59.999999999s,
+		// so the test failed for one week every year. "This week" means wall
+		// clock anyway — Monday midnight through the last instant of Sunday,
+		// which is exactly what SQL BETWEEN needs
+		assert.Equal(t, time.Monday, start.Weekday(), "起点应为本周一")
+		assert.Equal(t, 0, start.Hour())
+		assert.Equal(t, 0, start.Minute())
+		assert.Equal(t, 0, start.Second())
+		assert.Equal(t, 0, start.Nanosecond())
+
+		assert.Equal(t, time.Sunday, end.Weekday(), "终点应落在本周日")
+		assert.Equal(t, start.AddDate(0, 0, 7).Add(-time.Nanosecond), end,
+			"终点应为下周一零点减一纳秒")
+
+		// 当下必须落在区间内，否则周一的计算偏了
+		now := time.Now()
+		assert.False(t, now.Before(start), "now=%v 早于区间起点 %v", now, start)
+		assert.False(t, now.After(end), "now=%v 晚于区间终点 %v", now, end)
 	})
 
 	t.Run("AddThisMonth", func(t *testing.T) {
