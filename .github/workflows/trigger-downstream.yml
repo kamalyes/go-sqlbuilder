@@ -52,7 +52,6 @@ jobs:
       matrix:
         repo:
           - kamalyes/go-casbin-gorm-adapter
-          - kamalyes/go-scope-provider
           - kamalyes/go-wsc
     steps:
       - name: Dispatch to ${{ matrix.repo }}
