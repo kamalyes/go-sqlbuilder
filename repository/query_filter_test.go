@@ -228,7 +228,7 @@ func TestFilterConstructors(t *testing.T) {
 		f := NewEqFilter("group_id", wrapperspb.String("g1"))
 		assert.Equal(t, "g1", f.Value)
 
-		stringValue := wrapperspb.StringValue{Value: "g2"}
+		stringValue := wrapperspb.String("g2")
 		f = NewEqFilter("group_id", stringValue)
 		assert.Equal(t, "g2", f.Value)
 

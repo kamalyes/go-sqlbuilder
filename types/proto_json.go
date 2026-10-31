@@ -21,6 +21,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	validator "github.com/kamalyes/go-argus"
+	"github.com/kamalyes/go-toolbox/pkg/protox"
 	tbtypes "github.com/kamalyes/go-toolbox/pkg/types"
 )
 
@@ -75,7 +76,7 @@ func (p *ProtoJSON[T]) Scan(value interface{}) error {
 
 // Value - 将 protobuf JSON 类型转换为数据库值
 func (p *ProtoJSON[T]) scanValue(b []byte, v reflect.Value) error {
-	if v.Kind() == reflect.Ptr && v.Type().Implements(tbtypes.ProtoMessageType) {
+	if v.Kind() == reflect.Ptr && v.Type().Implements(protox.ProtoMessageType) {
 		if v.IsNil() {
 			v.Set(reflect.New(v.Type().Elem()))
 		}
@@ -123,7 +124,7 @@ func (p *ProtoJSON[T]) scanStruct(b []byte, v reflect.Value) error {
 // scanField - 递归扫描结构体字段
 func (p *ProtoJSON[T]) scanField(field reflect.Value, rawVal json.RawMessage, jsonKey string) error {
 	switch {
-	case field.Kind() == reflect.Ptr && field.Type().Implements(tbtypes.ProtoMessageType):
+	case field.Kind() == reflect.Ptr && field.Type().Implements(protox.ProtoMessageType):
 		if field.IsNil() {
 			field.Set(reflect.New(field.Type().Elem()))
 		}
@@ -152,7 +153,7 @@ func (p *ProtoJSON[T]) Value() (driver.Value, error) {
 
 // valueOf - 递归转换结构体字段为 JSON 字符串
 func (p *ProtoJSON[T]) valueOf(v reflect.Value) (driver.Value, error) {
-	if v.Kind() == reflect.Ptr && v.Type().Implements(tbtypes.ProtoMessageType) {
+	if v.Kind() == reflect.Ptr && v.Type().Implements(protox.ProtoMessageType) {
 		if validator.IsEmptyValue(v) {
 			return nil, nil
 		}
@@ -210,7 +211,7 @@ func (p *ProtoJSON[T]) valueStruct(v reflect.Value, emitEmpty bool) (driver.Valu
 // valueField - 递归转换结构体字段为 JSON 字符串
 func (p *ProtoJSON[T]) valueField(field reflect.Value, jsonKey string) (json.RawMessage, error) {
 	switch {
-	case field.Kind() == reflect.Ptr && field.Type().Implements(tbtypes.ProtoMessageType):
+	case field.Kind() == reflect.Ptr && field.Type().Implements(protox.ProtoMessageType):
 		if validator.IsEmptyValue(field) {
 			return nil, nil
 		}
@@ -267,7 +268,7 @@ func (p *ProtoJSON[T]) Clone() ProtoJSON[T] {
 	rv := reflect.ValueOf(p.Data)
 
 	// 处理 proto 消息
-	if rv.Kind() == reflect.Ptr && rv.Type().Implements(tbtypes.ProtoMessageType) {
+	if rv.Kind() == reflect.Ptr && rv.Type().Implements(protox.ProtoMessageType) {
 		if !rv.IsNil() {
 			cloned := proto.Clone(rv.Interface().(proto.Message))
 			return ProtoJSON[T]{Data: cloned.(T)}
@@ -314,7 +315,7 @@ func (p *ProtoJSONMap[T]) Scan(value interface{}) error {
 			continue
 		}
 		var pj ProtoJSON[T]
-		pj.Data = tbtypes.NewProtoMessage[T]()
+		pj.Data = protox.NewProtoMessage[T]()
 		if err := protojson.Unmarshal(rawVal, pj.Data); err != nil {
 			return fmt.Errorf(errFieldFormat, key, err)
 		}
