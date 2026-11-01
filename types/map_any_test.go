@@ -361,8 +361,8 @@ func TestStructToMapString(t *testing.T) {
 	})
 	result := StructToMapString(simpleStruct)
 	assert.Equal(t, "Alice", result["name"])
-	assert.Equal(t, "30", result["age"])       // 整数浮点去掉小数点
-	assert.Equal(t, "42.5", result["score"])   // 非整数保留小数
+	assert.Equal(t, "30", result["age"])     // 整数浮点去掉小数点
+	assert.Equal(t, "42.5", result["score"]) // 非整数保留小数
 	assert.Equal(t, "true", result["active"])
 	assert.Equal(t, "", result["null"])
 
