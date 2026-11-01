@@ -206,6 +206,25 @@ func TestBuildConditionArgsNilDialectFallsBackToMySQL(t *testing.T) {
 	assert.Equal(t, []interface{}{`["a"]`}, args)
 }
 
+// TestNewContainsFilterAndNewNotBetweenFilter 两个构造器生成的条件与手写 Filter 等价
+// 这两个算子一直有实现，只是文档承诺了构造器而代码里没有
+//
+// [EN] Both constructors must compile to the same condition as a hand-built Filter
+// The operators always existed; only the constructors the docs promised were missing
+func TestNewContainsFilterAndNewNotBetweenFilter(t *testing.T) {
+	contains := NewContainsFilter("name", "张")
+	assert.Equal(t, constants.OP_CONTAINS, contains.Operator)
+	condition, args := buildConditionArgs(contains, nil)
+	assert.Equal(t, "name LIKE ?", condition)
+	assert.Equal(t, []interface{}{"%张%"}, args)
+
+	notBetween := NewNotBetweenFilter("price", 0, 1000000)
+	assert.Equal(t, constants.OP_NOT_BETWEEN, notBetween.Operator)
+	condition, args = buildConditionArgs(notBetween, nil)
+	assert.Equal(t, "price NOT BETWEEN ? AND ?", condition)
+	assert.Equal(t, []interface{}{0, 1000000}, args)
+}
+
 // TestBuildConditionArgsSubQuery 子查询形态在统一入口里仍被识别，参数由子查询自带
 // [EN] Sub-query values are still recognised at the unified entry point and carry their own args
 func TestBuildConditionArgsSubQuery(t *testing.T) {

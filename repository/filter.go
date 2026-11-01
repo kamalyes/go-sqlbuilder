@@ -495,6 +495,17 @@ func NewLikeFilter(field string, value string) *Filter {
 	return NewFilter(field, constants.OP_LIKE, "%"+value+"%")
 }
 
+// NewContainsFilter 创建包含子串过滤条件，两侧各加一个通配符
+// 与 NewLikeFilter 的差别在算子：NewLikeFilter 直接用 OP_LIKE，
+// 本函数用 OP_CONTAINS，由条件编译阶段统一补通配符，调用方传原文即可
+//
+// [EN] NewContainsFilter builds a substring match with a wildcard on both sides
+// It differs from NewLikeFilter in the operator: OP_CONTAINS lets the condition
+// compiler add the wildcards, so the caller passes the raw text
+func NewContainsFilter(field string, value string) *Filter {
+	return NewFilter(field, constants.OP_CONTAINS, value)
+}
+
 // NewNeqFilter 创建不等于过滤条件
 func NewNeqFilter(field string, value interface{}) *Filter {
 	return NewFilter(field, constants.OP_NEQ, value)
@@ -503,6 +514,12 @@ func NewNeqFilter(field string, value interface{}) *Filter {
 // NewBetweenFilter 创建 BETWEEN 过滤条件
 func NewBetweenFilter(field string, min, max interface{}) *Filter {
 	return NewFilter(field, constants.OP_BETWEEN, []interface{}{min, max})
+}
+
+// NewNotBetweenFilter 创建 NOT BETWEEN 过滤条件
+// [EN] NewNotBetweenFilter builds a NOT BETWEEN condition
+func NewNotBetweenFilter(field string, min, max interface{}) *Filter {
+	return NewFilter(field, constants.OP_NOT_BETWEEN, []interface{}{min, max})
 }
 
 // NewNotInFilter 创建 NOT IN 过滤条件
