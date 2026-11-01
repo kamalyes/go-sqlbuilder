@@ -130,10 +130,19 @@ func JsonFieldEqualsExpr(dialect Dialect, column, jsonKey string, value interfac
 // parseJsonFieldExpr 解析 "column:jsonKey" 格式的 Field，返回方言感知的字段提取表达式
 // 用于 OP_JSON_FIELD_EQ 操作符在 ApplyFilter / buildFilterCondition 中统一调用
 // 若 Field 不含 ":" 分隔符，则原样返回（兼容直接传入列名）
+// dialect 为 nil 时按 MySQL 处理，与 JsonArrayContainsExpr / JsonFieldEqualsExpr 一致：
+// Query.BuildWhereClause 这类没有 gorm.DB 可检测的入口会传 nil
+//
+// [EN] A nil dialect falls back to MySQL, matching JsonArrayContainsExpr and
+// JsonFieldEqualsExpr: entry points without a gorm.DB to detect from, such as
+// Query.BuildWhereClause, pass nil
 func parseJsonFieldExpr(dialect Dialect, field string) string {
 	idx := strings.Index(field, ":")
 	if idx < 0 {
 		return field
+	}
+	if dialect == nil {
+		dialect = &MySQLDialect{}
 	}
 	return dialect.JsonFieldExtract(field[:idx], field[idx+1:])
 }

@@ -856,3 +856,22 @@ func BenchmarkBuildFilterCondition_OpJsonContains(b *testing.B) {
 		_, _ = buildFilterCondition(f, d)
 	}
 }
+
+// TestParseJsonFieldExprNilDialect dialect 为 nil 时按 MySQL 处理，不能空指针
+// 回归场景：JsonArrayContainsExpr / JsonFieldEqualsExpr 都有 nil 兜底，只有
+// parseJsonFieldExpr 漏了，没有 gorm.DB 可检测方言的调用方传 nil 进来会直接崩
+//
+// [EN] A nil dialect must fall back to MySQL rather than dereference nil
+// Regression: JsonArrayContainsExpr and JsonFieldEqualsExpr both guard against nil,
+// only parseJsonFieldExpr did not, so callers with no gorm.DB to detect from crashed
+func TestParseJsonFieldExprNilDialect(t *testing.T) {
+	assert.NotPanics(t, func() {
+		assert.Equal(t, "JSON_UNQUOTE(JSON_EXTRACT(meta, '$.k'))", parseJsonFieldExpr(nil, "meta:k"))
+	})
+
+	// 不含 ":" 的 Field 原样返回，不触碰 dialect
+	assert.Equal(t, "meta", parseJsonFieldExpr(nil, "meta"))
+
+	// 显式方言仍按该方言生成
+	assert.Equal(t, "meta->>'k'", parseJsonFieldExpr(&PostgreSQLDialect{}, "meta:k"))
+}
