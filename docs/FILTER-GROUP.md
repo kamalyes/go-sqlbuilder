@@ -1,7 +1,7 @@
 # 条件组合 (FilterGroup)
 
 ## 概述
-FilterGroup 支持复杂的 AND/OR 逻辑组合和无限层级嵌套。
+FilterGroup 支持复杂的 AND/OR 逻辑组合和无限层级嵌套
 
 ## 逻辑操作符
 
@@ -383,7 +383,7 @@ func buildComplexQuery(params SearchParams) *repository.Query {
 }
 
 // 使用示例
-func searchUsers(ctx context.Context, repo repository.IRepository[User], params SearchParams) ([]*User, error) {
+func searchUsers(ctx context.Context, repo repository.Repository[User], params SearchParams) ([]*User, error) {
     query := buildComplexQuery(params)
     return repo.List(ctx, query)
 }

@@ -1,13 +1,13 @@
 # 事务处理
 
 ## 概述
-go-sqlbuilder 提供了完整的事务支持，确保多个数据库操作的原子性。
+go-sqlbuilder 提供了完整的事务支持，确保多个数据库操作的原子性
 
 ## 基础事务
 
 ### 使用 Repository 的事务方法
 ```go
-err := repo.Transaction(ctx, func(txRepo repository.IRepository[User]) error {
+err := repo.Transaction(ctx, func(txRepo repository.Repository[User]) error {
     // 在事务中创建用户
     user, err := txRepo.Create(ctx, &User{Name: "张三"})
     if err != nil {
@@ -27,7 +27,7 @@ err := repo.Transaction(ctx, func(txRepo repository.IRepository[User]) error {
 
 ### 事务中的错误处理
 ```go
-err := repo.Transaction(ctx, func(txRepo repository.IRepository[User]) error {
+err := repo.Transaction(ctx, func(txRepo repository.Repository[User]) error {
     // 操作1
     user, err := txRepo.Create(ctx, &User{Name: "张三"})
     if err != nil {
@@ -93,7 +93,7 @@ if !isValid(user) {
 ## 嵌套事务
 
 ```go
-err := repo.Transaction(ctx, func(txRepo repository.IRepository[User]) error {
+err := repo.Transaction(ctx, func(txRepo repository.Repository[User]) error {
     // 外层事务操作
     user, err := txRepo.Create(ctx, &User{Name: "张三"})
     if err != nil {
@@ -101,7 +101,7 @@ err := repo.Transaction(ctx, func(txRepo repository.IRepository[User]) error {
     }
     
     // 内层事务（使用同一个事务句柄）
-    err = orderRepo.Transaction(ctx, func(txOrderRepo repository.IRepository[Order]) error {
+    err = orderRepo.Transaction(ctx, func(txOrderRepo repository.Repository[Order]) error {
         _, err := txOrderRepo.Create(ctx, &Order{UserID: user.ID})
         return err
     })
@@ -113,7 +113,7 @@ err := repo.Transaction(ctx, func(txRepo repository.IRepository[User]) error {
 ## 事务中的查询
 
 ```go
-err := repo.Transaction(ctx, func(txRepo repository.IRepository[User]) error {
+err := repo.Transaction(ctx, func(txRepo repository.Repository[User]) error {
     // 查询（事务中）
     user, err := txRepo.Get(ctx, 1)
     if err != nil {
@@ -145,7 +145,7 @@ import (
 
 // 转账操作（经典事务场景）
 func transfer(ctx context.Context, fromID, toID uint, amount float64) error {
-    return accountRepo.Transaction(ctx, func(txRepo repository.IRepository[Account]) error {
+    return accountRepo.Transaction(ctx, func(txRepo repository.Repository[Account]) error {
         // 查询转出账户
         fromAccount, err := txRepo.Get(ctx, fromID)
         if err != nil {
@@ -181,7 +181,7 @@ func transfer(ctx context.Context, fromID, toID uint, amount float64) error {
 func createOrder(ctx context.Context, userID uint, items []OrderItem) (*Order, error) {
     var order *Order
     
-    err := orderRepo.Transaction(ctx, func(txOrderRepo repository.IRepository[Order]) error {
+    err := orderRepo.Transaction(ctx, func(txOrderRepo repository.Repository[Order]) error {
         // 创建订单
         var err error
         order, err = txOrderRepo.Create(ctx, &Order{

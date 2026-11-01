@@ -2,7 +2,7 @@
 
 ## 概述
 
-go-sqlbuilder 支持传统分页和游标分页两种方式。
+go-sqlbuilder 支持传统分页和游标分页两种方式
 
 ## 传统分页
 
@@ -60,7 +60,7 @@ type Pagination struct {
 ### 使用示例
 
 ```go
-func getUserPage(ctx context.Context, repo repository.IRepository[User], page, pageSize int) (*UserPageResult, error) {
+func getUserPage(ctx context.Context, repo repository.Repository[User], page, pageSize int) (*UserPageResult, error) {
     query := repository.NewQuery().
         AddOrder("created_at", "DESC")
 
@@ -88,7 +88,7 @@ func getUserPage(ctx context.Context, repo repository.IRepository[User], page, p
 
 ## 游标分页
 
-游标分页适合大数据量场景，性能更好。
+游标分页适合大数据量场景，性能更好
 
 ### EnhancedRepository 游标分页
 
@@ -170,7 +170,7 @@ import (
 )
 
 // 传统分页
-func getUsersByPage(ctx context.Context, repo repository.IRepository[User], page, pageSize int) ([]*User, *repository.Pagination, error) {
+func getUsersByPage(ctx context.Context, repo repository.Repository[User], page, pageSize int) ([]*User, *repository.Pagination, error) {
     query := repository.NewQuery().
         AddFilter(repository.NewEqFilter("status", "active")).
         AddOrder("created_at", "DESC")

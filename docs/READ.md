@@ -100,10 +100,16 @@ if exists {
 }
 ```
 
-### ExistsByFilter
+### Exists - 按条件判断是否存在
 ```go
-// 使用 ExistsByFilter 方法
-exists, err := repo.ExistsByFilter(ctx, repository.NewEqFilter("status", "active"))
+// Exists 的可变参收任意多个过滤条件，没有单条件的 ExistsByFilter 变体
+exists, err := repo.Exists(ctx, repository.NewEqFilter("status", "active"))
+
+// 多条件
+exists, err := repo.Exists(ctx,
+    repository.NewEqFilter("status", "active"),
+    repository.NewGteFilter("age", 18),
+)
 ```
 
 ## 获取首尾记录
@@ -113,8 +119,8 @@ exists, err := repo.ExistsByFilter(ctx, repository.NewEqFilter("status", "active
 // 获取第一条记录（默认按 ID 升序）
 first, err := repo.First(ctx)
 
-// 指定排序字段
-first, err := repo.First(ctx, "created_at")
+// 可变参收的是过滤条件，不是排序字段；要改排序用下面的 FirstWithQuery
+first, err := repo.First(ctx, repository.NewEqFilter("status", "active"))
 
 // 使用 Query 查询第一条记录（过滤、排序、FilterGroup 等条件都来自 Query）
 query := repository.NewQuery().
@@ -129,11 +135,15 @@ first, err := repo.FirstWithQuery(ctx, query)
 ```go
 // 获取最后一条记录
 last, err := repo.Last(ctx)
-last, err := repo.Last(ctx, "created_at")
 
-// 带条件的 Last
-query := repository.NewQuery().AddFilter(repository.NewEqFilter("status", "active"))
-last, err := repo.LastWithQuery(ctx, query, "created_at")
+// 带条件：与 First 一样，可变参收过滤条件
+last, err := repo.Last(ctx, repository.NewEqFilter("status", "active"))
+
+// Last 没有 *WithQuery 变体，需要自定义排序时用 FirstWithQuery 配倒序
+query := repository.NewQuery().
+    AddFilter(repository.NewEqFilter("status", "active")).
+    AddOrder("created_at", "DESC")
+last, err := repo.FirstWithQuery(ctx, query)
 ```
 
 ## 字段提取
@@ -143,12 +153,14 @@ last, err := repo.LastWithQuery(ctx, query, "created_at")
 // 提取所有用户的邮箱
 emails, err := repo.Pluck(ctx, "email")
 
-// 带条件提取
-query := repository.NewQuery().AddFilter(repository.NewEqFilter("status", "active"))
-emails, err := repo.PluckWithQuery(ctx, "email", query)
+// 带条件提取：Pluck 的可变参收过滤条件，没有 *WithQuery 变体
+emails, err := repo.Pluck(ctx, "email", repository.NewEqFilter("status", "active"))
 
-// 去重提取
-emails, err := repo.PluckUnique(ctx, "email")
+// 去重提取用 Distinct
+emails, err := repo.Distinct(ctx, "email")
+
+// 需要具体类型切片用泛型版，省一次拷贝
+emails, err := repository.PluckInto[string](repo, ctx, "email")
 ```
 
 ## 完整示例
@@ -162,12 +174,12 @@ import (
 )
 
 // 根据 ID 获取用户
-func getUserByID(ctx context.Context, repo repository.IRepository[User], id uint) (*User, error) {
+func getUserByID(ctx context.Context, repo repository.Repository[User], id uint) (*User, error) {
     return repo.Get(ctx, id)
 }
 
 // 获取活跃用户列表
-func getActiveUsers(ctx context.Context, repo repository.IRepository[User]) ([]*User, error) {
+func getActiveUsers(ctx context.Context, repo repository.Repository[User]) ([]*User, error) {
     query := repository.NewQuery().
         AddFilter(repository.NewEqFilter("status", "active")).
         AddOrder("created_at", "DESC")
@@ -175,7 +187,7 @@ func getActiveUsers(ctx context.Context, repo repository.IRepository[User]) ([]*
 }
 
 // 分页查询用户
-func getUsersWithPagination(ctx context.Context, repo repository.IRepository[User], page, pageSize int) ([]*User, *repository.Pagination, error) {
+func getUsersWithPagination(ctx context.Context, repo repository.Repository[User], page, pageSize int) ([]*User, *repository.Pagination, error) {
     query := repository.NewQuery().AddOrder("id", "DESC")
     pagination := &repository.Pagination{
         Page:     page,
@@ -185,7 +197,7 @@ func getUsersWithPagination(ctx context.Context, repo repository.IRepository[Use
 }
 
 // 检查邮箱是否已存在
-func isEmailExists(ctx context.Context, repo repository.IRepository[User], email string) (bool, error) {
+func isEmailExists(ctx context.Context, repo repository.Repository[User], email string) (bool, error) {
     return repo.Exists(ctx, repository.NewEqFilter("email", email))
 }
 ```

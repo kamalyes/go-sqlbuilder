@@ -1,6 +1,6 @@
 # 错误处理
 
-go-sqlbuilder 使用 [go-toolbox](https://github.com/kamalyes/go-toolbox) 的 errorx 包进行错误管理。
+go-sqlbuilder 使用 [go-toolbox](https://github.com/kamalyes/go-toolbox) 的 errorx 包进行错误管理
 
 ## 错误代码
 

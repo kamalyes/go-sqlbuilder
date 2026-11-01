@@ -1,7 +1,7 @@
 # 便捷查询方法
 
 ## 概述
-BaseRepository 和 EnhancedRepository 提供了一系列便捷方法，简化常见的查询操作。
+BaseRepository 和 EnhancedRepository 提供了一系列便捷方法，简化常见的查询操作
 
 ## FindWhere 系列
 
@@ -23,13 +23,17 @@ users, err := repo.FindWhereOp(ctx,
 )
 ```
 
-### FindWhereMap - Map 条件查询
+### FindWhere - 键值对条件查询
 ```go
-conditions := map[string]interface{}{
-    "status": "active",
-    "age":    25,
-}
-users, err := repo.FindWhereMap(ctx, conditions)
+// FindWhere 收「字段, 值」交替的可变参，等价于多个 AND 等值条件
+// 没有收 map 的 FindWhereMap 变体：map 的遍历顺序不定，生成的 SQL 不稳定
+users, err := repo.FindWhere(ctx, "status", "active", "age", 25)
+
+// 需要非等值算子用 FindWhereOp，三元组形式「字段, 算子, 值」
+users, err := repo.FindWhereOp(ctx,
+    "status", constants.OP_EQ, "active",
+    "age", constants.OP_GTE, 18,
+)
 ```
 
 ## FindOne 系列
@@ -201,7 +205,7 @@ import (
 )
 
 // 使用 FindWhere 查询
-func findActiveUsersByCity(ctx context.Context, repo repository.IRepository[User], city string) ([]*User, error) {
+func findActiveUsersByCity(ctx context.Context, repo repository.Repository[User], city string) ([]*User, error) {
     return repo.FindWhere(ctx, 
         "city", city,
         "status", "active",
@@ -209,7 +213,7 @@ func findActiveUsersByCity(ctx context.Context, repo repository.IRepository[User
 }
 
 // 使用 FindWhereOp 查询
-func findAdultUsers(ctx context.Context, repo repository.IRepository[User]) ([]*User, error) {
+func findAdultUsers(ctx context.Context, repo repository.Repository[User]) ([]*User, error) {
     return repo.FindWhereOp(ctx,
         "age", constants.OpGreaterThanOrEqual, 18,
         "status", constants.OpEqual, "active",

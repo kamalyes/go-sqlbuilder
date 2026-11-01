@@ -1,7 +1,7 @@
 # Model 模型定义
 
 ## 概述
-go-sqlbuilder 提供多种基础模型，包含常用字段和方法，支持快速开发。
+go-sqlbuilder 提供多种基础模型，包含常用字段和方法，支持快速开发
 
 ## BaseModel（完整版）
 
@@ -261,7 +261,7 @@ type ModelInterface interface {
 }
 ```
 
-所有模型都实现了此接口。
+所有模型都实现了此接口
 
 ### VersionedModel（版本控制接口）
 ```go
@@ -271,7 +271,7 @@ type VersionedModel interface {
 }
 ```
 
-BaseModel、UUIDModel 实现了此接口。
+BaseModel、UUIDModel 实现了此接口
 
 ### SoftDeletableModel（软删除接口）
 ```go
@@ -281,7 +281,7 @@ type SoftDeletableModel interface {
 }
 ```
 
-BaseModel、UUIDModel 实现了此接口。
+BaseModel、UUIDModel 实现了此接口
 
 ### AuditableModel（审计接口）
 ```go
@@ -294,7 +294,7 @@ type AuditableModel interface {
 }
 ```
 
-AuditModel 实现了此接口。
+AuditModel 实现了此接口
 
 ### StatusModel（状态接口）
 ```go
@@ -306,7 +306,7 @@ type StatusModel interface {
 }
 ```
 
-BaseModel、LightModel 实现了此接口。
+BaseModel、LightModel 实现了此接口
 
 ### RemarkableModel（备注接口）
 ```go
@@ -316,7 +316,7 @@ type RemarkableModel interface {
 }
 ```
 
-BaseModel 实现了此接口。
+BaseModel 实现了此接口
 
 ### FullFeaturedModel（全功能接口）
 ```go
@@ -330,7 +330,7 @@ type FullFeaturedModel interface {
 }
 ```
 
-BaseModel 实现了所有接口。
+BaseModel 实现了所有接口
 
 ## 模型对比
 

@@ -1,7 +1,7 @@
 # 并发查询
 
 ## 概述
-并发查询允许同时执行多个独立的数据库查询，提高查询效率。
+并发查询允许同时执行多个独立的数据库查询，提高查询效率
 
 ## 基础用法
 
@@ -150,7 +150,7 @@ type DashboardStats struct {
 }
 
 // 获取仪表盘统计
-func getDashboardStats(ctx context.Context, db *gorm.DB, userRepo repository.IRepository[User], orderRepo repository.IRepository[Order]) (*DashboardStats, error) {
+func getDashboardStats(ctx context.Context, db *gorm.DB, userRepo repository.Repository[User], orderRepo repository.Repository[Order]) (*DashboardStats, error) {
     executor := repository.NewConcurrentQueryExecutor(db).
         WithTimeout(10 * time.Second)
     

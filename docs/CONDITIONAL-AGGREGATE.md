@@ -1,7 +1,7 @@
 # 条件聚合查询
 
 ## 概述
-条件聚合查询用于构建复杂的 `SUM(CASE WHEN ...)`、`COUNT(CASE WHEN ...)` 等统计查询。
+条件聚合查询用于构建复杂的 `SUM(CASE WHEN ...)`、`COUNT(CASE WHEN ...)` 等统计查询
 
 ## ConditionalAggregateBuilder
 

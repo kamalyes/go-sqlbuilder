@@ -2,7 +2,7 @@
 
 ## 概述
 
-除了 Repository 方法外，go-sqlbuilder 还提供独立的软删除辅助函数，适用于更灵活的操作场景。
+除了 Repository 方法外，go-sqlbuilder 还提供独立的软删除辅助函数，适用于更灵活的操作场景
 
 ## 独立辅助函数
 

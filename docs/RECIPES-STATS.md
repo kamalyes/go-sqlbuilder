@@ -1,6 +1,6 @@
 # 业务实战：统计报表
 
-复制即用的统计代码。
+复制即用的统计代码
 
 ## 基础统计
 
@@ -36,7 +36,7 @@ func (s *UserService) CountByStatus(ctx context.Context) (map[string]int64, erro
     }
     
     var results []Result
-    err := s.repo.GetDB().Model(&User{}).
+    err := s.repo.DBHandler().GetDB().Model(&User{}).
         Select("status, COUNT(*) as count").
         Group("status").
         Scan(&results).Error
@@ -64,7 +64,7 @@ func (s *UserService) GetDailyNewUsers(ctx context.Context, days int) ([]*DailyS
     }
     
     var results []Result
-    err := s.repo.GetDB().Model(&User{}).
+    err := s.repo.DBHandler().GetDB().Model(&User{}).
         Select("DATE(created_at) as date, COUNT(*) as count").
         Where("created_at >= ?", time.Now().AddDate(0, 0, -days)).
         Group("DATE(created_at)").
@@ -88,29 +88,38 @@ type DailyStats struct {
 
 ```go
 // GetDashboardStats 仪表盘统计（并发查询）
+// ConcurrentQuery 是 BaseRepository 的方法，收「名字 -> 查询函数」的 map
+// 查询函数固定返回 int64，所以结果不用再断言类型
+// 第二个返回值是「是否全部成功」，有任务失败时为 false
 func (s *UserService) GetDashboardStats(ctx context.Context) (*DashboardStats, error) {
-    queries := repository.ConcurrentQuery{
-        {Name: "total", Fn: func(ctx context.Context) (interface{}, error) {
-            return s.repo.Count(ctx, repository.NewQuery())
-        }},
-        {Name: "today", Fn: func(ctx context.Context) (interface{}, error) {
-            return s.repo.Count(ctx, repository.NewQuery().AddToday("created_at"))
-        }},
-        {Name: "week", Fn: func(ctx context.Context) (interface{}, error) {
-            return s.repo.Count(ctx, repository.NewQuery().AddThisWeek("created_at"))
-        }},
-        {Name: "month", Fn: func(ctx context.Context) (interface{}, error) {
-            return s.repo.Count(ctx, repository.NewQuery().AddThisMonth("created_at"))
-        }},
+    todayStart, todayEnd := repository.GetTodayRange()
+    weekStart := todayStart.AddDate(0, 0, -int(todayStart.Weekday()))
+    monthStart := time.Date(todayStart.Year(), todayStart.Month(), 1, 0, 0, 0, 0, todayStart.Location())
+
+    // Count 的可变参收过滤条件，不收 *Query
+    results, allOK := s.repo.ConcurrentQuery(ctx, map[string]func(ctx context.Context) (int64, error){
+        "total": func(ctx context.Context) (int64, error) {
+            return s.repo.Count(ctx)
+        },
+        "today": func(ctx context.Context) (int64, error) {
+            return s.repo.Count(ctx, repository.NewBetweenFilter("created_at", todayStart, todayEnd))
+        },
+        "week": func(ctx context.Context) (int64, error) {
+            return s.repo.Count(ctx, repository.NewGteFilter("created_at", weekStart))
+        },
+        "month": func(ctx context.Context) (int64, error) {
+            return s.repo.Count(ctx, repository.NewGteFilter("created_at", monthStart))
+        },
+    })
+    if !allOK {
+        return nil, fmt.Errorf("仪表盘统计有任务失败，已拿到 %d 项", len(results))
     }
-    
-    results := queries.Execute(ctx)
-    
+
     return &DashboardStats{
-        Total:    results["total"].(int64),
-        TodayNew: results["today"].(int64),
-        WeekNew:  results["week"].(int64),
-        MonthNew: results["month"].(int64),
+        Total:    results["total"],
+        TodayNew: results["today"],
+        WeekNew:  results["week"],
+        MonthNew: results["month"],
     }, nil
 }
 
@@ -136,7 +145,7 @@ func (s *OrderService) GetOrderStats(ctx context.Context, startDate, endDate tim
     }
     
     var results []Result
-    err := s.repo.GetDB().Raw(`
+    err := s.repo.DBHandler().GetDB().Raw(`
         SELECT 
             DATE(created_at) as date,
             COUNT(*) as total_count,

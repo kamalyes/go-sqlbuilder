@@ -1,7 +1,7 @@
 # 创建操作 (Create)
 
 ## 概述
-创建操作用于向数据库插入新记录，支持单条创建和批量创建。
+创建操作用于向数据库插入新记录，支持单条创建和批量创建
 
 ## 单条创建
 
@@ -88,7 +88,7 @@ created, err := repo.Create(ctx, user)
 
 ## Save 智能保存
 
-自动判断是创建还是更新。如果实体有主键值则更新，否则创建。
+自动判断是创建还是更新，如果实体有主键值则更新，否则创建
 
 ```go
 // 无主键值，会创建新记录
@@ -102,7 +102,7 @@ saved, err := repo.Save(ctx, user)
 
 ## CreateIfNotExists - 不存在则创建
 
-根据唯一字段检查记录是否存在，不存在则创建，存在则返回已有记录。
+根据唯一字段检查记录是否存在，不存在则创建，存在则返回已有记录
 
 ```go
 user := &User{
@@ -118,7 +118,7 @@ result, created, err := repo.CreateIfNotExists(ctx, user, "Email")
 
 ## CreateOrUpdate - 创建或更新
 
-根据唯一字段检查记录是否存在，不存在则创建，存在则更新。
+根据唯一字段检查记录是否存在，不存在则创建，存在则更新
 
 ```go
 user := &User{
@@ -172,7 +172,7 @@ type User struct {
     Age   int    `json:"age"`
 }
 
-func createSingleUser(ctx context.Context, repo repository.IRepository[User]) (*User, error) {
+func createSingleUser(ctx context.Context, repo repository.Repository[User]) (*User, error) {
     user := &User{
         Name:  "张三",
         Email: "zhangsan@example.com",
@@ -181,7 +181,7 @@ func createSingleUser(ctx context.Context, repo repository.IRepository[User]) (*
     return repo.Create(ctx, user)
 }
 
-func createMultipleUsers(ctx context.Context, repo repository.IRepository[User]) error {
+func createMultipleUsers(ctx context.Context, repo repository.Repository[User]) error {
     users := []*User{
         {Name: "张三", Email: "zs@example.com", Age: 25},
         {Name: "李四", Email: "ls@example.com", Age: 30},

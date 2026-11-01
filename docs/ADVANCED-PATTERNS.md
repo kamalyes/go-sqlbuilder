@@ -1,7 +1,7 @@
 # 高级使用模式
 
 ## 概述
-本文档介绍 go-sqlbuilder 的高级使用模式和最佳实践。
+本文档介绍 go-sqlbuilder 的高级使用模式和最佳实践
 
 ## 1. 泛型仓储封装
 
@@ -284,7 +284,7 @@ type CachedRepository[T any] struct {
 
 // Get 带缓存的查询
 func (r *CachedRepository[T]) Get(ctx context.Context, id interface{}) (*T, error) {
-    cacheKey := fmt.Sprintf("%s:%v", r.repo.GetTableName(), id)
+    cacheKey := fmt.Sprintf("%s:%v", r.repo.Table(), id)
     
     // 从缓存获取
     var entity T
@@ -312,7 +312,7 @@ func (r *CachedRepository[T]) Create(ctx context.Context, entity *T) (*T, error)
     }
     
     // 写入缓存
-    cacheKey := fmt.Sprintf("%s:%v", r.repo.GetTableName(), result.GetID())
+    cacheKey := fmt.Sprintf("%s:%v", r.repo.Table(), result.GetID())
     r.cache.Set(ctx, cacheKey, result, r.ttl)
     
     return result, nil
@@ -326,7 +326,7 @@ func (r *CachedRepository[T]) Update(ctx context.Context, entity *T) (*T, error)
     }
     
     // 更新缓存
-    cacheKey := fmt.Sprintf("%s:%v", r.repo.GetTableName(), result.GetID())
+    cacheKey := fmt.Sprintf("%s:%v", r.repo.Table(), result.GetID())
     r.cache.Set(ctx, cacheKey, result, r.ttl)
     
     return result, nil
@@ -339,7 +339,7 @@ func (r *CachedRepository[T]) Delete(ctx context.Context, id interface{}) error 
     }
     
     // 清除缓存
-    cacheKey := fmt.Sprintf("%s:%v", r.repo.GetTableName(), id)
+    cacheKey := fmt.Sprintf("%s:%v", r.repo.Table(), id)
     r.cache.Delete(ctx, cacheKey)
     
     return nil

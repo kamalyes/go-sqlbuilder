@@ -1,7 +1,7 @@
 # EnhancedRepository 增强版仓储
 
 ## 概述
-EnhancedRepository 在 BaseRepository 基础上提供更多便捷方法，适合需要快速实现常用查询场景的业务需求。
+EnhancedRepository 在 BaseRepository 基础上提供更多便捷方法，适合需要快速实现常用查询场景的业务需求
 
 ## 创建 EnhancedRepository
 

@@ -1,6 +1,6 @@
 # Context 上下文使用指南
 
-在 go-sqlbuilder 中，所有 Repository 方法都需要传入 `context.Context` 参数，用于控制超时、取消操作、传递请求信息和日志追踪。
+在 go-sqlbuilder 中，所有 Repository 方法都需要传入 `context.Context` 参数，用于控制超时、取消操作、传递请求信息和日志追踪
 
 ## 基础用法
 

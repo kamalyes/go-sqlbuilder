@@ -102,7 +102,7 @@ func (s *UserService) BatchUpdate(ctx context.Context, userIDs []uint, updates m
 // DeleteUsers 批量软删除
 func (s *UserService) DeleteUsers(ctx context.Context, userIDs []uint) error {
     for _, id := range userIDs {
-        if err := repository.SoftDeleteWithDeletedAt[User](ctx, s.repo.GetDB(), id); err != nil {
+        if err := repository.NewRepositoryWithSoftDelete(s.repo).SoftDeleteWithDeletedAt(ctx, id); err != nil {
             return err
         }
     }
@@ -112,7 +112,7 @@ func (s *UserService) DeleteUsers(ctx context.Context, userIDs []uint) error {
 // DeleteUsersPermanently 批量彻底删除
 func (s *UserService) DeleteUsersPermanently(ctx context.Context, userIDs []uint) error {
     for _, id := range userIDs {
-        if err := repository.PermanentlyDelete[User](ctx, s.repo.GetDB(), id); err != nil {
+        if err := repository.PermanentlyDelete[User](ctx, s.repo.DBHandler().GetDB(), id); err != nil {
             return err
         }
     }
@@ -149,7 +149,7 @@ func (s *UserService) BatchOperation(ctx context.Context, toCreate []*User, toUp
         
         // 批量删除
         for _, id := range toDelete {
-            if err := repository.SoftDeleteWithDeletedAt[User](ctx, s.repo.GetDB(), id); err != nil {
+            if err := repository.NewRepositoryWithSoftDelete(s.repo).SoftDeleteWithDeletedAt(ctx, id); err != nil {
                 return err
             }
         }

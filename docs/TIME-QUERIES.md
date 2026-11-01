@@ -1,6 +1,6 @@
 # 时间查询
 
-BaseRepository 提供了便捷的时间查询方法。
+BaseRepository 提供了便捷的时间查询方法
 
 ## 📖 快捷方法
 

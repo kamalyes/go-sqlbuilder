@@ -4,7 +4,7 @@
 [![GoDoc](https://godoc.org/github.com/kamalyes/go-sqlbuilder?status.svg)](https://godoc.org/github.com/kamalyes/go-sqlbuilder)
 [![License](https://img.shields.io/github/license/kamalyes/go-sqlbuilder)](https://github.com/kamalyes/go-sqlbuilder/blob/main/LICENSE)
 
-一个功能丰富、高性能的 Go 语言 GORM 仓储层封装库，提供类型安全的 CRUD 操作、复杂查询构建和便利方法。
+一个功能丰富、高性能的 Go 语言 GORM 仓储层封装库，提供类型安全的 CRUD 操作、复杂查询构建和便利方法
 
 ## 📖 特性 & 文档导航
 

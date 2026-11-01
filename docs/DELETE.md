@@ -63,8 +63,10 @@ query := repository.NewQuery().
 deletedUsers, err := repo.List(ctx, query)
 
 // 查询所有记录（包含软删除）
-query := repository.NewQuery().WithUnscoped()
-allUsers, err := repo.List(ctx, query)
+// Query 没有 WithUnscoped，List 也不绕软删除；要全集就直接用 gORM 的 Unscoped
+var allUsers []*User
+db := repo.DBHandler().GetDB().WithContext(ctx).Unscoped().Model(&User{})
+err = repository.ApplyQueryConditions(repo, db, repository.NewQuery()).Find(&allUsers).Error
 ```
 
 ### 恢复软删除
@@ -79,12 +81,13 @@ err := repo.RestoreBatch(ctx, 1, 2, 3)
 
 ### 强制删除（物理删除）
 ```go
-// 物理删除软删除的记录
-query := repository.NewQuery().WithForceDelete()
-err := repo.DeleteByQuery(ctx, query)
+// Query 没有 WithForceDelete，BaseRepository 也没有 ForceDelete
+// 物理删除走包级辅助函数，它内部用 gORM 的 Unscoped 绕开软删除
+err := repository.PermanentlyDelete[User](ctx, repo.DBHandler().GetDB(), 1)
 
-// 或根据 ID 强制删除
-err := repo.ForceDelete(ctx, 1)
+// 批量物理删除
+err := repository.PermanentlyDeleteBatch[User](ctx, repo.DBHandler().GetDB(),
+    []interface{}{1, 2, 3})
 ```
 
 ## 级联删除
@@ -102,7 +105,7 @@ repo.Delete(ctx, 1)
 
 ### 事务中级联删除
 ```go
-err := repo.Transaction(ctx, func(txRepo repository.IRepository[User]) error {
+err := repo.Transaction(ctx, func(txRepo repository.Repository[User]) error {
     // 删除用户的订单
     txOrderRepo := repository.NewBaseRepository[Order](txHandler, log, "orders")
     txOrderRepo.DeleteByQuery(ctx, repository.NewQuery().
@@ -131,12 +134,12 @@ import (
 )
 
 // 删除单个用户
-func deleteUser(ctx context.Context, repo repository.IRepository[User], id uint) error {
+func deleteUser(ctx context.Context, repo repository.Repository[User], id uint) error {
     return repo.Delete(ctx, id)
 }
 
 // 批量删除用户
-func deleteUsers(ctx context.Context, repo repository.IRepository[User], ids []uint) error {
+func deleteUsers(ctx context.Context, repo repository.Repository[User], ids []uint) error {
     idInterfaces := make([]interface{}, len(ids))
     for i, id := range ids {
         idInterfaces[i] = id
@@ -145,19 +148,20 @@ func deleteUsers(ctx context.Context, repo repository.IRepository[User], ids []u
 }
 
 // 删除所有不活跃用户
-func deleteInactiveUsers(ctx context.Context, repo repository.IRepository[User]) error {
+func deleteInactiveUsers(ctx context.Context, repo repository.Repository[User]) error {
     query := repository.NewQuery().
         AddFilter(repository.NewEqFilter("status", "inactive"))
     return repo.DeleteByQuery(ctx, query)
 }
 
 // 恢复已删除用户
-func restoreUser(ctx context.Context, repo repository.IRepository[User], id uint) error {
+func restoreUser(ctx context.Context, repo repository.Repository[User], id uint) error {
     return repo.Restore(ctx, id)
 }
 
-// 永久删除用户（强制删除）
-func forceDeleteUser(ctx context.Context, repo repository.IRepository[User], id uint) error {
-    return repo.ForceDelete(ctx, id)
+// 永久删除用户（物理删除）
+// 形参用具体类型而不是 Repository 接口：接口不暴露 DBHandler，拿不到 *gorm.DB
+func forceDeleteUser(ctx context.Context, repo *repository.BaseRepository[User], id uint) error {
+    return repository.PermanentlyDelete[User](ctx, repo.DBHandler().GetDB(), id)
 }
 ```

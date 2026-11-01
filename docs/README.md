@@ -245,16 +245,16 @@ repository/  # 数据访问层（可选，简单业务可直接用 service）
 ## 📞 常见问题
 
 **Q: 应该用 BaseRepository 还是 EnhancedRepository？**
-> A: 先用 BaseRepository，当发现需要大量单字段查询时，再切换到 EnhancedRepository。
+> A: 先用 BaseRepository，当发现需要大量单字段查询时，再切换到 EnhancedRepository
 
 **Q: Filter 和 FilterGroup 怎么选择？**
-> A: 单个条件用 Filter，多个条件用 FilterGroup。复杂查询（AND/OR 混合）必须用 FilterGroup。
+> A: 单个条件用 Filter，多个条件用 FilterGroup，复杂查询（AND/OR 混合）必须用 FilterGroup
 
 **Q: 传统分页和游标分页怎么选？**
-> A: 数据量 < 10万用传统分页，> 10万或需要高性能用游标分页。
+> A: 数据量 < 10万用传统分页，> 10万或需要高性能用游标分页
 
 **Q: 软删除用 deleted_at 还是 is_deleted？**
-> A: 推荐 deleted_at（GORM 原生支持），is_deleted 适合已有系统迁移。
+> A: 推荐 deleted_at（GORM 原生支持），is_deleted 适合已有系统迁移
 
 ---
 

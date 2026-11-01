@@ -1,6 +1,6 @@
 # 业务实战：分页列表实现
 
-复制即用的分页功能代码。
+复制即用的分页功能代码
 
 ## 分页结果结构
 
@@ -38,7 +38,7 @@ func (s *UserService) GetUserList(ctx context.Context, page, pageSize int) (*Pag
     
     query := repository.NewQuery().AddOrder("created_at", "DESC")
     total, _ := s.repo.Count(ctx, query)
-    list, _ := s.repo.List(ctx, query.WithPagination((page-1)*pageSize, pageSize))
+    list, _ := s.repo.List(ctx, query.WithPaging((page-1)*pageSize, pageSize))
     
     return &PageResult[User]{
         List:       list,
@@ -78,7 +78,7 @@ func (s *UserService) GetUserListWithSearch(ctx context.Context, params UserList
         AddOrder("created_at", "DESC")
     
     total, _ := s.repo.Count(ctx, query)
-    list, _ := s.repo.List(ctx, query.WithPagination((page-1)*pageSize, pageSize))
+    list, _ := s.repo.List(ctx, query.WithPaging((page-1)*pageSize, pageSize))
     
     return &PageResult[User]{
         List:       list,
@@ -114,7 +114,7 @@ func (s *UserService) GetUserListByCursor(ctx context.Context, cursor string, pa
         query.AddLessThan("id", lastID)
     }
     
-    list, _ := s.repo.List(ctx, query.WithPagination(0, pageSize+1))
+    list, _ := s.repo.List(ctx, query.WithPaging(0, pageSize+1))
     
     hasMore := len(list) > pageSize
     if hasMore {
@@ -164,7 +164,7 @@ func (s *UserService) GetUserFeeds(ctx context.Context, lastID uint, pageSize in
         AddLtFilterIfNotEmpty("id", lastID).
         AddOrder("id", "DESC")
     
-    list, _ := s.repo.List(ctx, query.WithPagination(0, pageSize+1))
+    list, _ := s.repo.List(ctx, query.WithPaging(0, pageSize+1))
     
     hasMore := len(list) > pageSize
     if hasMore {
@@ -195,7 +195,7 @@ func (s *UserService) GetUserListFull(ctx context.Context, params UserListParams
             []string{"created_at", "id", "name"})
     
     total, _ := s.repo.Count(ctx, query)
-    list, _ := s.repo.List(ctx, query.WithPagination((page-1)*pageSize, pageSize))
+    list, _ := s.repo.List(ctx, query.WithPaging((page-1)*pageSize, pageSize))
     
     return &PageResult[User]{
         List:       list,

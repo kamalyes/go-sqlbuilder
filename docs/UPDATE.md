@@ -148,7 +148,7 @@ import (
 )
 
 // 更新用户信息
-func updateUser(ctx context.Context, repo repository.IRepository[User], id uint, newName string) (*User, error) {
+func updateUser(ctx context.Context, repo repository.Repository[User], id uint, newName string) (*User, error) {
     // 查询用户
     user, err := repo.Get(ctx, id)
     if err != nil {
@@ -163,7 +163,7 @@ func updateUser(ctx context.Context, repo repository.IRepository[User], id uint,
 }
 
 // 批量激活用户
-func batchActivateUsers(ctx context.Context, repo repository.IRepository[User], userIDs []uint) error {
+func batchActivateUsers(ctx context.Context, repo repository.Repository[User], userIDs []uint) error {
     users := make([]*User, len(userIDs))
     for i, id := range userIDs {
         users[i] = &User{ID: id, Status: 1}
@@ -172,7 +172,7 @@ func batchActivateUsers(ctx context.Context, repo repository.IRepository[User], 
 }
 
 // 禁用长期未登录用户
-func disableInactiveUsers(ctx context.Context, repo repository.IRepository[User], before time.Time) error {
+func disableInactiveUsers(ctx context.Context, repo repository.Repository[User], before time.Time) error {
     query := repository.NewQuery().
         AddFilter(repository.NewLtFilter("last_login_at", before))
     

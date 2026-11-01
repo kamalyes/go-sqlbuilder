@@ -2,7 +2,7 @@
 
 ## 概述
 
-Filter 是构建 WHERE 条件的核心组件，提供类型安全的条件构建。
+Filter 是构建 WHERE 条件的核心组件，提供类型安全的条件构建
 
 ## 比较操作符
 
@@ -168,14 +168,14 @@ import (
 )
 
 // 查询成年用户
-func getAdultUsers(ctx context.Context, repo repository.IRepository[User]) ([]*User, error) {
+func getAdultUsers(ctx context.Context, repo repository.Repository[User]) ([]*User, error) {
     query := repository.NewQuery().
         AddFilter(repository.NewGteFilter("age", 18))
     return repo.List(ctx, query)
 }
 
 // 查询活跃用户
-func getActiveUsers(ctx context.Context, repo repository.IRepository[User]) ([]*User, error) {
+func getActiveUsers(ctx context.Context, repo repository.Repository[User]) ([]*User, error) {
     query := repository.NewQuery().
         AddFilter(repository.NewEqFilter("status", "active")).
         AddFilter(repository.NewIsNullFilter("deleted_at"))
@@ -183,14 +183,14 @@ func getActiveUsers(ctx context.Context, repo repository.IRepository[User]) ([]*
 }
 
 // 查询特定年龄段用户
-func getUsersByAgeRange(ctx context.Context, repo repository.IRepository[User], minAge, maxAge int) ([]*User, error) {
+func getUsersByAgeRange(ctx context.Context, repo repository.Repository[User], minAge, maxAge int) ([]*User, error) {
     query := repository.NewQuery().
         AddFilter(repository.NewBetweenFilter("age", minAge, maxAge))
     return repo.List(ctx, query)
 }
 
 // 搜索用户
-func searchUsers(ctx context.Context, repo repository.IRepository[User], keyword string) ([]*User, error) {
+func searchUsers(ctx context.Context, repo repository.Repository[User], keyword string) ([]*User, error) {
     query := repository.NewQuery().
         AddFilter(repository.NewLikeFilter("name", "%"+keyword+"%"))
     return repo.List(ctx, query)

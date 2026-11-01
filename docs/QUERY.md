@@ -2,7 +2,7 @@
 
 ## 概述
 
-Query 是查询条件的容器，支持过滤、排序、分页、字段选择等功能。
+Query 是查询条件的容器，支持过滤、排序、分页、字段选择等功能
 
 ## 创建 Query
 
@@ -102,8 +102,10 @@ query := repository.NewQuery().
 
 ```go
 // SELECT DISTINCT status FROM users
+// 去重是 Query 层的开关，不是过滤条件，没有 NewDistinctFilter
 query := repository.NewQuery().
-    AddFilter(repository.NewDistinctFilter("status"))
+    WithDistinct().
+    Select("status")
 ```
 
 ## 便捷过滤方法
@@ -390,7 +392,7 @@ query.WithPaging(page, size)  // 直接传入，无需 int(page)
 
 ### page 可选参数
 
-`ListWithPagination` 的 `page` 参数为可选参数。当使用 `WithPaging` 设置分页后，可以直接调用而无需再传 `page`：
+`ListWithPagination` 的 `page` 参数为可选参数，当使用 `WithPaging` 设置分页后，可以直接调用而无需再传 `page`：
 
 ```go
 // 在 Query 中设置分页，直接查询（无需额外传 page）
@@ -439,7 +441,7 @@ import (
     "github.com/kamalyes/go-sqlbuilder/repository"
 )
 
-func searchUsers(ctx context.Context, repo repository.IRepository[User], keyword string, page, pageSize int) ([]*User, *repository.Pagination, error) {
+func searchUsers(ctx context.Context, repo repository.Repository[User], keyword string, page, pageSize int) ([]*User, *repository.Pagination, error) {
     // 构建条件组
     group := repository.NewFilterGroup(constants.LOGIC_AND).
         AddFilter(repository.NewEqFilter("status", "active"))

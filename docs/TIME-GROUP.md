@@ -2,7 +2,7 @@
 
 ## 概述
 
-go-sqlbuilder 提供了强大的时间分组统计功能，支持按小时、天、周、月、年分组。
+go-sqlbuilder 提供了强大的时间分组统计功能，支持按小时、天、周、月、年分组
 
 ## MultiTableStatsBuilder 多表统计
 
@@ -15,9 +15,12 @@ import "github.com/kamalyes/go-sqlbuilder/repository"
 builder := repository.NewMultiTableStatsBuilder(ctx, db, logger)
 
 // 添加统计任务
-builder.AddCount("total_users", "users").
-    AddCount("active_users", "users", repository.NewEqFilter("status", "active")).
-    AddCount("today_orders", "orders", repository.NewGteFilter("created_at", today)).
+// Count 的参数顺序是（表名, 别名），且不收过滤条件；
+// 要带条件就先 AddCondition 再 Count，条件按表名挂上去
+builder.Count("users", "total_users").
+    AddCondition("users", "status = ?", "active").
+    Count("orders", "today_orders").
+    AddCondition("orders", "created_at >= ?", today).
     AddSum("total_revenue", "orders", "amount").
     AddAvg("avg_order_amount", "orders", "amount")
 
@@ -43,12 +46,12 @@ builder := repository.NewTimeGroupBuilder(db, "orders", repository.GroupByDay).
     WithTimeField("created_at").
     WithTimeRange(startTime, endTime).
     Count("total_orders").
-    CountWhen("completed_orders", "status = ?", "completed").
-    CountWhen("cancelled_orders", "status = ?", "cancelled").
+    CountWhen("status = ?", "completed_orders", "completed").
+    CountWhen("status = ?", "cancelled_orders", "cancelled").
     Sum("amount", "total_revenue").
     Avg("amount", "avg_order_value")
 
-results, err := builder.Execute()
+results, err := builder.Execute(ctx)
 
 // 处理结果
 for _, row := range results {
@@ -67,7 +70,7 @@ builder := repository.NewTimeGroupBuilder(db, "visits", repository.GroupByHour).
     Count("total_visits").
     CountDistinct("user_id", "unique_visitors")
 
-results, err := builder.Execute()
+results, err := builder.Execute(ctx)
 ```
 
 ### 按周/月/年统计
@@ -113,21 +116,21 @@ import (
 )
 
 // 获取每日订单统计
-func getDailyOrderStats(ctx context.Context, db *gorm.DB, startTime, endTime time.Time) ([]*repository.TimeGroupRow, error) {
+func getDailyOrderStats(ctx context.Context, db *gorm.DB, startTime, endTime time.Time) ([]map[string]interface{}, error) {
     builder := repository.NewTimeGroupBuilder(db, "orders", repository.GroupByDay).
         WithTimeField("created_at").
         WithTimeRange(startTime, endTime).
         Count("total_orders").
-        CountWhen("completed_orders", "status = ?", "completed").
-        CountWhen("pending_orders", "status = ?", "pending").
+        CountWhen("status = ?", "completed_orders", "completed").
+        CountWhen("status = ?", "pending_orders", "pending").
         Sum("amount", "total_amount").
         Avg("amount", "avg_amount")
     
-    return builder.Execute()
+    return builder.Execute(ctx)
 }
 
 // 获取每小时访问量
-func getHourlyVisits(ctx context.Context, db *gorm.DB, date time.Time) ([]*repository.TimeGroupRow, error) {
+func getHourlyVisits(ctx context.Context, db *gorm.DB, date time.Time) ([]map[string]interface{}, error) {
     startOfDay := date.Truncate(24 * time.Hour)
     endOfDay := startOfDay.Add(24 * time.Hour)
     
@@ -137,11 +140,11 @@ func getHourlyVisits(ctx context.Context, db *gorm.DB, date time.Time) ([]*repos
         Count("total_visits").
         CountDistinct("user_id", "unique_visitors")
     
-    return builder.Execute()
+    return builder.Execute(ctx)
 }
 
 // 获取月度销售统计
-func getMonthlySalesStats(ctx context.Context, db *gorm.DB, year int) ([]*repository.TimeGroupRow, error) {
+func getMonthlySalesStats(ctx context.Context, db *gorm.DB, year int) ([]map[string]interface{}, error) {
     startOfYear := time.Date(year, 1, 1, 0, 0, 0, 0, time.Local)
     endOfYear := startOfYear.AddDate(1, 0, 0)
     
@@ -152,7 +155,7 @@ func getMonthlySalesStats(ctx context.Context, db *gorm.DB, year int) ([]*reposi
         Sum("amount", "total_revenue").
         Avg("amount", "avg_order_value")
     
-    return builder.Execute()
+    return builder.Execute(ctx)
 }
 
 // 使用多表统计
@@ -161,9 +164,9 @@ func getOverviewStats(ctx context.Context, db *gorm.DB) (map[string]interface{},
     
     today := time.Now().Truncate(24 * time.Hour)
     
-    builder.AddCount("total_users", "users").
-        AddCount("new_users_today", "users", repository.NewGteFilter("created_at", today)).
-        AddCount("total_orders", "orders").
+    builder.Count("users", "total_users").
+        AddCondition("users", "created_at >= ?", today).
+        Count("orders", "total_orders").
         AddSum("total_revenue", "orders", "amount").
         AddAvg("avg_order_value", "orders", "amount")
     

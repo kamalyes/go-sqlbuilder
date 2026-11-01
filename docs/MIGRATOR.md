@@ -1,6 +1,6 @@
 # 数据库迁移器 (Migrator)
 
-数据库迁移器提供了一套完整的数据库迁移解决方案，支持自动迁移表结构、创建索引和添加表注释。
+数据库迁移器提供了一套完整的数据库迁移解决方案，支持自动迁移表结构、创建索引和添加表注释
 
 ## 目录
 
@@ -66,7 +66,7 @@ err := db.QuickAutoMigrate(gormDB, config)
 - `SkipCommentOnError`: 注释添加失败时是否继续执行（默认 `true`）
 - `SkipMergeTreeOnError`: MergeTree 建表失败时是否继续执行（默认 `true`）
 
-这种设计允许迁移过程在遇到非致命错误时继续执行。
+这种设计允许迁移过程在遇到非致命错误时继续执行
 
 ## 配置说明
 
@@ -112,7 +112,7 @@ err := db.QuickAutoMigrate(gormDB, config)
 
 ### ClickHouseTableDefinition
 
-用于在 ClickHouse 上创建 MergeTree 引擎表，支持分区、排序、TTL 与表注释。仅在 ClickHouse 方言下生效，其它方言会静默跳过，便于在统一配置中携带定义而不报错。
+用于在 ClickHouse 上创建 MergeTree 引擎表，支持分区、排序、TTL 与表注释，仅在 ClickHouse 方言下生效，其它方言会静默跳过，便于在统一配置中携带定义而不报错
 
 支持两种列定义方式：
 1. **手写 Columns** — 直接提供 SQL 片段，适合需要 ClickHouse 特有语法（如 `LowCardinality`、`Array`、`Nested`）的场景
@@ -128,7 +128,7 @@ err := db.QuickAutoMigrate(gormDB, config)
 | `TTL` | `string` | TTL 表达式 | ❌ 否 | `"login_at + INTERVAL 30 DAY"` |
 | `Comment` | `string` | 表注释 | ❌ 否 | `"登录日志表"` |
 
-> \* `TableName`、`Columns`、`Model` 三者中，`Columns` 和 `Model` 至少提供一个。`Columns` 非空时优先使用手写列定义；为空时从 `Model` 的 gorm tag 自动生成。`TableName` 为空时从 `Model` 的 `TableName()` 方法推断。
+> \* `TableName`、`Columns`、`Model` 三者中，`Columns` 和 `Model` 至少提供一个，`Columns` 非空时优先使用手写列定义；为空时从 `Model` 的 gorm tag 自动生成，`TableName` 为空时从 `Model` 的 `TableName()` 方法推断
 
 #### Model tag 约定
 
@@ -141,7 +141,7 @@ err := db.QuickAutoMigrate(gormDB, config)
 | `default:` | DEFAULT 表达式（原样输出） | `default:''`、`default:now()`、`default:0` |
 | `comment:` | 列注释 | `comment:日志ID` |
 
-未指定 `type:` 时按 Go 类型自动映射：`string→String`、`int32→Int32`、`time.Time→DateTime`、`bool→UInt8` 等。
+未指定 `type:` 时按 Go 类型自动映射：`string→String`、`int32→Int32`、`time.Time→DateTime`、`bool→UInt8` 等
 
 ## API 参考
 
@@ -153,7 +153,7 @@ err := db.QuickAutoMigrate(gormDB, config)
 func NewMigrator(db *gorm.DB, config *MigratorConfig) *Migrator
 ```
 
-创建迁移器实例。如果 `config` 为 `nil`，将使用默认配置。
+创建迁移器实例，如果 `config` 为 `nil`，将使用默认配置
 
 ### 索引构建便捷函数 🔥
 
@@ -163,7 +163,7 @@ func NewMigrator(db *gorm.DB, config *MigratorConfig) *Migrator
 func NewIndex(table string, columns ...string) IndexDefinition
 ```
 
-创建普通索引定义，自动生成索引名。
+创建普通索引定义，自动生成索引名
 
 ```go
 // 单列索引：idx_users_email
@@ -179,7 +179,7 @@ idx := db.NewIndex("orders", "user_id", "status")
 func NewUniqueIndex(table string, columns ...string) IndexDefinition
 ```
 
-创建唯一索引定义，自动生成索引名（带 `_unique` 后缀）。
+创建唯一索引定义，自动生成索引名（带 `_unique` 后缀）
 
 ```go
 // 唯一索引：idx_users_email_unique
@@ -192,7 +192,7 @@ idx := db.NewUniqueIndex("users", "email")
 func NewIndexWithName(table, name, columns string, unique bool) IndexDefinition
 ```
 
-创建带自定义名称的索引定义（需要完全控制索引名时使用）。
+创建带自定义名称的索引定义（需要完全控制索引名时使用）
 
 ```go
 idx := db.NewIndexWithName("users", "my_custom_idx", "(email, name)", false)
@@ -204,7 +204,7 @@ idx := db.NewIndexWithName("users", "my_custom_idx", "(email, name)", false)
 func NewIndexDesc(table string, columns ...string) IndexDefinition
 ```
 
-创建降序索引定义，适用于需要按时间倒序查询的场景。
+创建降序索引定义，适用于需要按时间倒序查询的场景
 
 ```go
 // 降序索引：idx_messages_created_at (created_at DESC)
@@ -222,7 +222,7 @@ idx := db.NewIndexDesc("orders", "created_at", "updated_at")
 func (m *Migrator) AutoMigrate() error
 ```
 
-执行完整的自动迁移流程：表结构 → 索引 → 注释。
+执行完整的自动迁移流程：表结构 → 索引 → 注释
 
 #### MigrateModels
 
@@ -230,7 +230,7 @@ func (m *Migrator) AutoMigrate() error
 func (m *Migrator) MigrateModels() error
 ```
 
-仅迁移模型表结构，不创建索引和注释。
+仅迁移模型表结构，不创建索引和注释
 
 #### CreateIndexes
 
@@ -238,7 +238,7 @@ func (m *Migrator) MigrateModels() error
 func (m *Migrator) CreateIndexes() error
 ```
 
-创建配置中定义的所有索引。
+创建配置中定义的所有索引
 
 **特性：**
 - **幂等性**：会先检查索引是否存在，避免重复创建导致的错误
@@ -251,7 +251,7 @@ func (m *Migrator) CreateIndexes() error
 func (m *Migrator) AddComments() error
 ```
 
-添加配置中定义的所有表注释。
+添加配置中定义的所有表注释
 
 #### MigrateMergeTreeTables
 
@@ -259,7 +259,7 @@ func (m *Migrator) AddComments() error
 func (m *Migrator) MigrateMergeTreeTables() error
 ```
 
-创建所有配置中定义的 ClickHouse MergeTree 表。仅在 ClickHouse 方言下执行，其它方言直接跳过。已内置 `CREATE TABLE IF NOT EXISTS` 幂等语义。
+创建所有配置中定义的 ClickHouse MergeTree 表，仅在 ClickHouse 方言下执行，其它方言直接跳过，已内置 `CREATE TABLE IF NOT EXISTS` 幂等语义
 
 ```go
 config := &db.MigratorConfig{
@@ -287,7 +287,7 @@ err := migrator.MigrateMergeTreeTables()
 func (m *Migrator) HasTable(table string) bool
 ```
 
-检查单个表是否存在。
+检查单个表是否存在
 
 #### HasTableWithModel
 
@@ -295,7 +295,7 @@ func (m *Migrator) HasTable(table string) bool
 func (m *Migrator) HasTableWithModel(model interface{}) bool
 ```
 
-根据模型检查表是否存在，自动解析模型获取表名。
+根据模型检查表是否存在，自动解析模型获取表名
 
 ```go
 // 根据模型检查表是否存在
@@ -310,7 +310,7 @@ if migrator.HasTableWithModel(&User{}) {
 func (m *Migrator) CheckTablesExist(tables ...string) map[string]bool
 ```
 
-批量检查多个表是否存在，返回表名到存在状态的映射。
+批量检查多个表是否存在，返回表名到存在状态的映射
 
 #### CheckTablesExistWithModels
 
@@ -318,7 +318,7 @@ func (m *Migrator) CheckTablesExist(tables ...string) map[string]bool
 func (m *Migrator) CheckTablesExistWithModels(models ...interface{}) map[string]bool
 ```
 
-根据模型批量检查表是否存在。
+根据模型批量检查表是否存在
 
 ```go
 // 根据模型批量检查
@@ -334,7 +334,7 @@ for table, exists := range result {
 func (m *Migrator) DropTables(tables ...string) error
 ```
 
-删除指定的表（⚠️ 危险操作，请谨慎使用）。
+删除指定的表（⚠️ 危险操作，请谨慎使用）
 
 #### DropTablesWithModels
 
@@ -342,7 +342,7 @@ func (m *Migrator) DropTables(tables ...string) error
 func (m *Migrator) DropTablesWithModels(models ...interface{}) error
 ```
 
-根据模型自动获取表名并删除表（⚠️ 危险操作，请谨慎使用）。
+根据模型自动获取表名并删除表（⚠️ 危险操作，请谨慎使用）
 
 ```go
 // 根据模型删除表
@@ -355,7 +355,7 @@ err := migrator.DropTablesWithModels(&User{}, &Order{})
 func (m *Migrator) GetTableName(model interface{}) string
 ```
 
-获取模型对应的表名，支持 `TableName()` 方法。
+获取模型对应的表名，支持 `TableName()` 方法
 
 ```go
 // 获取模型的表名
@@ -370,7 +370,7 @@ tableName := migrator.GetTableName(&User{})  // => "users"
 func (m *Migrator) SyncColumnComments(models ...interface{}) error
 ```
 
-同步模型字段注释到数据库。自动对比 Model 中 `gorm:"comment:xxx"` 标签与数据库现有注释，不一致时更新，相同时跳过。
+同步模型字段注释到数据库，自动对比 Model 中 `gorm:"comment:xxx"` 标签与数据库现有注释，不一致时更新，相同时跳过
 
 ```go
 // 同步单个或多个模型的字段注释
@@ -383,7 +383,7 @@ err := migrator.SyncColumnComments(&User{}, &Order{})
 func (m *Migrator) SyncColumnCommentsWithModels() error
 ```
 
-同步配置中所有模型的字段注释。
+同步配置中所有模型的字段注释
 
 ```go
 config := &db.MigratorConfig{
@@ -403,7 +403,7 @@ err := migrator.SyncColumnCommentsWithModels()
 func QuickMigrate(db *gorm.DB, models ...interface{}) error
 ```
 
-快速迁移模型，仅创建表结构，不处理索引和注释。
+快速迁移模型，仅创建表结构，不处理索引和注释
 
 #### QuickAutoMigrate
 
@@ -411,13 +411,13 @@ func QuickMigrate(db *gorm.DB, models ...interface{}) error
 func QuickAutoMigrate(db *gorm.DB, config *MigratorConfig) error
 ```
 
-使用配置执行完整迁移。
+使用配置执行完整迁移
 
 ## 字段注释同步
 
 ### 功能介绍
 
-`SyncColumnComments` 方法可以自动将 Model 中定义的字段注释（`gorm:"comment:xxx"`）同步到数据库。它会：
+`SyncColumnComments` 方法可以自动将 Model 中定义的字段注释（`gorm:"comment:xxx"`）同步到数据库，它会：
 
 1. **对比检查**：读取数据库中现有的字段注释
 2. **智能更新**：只更新不一致的字段，跳过已正确的注释
@@ -705,7 +705,7 @@ if err := migrator.MigrateMergeTreeTables(); err != nil {
 
 ### 示例 7: ClickHouse MergeTree 表迁移
 
-针对 ClickHouse 分析库（如登录日志、事件流等），使用 `MergeTreeTables` 在统一迁移流程中创建 MergeTree 引擎表，支持分区、排序和 TTL。
+针对 ClickHouse 分析库（如登录日志、事件流等），使用 `MergeTreeTables` 在统一迁移流程中创建 MergeTree 引擎表，支持分区、排序和 TTL
 
 **方式一：从 Model 自动生成（推荐，DRY）**
 
@@ -834,7 +834,7 @@ err := migrator.AutoMigrate()
 | 字段注释同步 | ✅ | ✅ | ❌ | ❌ | ❌ |
 | MergeTree 建表 | ❌ | ❌ | ❌ | ✅ | ❌ |
 
-> 💡 **提示**: 表注释和字段注释在不支持的数据库中会被静默跳过，不会报错。`MergeTreeTables` 配置在非 ClickHouse 方言下也会静默跳过，便于在统一配置中携带定义。
+> 💡 **提示**: 表注释和字段注释在不支持的数据库中会被静默跳过，不会报错，`MergeTreeTables` 配置在非 ClickHouse 方言下也会静默跳过，便于在统一配置中携带定义
 
 ## 📚 相关文档
 

@@ -1,7 +1,7 @@
 # JSON 辅助函数
 
 ## 概述
-JSON 辅助函数用于数据库 JSON 字段与结构体之间的序列化和反序列化。
+JSON 辅助函数用于数据库 JSON 字段与结构体之间的序列化和反序列化
 
 ## SerializeJSON - 序列化
 
@@ -105,7 +105,7 @@ type User struct {
 }
 
 // 获取用户信息时反序列化 Profile
-func getUserProfile(ctx context.Context, repo repository.IRepository[User], id uint) (*UserProfile, error) {
+func getUserProfile(ctx context.Context, repo repository.Repository[User], id uint) (*UserProfile, error) {
     user, err := repo.Get(ctx, id)
     if err != nil {
         return nil, err
@@ -115,7 +115,7 @@ func getUserProfile(ctx context.Context, repo repository.IRepository[User], id u
 }
 
 // 保存用户时序列化 Profile
-func saveUserProfile(ctx context.Context, repo repository.IRepository[User], userID uint, profile *UserProfile) error {
+func saveUserProfile(ctx context.Context, repo repository.Repository[User], userID uint, profile *UserProfile) error {
     jsonStr, err := repository.SerializeJSON(profile)
     if err != nil {
         return err
@@ -129,7 +129,7 @@ func saveUserProfile(ctx context.Context, repo repository.IRepository[User], use
 
 ## types.Slice - JSON 数组字段
 
-`types.Slice[T]` 适合映射数据库 JSON 数组列，会在写入时序列化为 JSON 数组，在读取时反序列化为 Go 切片。
+`types.Slice[T]` 适合映射数据库 JSON 数组列，会在写入时序列化为 JSON 数组，在读取时反序列化为 Go 切片
 
 ```go
 import sqltypes "github.com/kamalyes/go-sqlbuilder/types"
@@ -159,4 +159,4 @@ updates := pbmo.NewUpdates().
     Build()
 ```
 
-读取兼容：如果历史数据中已有单个 JSON 标量（例如 `1`）被写入数组列，`types.Slice[int]` 会按单元素数组 `[1]` 兼容读取，便于平滑修复旧数据。新写入的数据仍应保持数组 JSON 格式。
+读取兼容：如果历史数据中已有单个 JSON 标量（例如 `1`）被写入数组列，`types.Slice[int]` 会按单元素数组 `[1]` 兼容读取，便于平滑修复旧数据，新写入的数据仍应保持数组 JSON 格式
