@@ -1588,74 +1588,36 @@ func DistinctInto[V any, T any](repo *BaseRepository[T], ctx context.Context, fi
 }
 
 // ApplyFilter 应用单个过滤条件到 GORM 查询
+// 条件编译统一走 buildConditionArgs，与 Query 的字符串构建路径共用同一套算子实现
+//
+// [EN] ApplyFilter applies one filter to a GORM query
+// Compilation goes through buildConditionArgs, shared with the string-building Query paths
 func ApplyFilter(dbQuery *gorm.DB, filter *Filter) *gorm.DB {
 	if filter == nil {
 		return dbQuery
 	}
 
-	value := validator.NormalizeFilterValue(filter.Value)
-
-	// 检查是否为子查询
-	if subQuery, ok := value.(*SubQuery); ok {
-		// 处理子查询情况
-		return dbQuery.Where(fmt.Sprintf("%s %s (%s)", filter.Field, string(filter.Operator), subQuery.SQL), subQuery.Args...)
+	// 方言只有 JSON 算子需要，其余算子不必为此多做一次检测
+	// [EN] Only the JSON operators need a dialect, so skip detection for the rest
+	var dialect Dialect
+	if operatorNeedsDialect(filter.Operator) {
+		dialect = DetectDialect(dbQuery)
 	}
 
-	switch filter.Operator {
-	case constants.OP_EQ, constants.OP_NEQ, constants.OP_GT, constants.OP_GTE,
-		constants.OP_LT, constants.OP_LTE, constants.OP_IN, constants.OP_NOT_IN,
-		constants.OP_LIKE, constants.OP_NOT_LIKE:
-		return dbQuery.Where(fmt.Sprintf("%s %s ?", filter.Field, string(filter.Operator)), value)
-	case constants.OP_STARTS_WITH:
-		// 前缀匹配: value%
-		if valueStr, ok := value.(string); ok {
-			return dbQuery.Where(fmt.Sprintf(constants.SQL_LIKE, filter.Field), valueStr+"%")
-		}
-	case constants.OP_ENDS_WITH:
-		// 后缀匹配: %value
-		if valueStr, ok := value.(string); ok {
-			return dbQuery.Where(fmt.Sprintf(constants.SQL_LIKE, filter.Field), "%"+valueStr)
-		}
-	case constants.OP_CONTAINS:
-		// 包含匹配: %value%
-		if valueStr, ok := value.(string); ok {
-			return dbQuery.Where(fmt.Sprintf(constants.SQL_LIKE, filter.Field), "%"+valueStr+"%")
-		}
-	case constants.OP_BETWEEN:
-		values, ok := value.([]interface{})
-		if ok && len(values) == 2 {
-			return dbQuery.Where(fmt.Sprintf("%s BETWEEN ? AND ?", filter.Field), values[0], values[1])
-		}
-	case constants.OP_IS_NULL:
-		return dbQuery.Where(fmt.Sprintf("%s IS NULL", filter.Field))
-	case constants.OP_IS_NOT_NULL:
-		return dbQuery.Where(fmt.Sprintf("%s IS NOT NULL", filter.Field))
-	case constants.OP_FIND_IN_SET:
-		// 修复参数顺序：FIND_IN_SET(value, field_list)
-		return dbQuery.Where("FIND_IN_SET(?, ?)", value, filter.Field)
-	case constants.OP_RAW:
-		// 原始 SQL 条件，Field 直接作为 WHERE 子句
-		return dbQuery.Where(filter.Field)
-	case constants.OP_ILIKE:
-		// 大小写不敏感 LIKE：跨数据库实现 LOWER(field) LIKE LOWER(?)，避免 MySQL 不支持 ILIKE 关键字
-		return dbQuery.Where(fmt.Sprintf(constants.SQL_ILIKE, filter.Field), value)
-	case constants.OP_NOT_ILIKE:
-		// 大小写不敏感 NOT LIKE：跨数据库实现 LOWER(field) NOT LIKE LOWER(?)
-		return dbQuery.Where(fmt.Sprintf(constants.SQL_NOT_ILIKE, filter.Field), value)
-	case constants.OP_JSONB_LIKE:
-		// jsonb 字段文本搜索：field::text LIKE ?，参数化防注入
-		return dbQuery.Where(fmt.Sprintf("%s::text LIKE ?", filter.Field), value)
-	case constants.OP_JSON_CONTAINS:
-		// JSON 数组包含查询：方言感知，从 dbQuery 自动检测方言生成对应 SQL
-		sql, args := JsonArrayContainsExpr(DetectDialect(dbQuery), filter.Field, value)
-		return dbQuery.Where(sql, args...)
-	case constants.OP_JSON_FIELD_EQ:
-		// JSON 对象字段等值查询：方言感知，Field 格式为 "column:jsonKey"
-		expr := parseJsonFieldExpr(DetectDialect(dbQuery), filter.Field)
-		return dbQuery.Where(expr+" = ?", value)
+	condition, args := buildConditionArgs(filter, dialect)
+	if condition == "" {
+		return dbQuery
 	}
+	if len(args) == 0 {
+		return dbQuery.Where(condition)
+	}
+	return dbQuery.Where(condition, args...)
+}
 
-	return dbQuery
+// operatorNeedsDialect 判断算子是否需要方言信息才能生成 SQL
+// [EN] operatorNeedsDialect reports whether the operator needs dialect info to render
+func operatorNeedsDialect(operator constants.Operator) bool {
+	return operator == constants.OP_JSON_CONTAINS || operator == constants.OP_JSON_FIELD_EQ
 }
 
 // DBHandler 获取数据库处理器
@@ -1974,17 +1936,21 @@ func ApplyAndFilterGroup(db *gorm.DB, group *FilterGroup) *gorm.DB {
 }
 
 // collectFilterConditions 收集过滤条件（通用函数）
+// 参数按 buildConditionArgs 返回的顺序平铺追加，多占位符算子（BETWEEN）天然对齐，
+// 切片值算子（IN / NOT IN）仍以单个参数传递，由 gORM 展开为 (v1, v2, ...)
+//
+// [EN] Args are appended flat in the order buildConditionArgs returns them, so
+// multi-placeholder operators line up and slice-valued operators stay as one arg
+// for GORM to expand
 func collectFilterConditions(filters []*Filter, conditions *[]string, args *[]interface{}, dialect Dialect) {
 	for _, filter := range filters {
 		if filter == nil {
 			continue
 		}
-		condition, arg := buildFilterCondition(filter, dialect)
+		condition, condArgs := buildConditionArgs(filter, dialect)
 		if condition != "" {
 			*conditions = append(*conditions, condition)
-			if arg != nil {
-				*args = append(*args, arg)
-			}
+			*args = append(*args, condArgs...)
 		}
 	}
 }
@@ -2004,50 +1970,21 @@ func collectSubGroupConditions(groups []*FilterGroup, conditions *[]string, args
 }
 
 // buildFilterCondition 构建单个过滤条件的SQL和参数
-// dialect 用于 OP_JSON_CONTAINS 等方言感知操作符的 SQL 生成，传 nil 则默认 MySQL
+// 保留单参数返回形态供既有调用方使用，实现委托 buildConditionArgs
+// 多占位符算子（BETWEEN）仍整体返回参数切片，调用方需用 appendConditionArgs 展开
+//
+// [EN] buildFilterCondition keeps the single-arg return shape for existing callers
+// and delegates to buildConditionArgs
 func buildFilterCondition(filter *Filter, dialect Dialect) (string, interface{}) {
-	if filter == nil {
-		return "", nil
+	condition, args := buildConditionArgs(filter, dialect)
+	switch len(args) {
+	case 0:
+		return condition, nil
+	case 1:
+		return condition, args[0]
+	default:
+		return condition, args
 	}
-
-	normalized := *filter
-	normalized.Value = validator.NormalizeFilterValue(filter.Value)
-	filter = &normalized
-
-	// 处理特殊操作符
-	switch filter.Operator {
-	case constants.OP_IS_NULL, constants.OP_IS_NOT_NULL:
-		return buildNullCondition(filter)
-	case constants.OP_BETWEEN:
-		return buildBetweenCondition(filter)
-	case constants.OP_STARTS_WITH:
-		return buildLikeCondition(filter, false, true) // 前缀匹配
-	case constants.OP_ENDS_WITH:
-		return buildLikeCondition(filter, true, false) // 后缀匹配
-	case constants.OP_CONTAINS:
-		return buildLikeCondition(filter, true, true) // 包含匹配
-	case constants.OP_FIND_IN_SET:
-		return buildFindInSetCondition(filter)
-	case constants.OP_REGEX, constants.OP_NOT_REGEX:
-		return buildRegexpCondition(filter)
-	case constants.OP_JSON_CONTAINS:
-		// JSON 数组包含查询：方言感知，dialect 由调用方从 gorm.DB 检测后传入
-		sql, args := JsonArrayContainsExpr(dialect, filter.Field, filter.Value)
-		if len(args) > 0 {
-			return sql, args[0]
-		}
-		return sql, nil
-	case constants.OP_JSON_FIELD_EQ:
-		// JSON 对象字段等值查询：方言感知，Field 格式为 "column:jsonKey"
-		return parseJsonFieldExpr(dialect, filter.Field) + " = ?", filter.Value
-	}
-
-	// 通用处理：使用 map 查找模板
-	if template, ok := constants.OperatorTemplateMap[filter.Operator]; ok {
-		return fmt.Sprintf(template, filter.Field), filter.Value
-	}
-
-	return "", nil
 }
 
 // buildNullCondition 构建 NULL 判断条件
@@ -2056,15 +1993,6 @@ func buildNullCondition(filter *Filter) (string, interface{}) {
 		return fmt.Sprintf(template, filter.Field), nil
 	}
 	return "", nil
-}
-
-// buildBetweenCondition 构建 BETWEEN 条件
-func buildBetweenCondition(filter *Filter) (string, interface{}) {
-	values, ok := filter.Value.([]interface{})
-	if !ok || len(values) != 2 {
-		return "", nil
-	}
-	return fmt.Sprintf(constants.SQL_BETWEEN, filter.Field), values
 }
 
 // buildLikeCondition 构建 LIKE 条件
@@ -2118,7 +2046,7 @@ func buildGroupCondition(group *FilterGroup, dialect Dialect) (string, []interfa
 	var args []interface{}
 
 	// 收集过滤条件和子组条件
-	collectFilterConditionsWithArgs(group.Filters, &conditions, &args, dialect)
+	collectFilterConditions(group.Filters, &conditions, &args, dialect)
 	collectSubGroupConditions(group.Groups, &conditions, &args, dialect)
 
 	if len(conditions) == 0 {
@@ -2126,32 +2054,6 @@ func buildGroupCondition(group *FilterGroup, dialect Dialect) (string, []interfa
 	}
 
 	return strings.Join(conditions, fmt.Sprintf(" %s ", group.LogicOp.String())), args
-}
-
-// collectFilterConditionsWithArgs 收集过滤条件（处理 BETWEEN 等多参数情况）
-func collectFilterConditionsWithArgs(filters []*Filter, conditions *[]string, args *[]interface{}, dialect Dialect) {
-	for _, filter := range filters {
-		if filter == nil {
-			continue
-		}
-		condition, arg := buildFilterCondition(filter, dialect)
-		if condition != "" {
-			*conditions = append(*conditions, condition)
-			if arg == nil {
-				continue
-			}
-			// 仅 BETWEEN 模板含两个占位符，需拆包为独立参数；
-			// IN/NOT IN 等切片参数必须整体传递，由 gORM 展开为 (v1, v2, ...)，
-			// 若在此拆包会导致占位符与参数错位，生成非法 SQL
-			if filter.Operator == constants.OP_BETWEEN {
-				if values, ok := arg.([]interface{}); ok {
-					*args = append(*args, values...)
-					continue
-				}
-			}
-			*args = append(*args, arg)
-		}
-	}
 }
 
 // ApplyOrdering 应用排序条件

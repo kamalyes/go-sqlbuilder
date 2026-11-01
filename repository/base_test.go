@@ -2616,26 +2616,31 @@ func TestBuildFilterCondition(t *testing.T) {
 	testCases := []struct {
 		filter   *Filter
 		expected bool // 是否应该成功构建条件
+		// wantSQL 非空时只断言生成的条件片段，不下发执行
+		// 用于 SQLite 没有实现的函数（REGEXP）：条件生成是对的，执行必然报 no such function
+		// [EN] A non-empty wantSQL asserts the generated fragment instead of executing it,
+		// for functions SQLite does not implement such as REGEXP
+		wantSQL string
 	}{
-		{&Filter{Field: "name", Operator: constants.OP_EQ, Value: "test"}, true},
-		{&Filter{Field: "age", Operator: constants.OP_GT, Value: 18}, true},
-		{&Filter{Field: "age", Operator: constants.OP_LT, Value: 65}, true},
-		{&Filter{Field: "age", Operator: constants.OP_GTE, Value: 18}, true},
-		{&Filter{Field: "age", Operator: constants.OP_LTE, Value: 65}, true},
-		{&Filter{Field: "status", Operator: constants.OP_IN, Value: []string{"active", "inactive"}}, true},
-		{&Filter{Field: "status", Operator: constants.OP_NOT_IN, Value: []string{"deleted"}}, true},
-		{&Filter{Field: "name", Operator: constants.OP_LIKE, Value: "%test%"}, true},
-		{&Filter{Field: "name", Operator: constants.OP_NOT_LIKE, Value: "%spam%"}, true},
-		{&Filter{Field: "age", Operator: constants.OP_BETWEEN, Value: []interface{}{18, 65}}, true},
-		{&Filter{Field: "deleted_at", Operator: constants.OP_IS_NULL}, true},
-		{&Filter{Field: "name", Operator: constants.OP_IS_NOT_NULL}, true},
-		{&Filter{Field: "status", Operator: constants.OP_NEQ, Value: "deleted"}, true},
-		{&Filter{Field: "email", Operator: constants.OP_REGEX, Value: "^[a-z]+@"}, true},   // 测试正则匹配
-		{&Filter{Field: "email", Operator: constants.OP_REGEXP, Value: "^[a-z]+@"}, true},  // 测试 REGEXP 别名
-		{&Filter{Field: "name", Operator: constants.OP_NOT_REGEX, Value: "^admin"}, true},  // 测试正则不匹配
-		{&Filter{Field: "name", Operator: constants.OP_NOT_REGEXP, Value: "^admin"}, true}, // 测试 NOT REGEXP 别名
-		{nil, false}, // nil过滤器
-		{&Filter{Field: "age", Operator: constants.OP_BETWEEN, Value: "invalid"}, true}, // 无效BETWEEN值
+		{&Filter{Field: "name", Operator: constants.OP_EQ, Value: "test"}, true, ""},
+		{&Filter{Field: "age", Operator: constants.OP_GT, Value: 18}, true, ""},
+		{&Filter{Field: "age", Operator: constants.OP_LT, Value: 65}, true, ""},
+		{&Filter{Field: "age", Operator: constants.OP_GTE, Value: 18}, true, ""},
+		{&Filter{Field: "age", Operator: constants.OP_LTE, Value: 65}, true, ""},
+		{&Filter{Field: "status", Operator: constants.OP_IN, Value: []string{"active", "inactive"}}, true, ""},
+		{&Filter{Field: "status", Operator: constants.OP_NOT_IN, Value: []string{"deleted"}}, true, ""},
+		{&Filter{Field: "name", Operator: constants.OP_LIKE, Value: "%test%"}, true, ""},
+		{&Filter{Field: "name", Operator: constants.OP_NOT_LIKE, Value: "%spam%"}, true, ""},
+		{&Filter{Field: "age", Operator: constants.OP_BETWEEN, Value: []interface{}{18, 65}}, true, ""},
+		{&Filter{Field: "deleted_at", Operator: constants.OP_IS_NULL}, true, ""},
+		{&Filter{Field: "name", Operator: constants.OP_IS_NOT_NULL}, true, ""},
+		{&Filter{Field: "status", Operator: constants.OP_NEQ, Value: "deleted"}, true, ""},
+		{&Filter{Field: "email", Operator: constants.OP_REGEX, Value: "^[a-z]+@"}, true, "email REGEXP ?"},      // 测试正则匹配
+		{&Filter{Field: "email", Operator: constants.OP_REGEXP, Value: "^[a-z]+@"}, true, "email REGEXP ?"},     // 测试 REGEXP 别名
+		{&Filter{Field: "name", Operator: constants.OP_NOT_REGEX, Value: "^admin"}, true, "name NOT REGEXP ?"},  // 测试正则不匹配
+		{&Filter{Field: "name", Operator: constants.OP_NOT_REGEXP, Value: "^admin"}, true, "name NOT REGEXP ?"}, // 测试 NOT REGEXP 别名
+		{nil, false, ""}, // nil过滤器
+		{&Filter{Field: "age", Operator: constants.OP_BETWEEN, Value: "invalid"}, true, ""}, // 无效BETWEEN值
 	}
 
 	// 插入测试数据
@@ -2650,6 +2655,14 @@ func TestBuildFilterCondition(t *testing.T) {
 				query := NewQuery()
 				_, err := repo.List(context.Background(), query)
 				assert.NoError(t, err)
+				return
+			}
+
+			if tc.wantSQL != "" {
+				// SQLite 无该函数，只校验条件片段与参数
+				condition, args := buildConditionArgs(tc.filter, nil)
+				assert.Equal(t, tc.wantSQL, condition)
+				assert.Equal(t, []interface{}{tc.filter.Value}, args)
 				return
 			}
 
@@ -7301,8 +7314,9 @@ func TestCollectSubGroupConditionsRefactored(t *testing.T) {
 	})
 }
 
-// TestCollectFilterConditionsWithArgsRefactored 测试 collectFilterConditionsWithArgs 函数
-func TestCollectFilterConditionsWithArgsRefactored(t *testing.T) {
+// TestCollectFilterConditionsMultiArg 测试 collectFilterConditions 的多参数展开
+// BETWEEN 这类多占位符算子要拆成独立参数，IN / NOT IN 的切片值必须整体传递
+func TestCollectFilterConditionsMultiArg(t *testing.T) {
 	t.Run("处理BETWEEN多参数", func(t *testing.T) {
 		filters := []*Filter{
 			{Field: "age", Operator: constants.OP_BETWEEN, Value: []interface{}{20, 40}},
@@ -7310,7 +7324,7 @@ func TestCollectFilterConditionsWithArgsRefactored(t *testing.T) {
 
 		var conditions []string
 		var args []interface{}
-		collectFilterConditionsWithArgs(filters, &conditions, &args, nil)
+		collectFilterConditions(filters, &conditions, &args, nil)
 
 		assert.Len(t, conditions, 1)
 		assert.Len(t, args, 2) // BETWEEN应展开为两个参数
@@ -7327,7 +7341,7 @@ func TestCollectFilterConditionsWithArgsRefactored(t *testing.T) {
 
 		var conditions []string
 		var args []interface{}
-		collectFilterConditionsWithArgs(filters, &conditions, &args, nil)
+		collectFilterConditions(filters, &conditions, &args, nil)
 
 		assert.Len(t, conditions, 3)
 		assert.Len(t, args, 4) // 1 + 2 (BETWEEN) + 1 = 4
@@ -7341,7 +7355,7 @@ func TestCollectFilterConditionsWithArgsRefactored(t *testing.T) {
 
 		var conditions []string
 		var args []interface{}
-		collectFilterConditionsWithArgs(filters, &conditions, &args, nil)
+		collectFilterConditions(filters, &conditions, &args, nil)
 
 		assert.Len(t, conditions, 1)
 		assert.Equal(t, "platform_id IN (?)", conditions[0])
@@ -7356,7 +7370,7 @@ func TestCollectFilterConditionsWithArgsRefactored(t *testing.T) {
 
 		var conditions []string
 		var args []interface{}
-		collectFilterConditionsWithArgs(filters, &conditions, &args, nil)
+		collectFilterConditions(filters, &conditions, &args, nil)
 
 		assert.Len(t, conditions, 1)
 		assert.Len(t, args, 1)
@@ -7370,7 +7384,7 @@ func TestCollectFilterConditionsWithArgsRefactored(t *testing.T) {
 
 		var conditions []string
 		var args []interface{}
-		collectFilterConditionsWithArgs(filters, &conditions, &args, nil)
+		collectFilterConditions(filters, &conditions, &args, nil)
 
 		assert.Len(t, conditions, 2)
 		assert.Len(t, args, 3) // IN 整体 1 个 + BETWEEN 拆包 2 个

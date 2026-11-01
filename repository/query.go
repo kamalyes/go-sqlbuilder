@@ -932,10 +932,10 @@ func (q *Query) BuildWhereClause() (string, []interface{}) {
 func (q *Query) processSimpleFilters(conditions *[]string, args *[]interface{}) {
 	for _, filter := range q.Filters {
 		if filter != nil {
-			condition, arg := q.buildFilterCondition(filter)
+			condition, condArgs := buildConditionArgs(filter, q.dialect)
 			if condition != "" {
 				*conditions = append(*conditions, condition)
-				q.appendFilterArgs(args, filter, arg)
+				*args = append(*args, condArgs...)
 			}
 		}
 	}
@@ -957,119 +957,42 @@ func (q *Query) processFilterGroup(conditions *[]string, args *[]interface{}) {
 	}
 }
 
-// appendFilterArgs 添加过滤条件参数
-func (q *Query) appendFilterArgs(args *[]interface{}, filter *Filter, arg interface{}) {
-	if arg == nil {
-		return
-	}
-	// 仅 BETWEEN 模板含两个占位符，需拆包为独立参数；
-	// IN/NOT IN 等切片参数必须整体传递，由 gORM 展开为 (v1, v2, ...)，
-	// 若在此拆包会导致占位符与参数错位，生成非法 SQL
-	if filter.Operator == constants.OP_BETWEEN {
-		if values, ok := arg.([]interface{}); ok {
-			*args = append(*args, values...)
-			return
-		}
-	}
-	*args = append(*args, arg)
+// buildFilterCondition 构建单个过滤条件的SQL和参数
+// 实现委托 buildConditionArgs，与 ApplyFilter / applyQuery 共用同一套算子实现
+//
+// [EN] buildFilterCondition delegates to buildConditionArgs, the implementation
+// shared with ApplyFilter and applyQuery
+func (q *Query) buildFilterCondition(filter *Filter) (string, interface{}) {
+	return buildFilterCondition(filter, q.dialect)
 }
 
-// buildFilterCondition 构建单个过滤条件的SQL和参数
-func (q *Query) buildFilterCondition(filter *Filter) (string, interface{}) {
-	if filter == nil {
+// handleSpecialOperators 处理需要特殊拼装的算子
+// 保留给既有调用方，实现委托 buildConditionArgs；返回空条件表示不是特殊算子或无法编译
+//
+// [EN] handleSpecialOperators is kept for existing callers and delegates to buildConditionArgs
+func (q *Query) handleSpecialOperators(filter *Filter) (string, interface{}) {
+	if filter == nil || !operatorNeedsSpecialBuild(filter.Operator) {
 		return "", nil
 	}
-
-	// 处理原始 SQL 条件
-	if filter.Operator == constants.OP_RAW {
-		return filter.Field, nil // 直接返回 Field 作为条件，不需要参数
-	}
-
-	// 处理特殊操作符
-	if result, arg := q.handleSpecialOperators(filter); result != "" {
-		return result, arg
-	}
-
-	// 通用处理：使用 map 查找模板
-	if template, ok := constants.OperatorTemplateMap[filter.Operator]; ok {
-		return fmt.Sprintf(template, filter.Field), filter.Value
-	}
-
-	return "", nil
+	return buildFilterCondition(filter, q.dialect)
 }
 
-// handleSpecialOperators 处理特殊操作符
-func (q *Query) handleSpecialOperators(filter *Filter) (string, interface{}) {
-	switch filter.Operator {
-	case constants.OP_IS_NULL, constants.OP_IS_NOT_NULL:
-		return q.handleNullOperators(filter)
-	case constants.OP_BETWEEN:
-		return q.handleBetweenOperator(filter)
-	case constants.OP_STARTS_WITH:
-		return q.handleStartsWithOperator(filter)
-	case constants.OP_ENDS_WITH:
-		return q.handleEndsWithOperator(filter)
-	case constants.OP_CONTAINS:
-		return q.handleContainsOperator(filter)
-	case constants.OP_FIND_IN_SET:
-		return q.handleFindInSetOperator(filter)
-	case constants.OP_JSON_CONTAINS:
-		// JSON 数组包含查询：方言感知，dialect 由 BaseRepository.ApplyQueryFilters 注入
-		sql, args := JsonArrayContainsExpr(q.dialect, filter.Field, filter.Value)
-		if len(args) > 0 {
-			return sql, args[0]
-		}
-		return sql, nil
+// operatorNeedsSpecialBuild 判断算子是否不走 OperatorTemplateMap 的通用模板路径
+// [EN] operatorNeedsSpecialBuild reports whether the operator bypasses the generic template path
+func operatorNeedsSpecialBuild(operator constants.Operator) bool {
+	switch operator {
+	case constants.OP_IS_NULL, constants.OP_IS_NOT_NULL,
+		constants.OP_BETWEEN, constants.OP_NOT_BETWEEN,
+		constants.OP_STARTS_WITH, constants.OP_ENDS_WITH, constants.OP_CONTAINS,
+		constants.OP_FIND_IN_SET,
+		constants.OP_REGEX, constants.OP_NOT_REGEX,
+		constants.OP_SIMILAR_TO, constants.OP_NOT_SIMILAR_TO,
+		constants.OP_JSONB_LIKE,
+		constants.OP_JSON_CONTAINS, constants.OP_JSON_FIELD_EQ:
+		return true
+	default:
+		return false
 	}
-	return "", nil
-}
-
-// handleNullOperators 处理 NULL 操作符
-func (q *Query) handleNullOperators(filter *Filter) (string, interface{}) {
-	if template, ok := constants.OperatorTemplateMap[filter.Operator]; ok {
-		return fmt.Sprintf(template, filter.Field), nil
-	}
-	return "", nil
-}
-
-// handleBetweenOperator 处理 BETWEEN 操作符
-func (q *Query) handleBetweenOperator(filter *Filter) (string, interface{}) {
-	if values, ok := filter.Value.([]interface{}); ok && len(values) == 2 {
-		return fmt.Sprintf(constants.SQL_BETWEEN, filter.Field), values
-	}
-	return "", nil
-}
-
-// handleStartsWithOperator 处理 STARTS_WITH 操作符
-func (q *Query) handleStartsWithOperator(filter *Filter) (string, interface{}) {
-	if valueStr, ok := filter.Value.(string); ok {
-		return fmt.Sprintf(constants.SQL_LIKE, filter.Field), valueStr + constants.SQL_WILDCARD_ANY
-	}
-	return "", nil
-}
-
-// handleEndsWithOperator 处理 ENDS_WITH 操作符
-func (q *Query) handleEndsWithOperator(filter *Filter) (string, interface{}) {
-	if valueStr, ok := filter.Value.(string); ok {
-		return fmt.Sprintf(constants.SQL_LIKE, filter.Field), constants.SQL_WILDCARD_ANY + valueStr
-	}
-	return "", nil
-}
-
-// handleContainsOperator 处理 CONTAINS 操作符
-func (q *Query) handleContainsOperator(filter *Filter) (string, interface{}) {
-	if valueStr, ok := filter.Value.(string); ok {
-		return fmt.Sprintf(constants.SQL_LIKE, filter.Field), constants.SQL_WILDCARD_ANY + valueStr + constants.SQL_WILDCARD_ANY
-	}
-	return "", nil
-}
-
-// handleFindInSetOperator 处理 FIND_IN_SET 操作符
-func (q *Query) handleFindInSetOperator(filter *Filter) (string, interface{}) {
-	if template, ok := constants.OperatorTemplateMap[filter.Operator]; ok {
-		return fmt.Sprintf(template, filter.Field) + " > 0", filter.Value
-	}
-	return "", nil
 }
 
 // buildGroupCondition 递归构建过滤组的条件
@@ -1106,10 +1029,10 @@ func (q *Query) buildGroupCondition(group *FilterGroup) (string, []interface{}) 
 func (q *Query) processGroupFilters(group *FilterGroup, conditions *[]string, args *[]interface{}) {
 	for _, filter := range group.Filters {
 		if filter != nil {
-			condition, arg := q.buildFilterCondition(filter)
+			condition, condArgs := buildConditionArgs(filter, q.dialect)
 			if condition != "" {
 				*conditions = append(*conditions, condition)
-				q.appendFilterArgs(args, filter, arg)
+				*args = append(*args, condArgs...)
 			}
 		}
 	}

@@ -106,10 +106,10 @@ func applyQuery(dbQuery *gorm.DB, query *Query) *gorm.DB {
 		}
 	}
 	for _, filter := range query.Filters {
-		condition, arg := buildFilterCondition(filter, dialect)
+		condition, args := buildConditionArgs(filter, dialect)
 		if condition != "" {
-			if arg != nil {
-				dbQuery = dbQuery.Where(condition, arg)
+			if len(args) > 0 {
+				dbQuery = dbQuery.Where(condition, args...)
 			} else {
 				dbQuery = dbQuery.Where(condition)
 			}
@@ -149,10 +149,10 @@ func applyQuery(dbQuery *gorm.DB, query *Query) *gorm.DB {
 
 	// 应用HAVING条件
 	for _, havingFilter := range query.Having {
-		condition, arg := buildFilterCondition(havingFilter, dialect)
+		condition, args := buildConditionArgs(havingFilter, dialect)
 		if condition != "" {
-			if arg != nil {
-				dbQuery = dbQuery.Having(condition, arg)
+			if len(args) > 0 {
+				dbQuery = dbQuery.Having(condition, args...)
 			} else {
 				dbQuery = dbQuery.Having(condition)
 			}
