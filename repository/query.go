@@ -835,11 +835,13 @@ func (q *Query) AddTimeBetween(field string, start, end time.Time) *Query {
 }
 
 // AddToday 添加今天的条件（日期部分匹配）
+// 区间上界沿用 todayRangeAt 的日历日推进，夏令时切换日不会偏一小时
+//
+// [EN] AddToday reuses todayRangeAt's calendar-day advance, so the upper bound
+// does not slip by an hour on a DST transition day
 func (q *Query) AddToday(field string) *Query {
-	now := time.Now()
-	start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
-	end := start.Add(24 * time.Hour).Add(-time.Nanosecond)
-	return q.AddBetween(field, start, end)
+	start, next := todayRangeAt(time.Now())
+	return q.AddBetween(field, start, next.Add(-time.Nanosecond))
 }
 
 // AddThisWeek 添加本周条件

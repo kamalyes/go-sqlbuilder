@@ -251,6 +251,52 @@ func TestGetTodayRange(t *testing.T) {
 	})
 }
 
+// TestTodayRangeAtDST 夏令时切换日的当天区间上界必须落在次日墙上零点
+// 回归场景：原实现用 startTime.Add(24 * time.Hour)，在回调日（25 小时）落到当天 23:00，
+// 今天最后一小时被判在区间外；在前跳日（23 小时）落到次日 01:00，多圈进明天第一小时
+// 用固定时刻断言，不依赖测试运行当天是否恰好是切换日
+//
+// [EN] On a DST transition day the upper bound must be the next day's wall-clock midnight
+// The old +24h form landed at 23:00 on a fall-back day and at 01:00 the next day on a
+// spring-forward day; fixed instants keep this assertion independent of the run date
+func TestTodayRangeAtDST(t *testing.T) {
+	la, err := time.LoadLocation("America/Los_Angeles")
+	if err != nil {
+		t.Skipf("时区库不可用：%v", err)
+	}
+
+	cases := []struct {
+		name string
+		now  time.Time
+		// hours 该日历日的实际小时数，用于确认用例真的落在切换日上
+		hours float64
+	}{
+		{"回调日 25 小时", time.Date(2026, 11, 1, 12, 0, 0, 0, la), 25},
+		{"前跳日 23 小时", time.Date(2026, 3, 8, 12, 0, 0, 0, la), 23},
+		{"普通日 24 小时", time.Date(2026, 6, 15, 12, 0, 0, 0, la), 24},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			start, end := todayRangeAt(tc.now)
+
+			assert.Equal(t, tc.now.Year(), start.Year())
+			assert.Equal(t, tc.now.Month(), start.Month())
+			assert.Equal(t, tc.now.Day(), start.Day())
+			assert.Equal(t, 0, start.Hour(), "下界应为当天墙上零点")
+
+			assert.Equal(t, 0, end.Hour(), "上界应为次日墙上零点")
+			assert.Equal(t, 0, end.Minute())
+			assert.Equal(t, 0, end.Second())
+			assert.Equal(t, tc.now.AddDate(0, 0, 1).Day(), end.Day(), "上界应落在次日")
+
+			assert.Equal(t, tc.hours, end.Sub(start).Hours(), "该日历日的实际小时数")
+			assert.Equal(t, tc.hours != 24, start.Add(24*time.Hour) != end,
+				"切换日上 start+24h 不等于次日零点，普通日上相等")
+		})
+	}
+}
+
 // ==============================================================================
 // PaginationT - ToInt
 // ==============================================================================

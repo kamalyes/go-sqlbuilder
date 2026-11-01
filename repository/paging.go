@@ -127,9 +127,7 @@ func IsTodayRange(startTime, endTime *time.Time) bool {
 		return true
 	}
 
-	now := time.Now()
-	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
-	todayEnd := todayStart.Add(24 * time.Hour)
+	todayStart, todayEnd := todayRangeAt(time.Now())
 
 	// 如果开始时间在今天范围内
 	if IsTimeInTodayRange(startTime, todayStart, todayEnd) {
@@ -156,10 +154,29 @@ func IsTimeInTodayRange(t *time.Time, todayStart, todayEnd time.Time) bool {
 	return t.Before(todayEnd) && (t.After(todayStart) || t.Equal(todayStart))
 }
 
-// GetTodayRange 获取今天的时间范围（00:00:00 - 23:59:59）
+// GetTodayRange 获取今天的时间范围：startTime 为今天墙上零点，endTime 为明天墙上零点（左闭右开）
+//
+// [EN] GetTodayRange returns today's wall-clock midnight and tomorrow's, half-open
 func GetTodayRange() (startTime, endTime time.Time) {
-	now := time.Now()
+	return todayRangeAt(time.Now())
+}
+
+// todayRangeAt 以给定时刻所在时区算出当天的墙上零点和次日墙上零点
+// 上界用 AddDate 推一个日历日，而不是加 24 小时：夏令时切换日一天并不是 24 小时，
+// 回调日（25 小时）加 24 小时会落在当天 23:00，把今天最后一小时漏在范围外；
+// 前跳日（23 小时）会落在次日 01:00，把明天第一小时算进来
+// 抽成独立函数是为了让 GetTodayRange / IsTodayRange / Query.AddToday 共用同一份计算，
+// 也便于用固定时刻做夏令时回归测试
+//
+// [EN] todayRangeAt returns wall-clock midnight of the given instant's day and of the next,
+// in that instant's location
+// The upper bound advances one calendar day rather than 24 hours: a DST transition day is
+// not 24 hours long, so +24h lands at 23:00 on a fall-back day, dropping today's last hour,
+// and at 01:00 the next day on a spring-forward day, swallowing tomorrow's first hour
+// It is a separate function so GetTodayRange, IsTodayRange and Query.AddToday share one
+// computation, and so the DST behaviour can be regression-tested at a fixed instant
+func todayRangeAt(now time.Time) (startTime, endTime time.Time) {
 	startTime = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
-	endTime = startTime.Add(24 * time.Hour)
+	endTime = startTime.AddDate(0, 0, 1)
 	return
 }
