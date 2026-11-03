@@ -1,5 +1,11 @@
 filippo.io/edwards25519 v1.1.0 h1:FNf4tywRC1HmFuKW5xopWpigGjJKiJSV0Cqo0cJWDaA=
 filippo.io/edwards25519 v1.1.0/go.mod h1:BxyFTGdWcka3PhytdK4V28tE5sGfRvvvRV7EaN4VDT4=
+github.com/HitGameAI/go-argus v0.5.2 h1:r077iwLhLq+x5UXelHvfDp8w8fPIG+ChOnS0RTbOk5k=
+github.com/HitGameAI/go-argus v0.5.2/go.mod h1:dG5ttCh6wVn1u5qq4NEvoFtibgQ5Bj3PT8rw7HKX8c0=
+github.com/HitGameAI/go-logger v0.9.2 h1:+rUQe5LcvlMx10jE2K1XRjN0uKHn7gL180h83PrY21o=
+github.com/HitGameAI/go-logger v0.9.2/go.mod h1:b8yBVEbbNFqLU52Z7ANaBk08haIfnupsVIiEvFHgfp8=
+github.com/HitGameAI/go-toolbox v0.19.3 h1:rL9PIF5qjtmJkmekC5V/3mitXQaz08inIBePPsfW3kE=
+github.com/HitGameAI/go-toolbox v0.19.3/go.mod h1:Bh9u32VaNspk1wYDmGw0ZWuaEnmgTeKTnPJ8jTR8zo8=
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=
 github.com/cespare/xxhash/v2 v2.3.0/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
 github.com/go-sql-driver/mysql v1.8.1 h1:LedoTUt/eveggdHS9qUFC1EFSa8bU2+1pZjSRpvNJ1Y=
@@ -10,12 +16,6 @@ github.com/jinzhu/inflection v1.0.0 h1:K317FqzuhWc8YvSVlFMCCUb36O/S9MCKRDI7QkRKD
 github.com/jinzhu/inflection v1.0.0/go.mod h1:h+uFLlag+Qp1Va5pdKtLDYj+kHp5pxUVkryuEj+Srlc=
 github.com/jinzhu/now v1.1.5 h1:/o9tlHleP7gOFmsnYNz3RGnqzefHA47wQpKrrdTIwXQ=
 github.com/jinzhu/now v1.1.5/go.mod h1:d3SSVoowX0Lcu0IBviAWJpolVfI5UJVZZ7cO71lE/z8=
-github.com/kamalyes/go-argus v0.5.1 h1:BwPmT5nuN12Z3GbpRvTXg8C1kupJyXurDTssuSIfUa4=
-github.com/kamalyes/go-argus v0.5.1/go.mod h1:dG5ttCh6wVn1u5qq4NEvoFtibgQ5Bj3PT8rw7HKX8c0=
-github.com/kamalyes/go-logger v0.10.0 h1:HxFSxV73dkyk8IS+mXLD1OYQZHbSE1ZWxK/C8XGe72k=
-github.com/kamalyes/go-logger v0.10.0/go.mod h1:UaNot5ZoSIaf4dpNEB3nkKW98f8nbqtaRnI/IeWVO+0=
-github.com/kamalyes/go-toolbox v0.19.2 h1:ixNL60HmCAKTnRfOH8IBCgI+5rtBxGzEItLf4leAgEM=
-github.com/kamalyes/go-toolbox v0.19.2/go.mod h1:o2gEuotgBUXf6zG9XkWpNp0QNuIwiQLAX/sb9AME+Ws=
 github.com/kr/pretty v0.3.1 h1:flRD4NNwYAUpkphVc1HcthR4KEIFJ65n8Mw5qdRn3LE=
 github.com/kr/pretty v0.3.1/go.mod h1:hoEshYVHaxMs3cyo3Yncou5ZscifuDolrwPKZanG3xk=
 github.com/kr/text v0.2.0 h1:5Nx0Ya0ZqY2ygV366QzturHI13Jq95ApcVaJBhpS+AY=
