@@ -18,7 +18,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kamalyes/go-logger"
+	"github.com/kamalyes/go-toolbox/pkg/logger"
 	"github.com/kamalyes/go-sqlbuilder/constants"
 	"github.com/kamalyes/go-sqlbuilder/db"
 	"github.com/stretchr/testify/assert"

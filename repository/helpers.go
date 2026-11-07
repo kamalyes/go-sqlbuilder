@@ -12,6 +12,7 @@ package repository
 
 import (
 	"context"
+	"database/sql/driver"
 	"fmt"
 	"reflect"
 	"strings"
@@ -311,6 +312,27 @@ func extractFieldNames(model interface{}, keep func(gormTag string) bool) []stri
 		if keep != nil && !keep(gormTag) {
 			continue
 		}
+
+		// 匿名嵌入的结构体要递归展开，不能当成一列
+		//
+		// GORM 用 `gorm:"embedded"` 把嵌入结构体的字段平铺到本表上（审计字段、
+		// 公共基座常这么写）。这里若不递归，就会按字段名推出一个
+		// `audit_fields` 之类的列名，而那一列在数据库里并不存在——
+		// 后果是 WithAutoFields 模式下所有查询都报
+		// `column "audit_fields" does not exist`，而建表本身是成功的，
+		// 于是看起来像「表建对了但查不了」。
+		//
+		// [EN] A struct embedded with gorm:"embedded" has its fields flattened onto the table,
+		// which is how shared audit bases are written. Without recursing, the field name yields
+		// a column such as audit_fields that does not exist, so every query under WithAutoFields
+		// fails with "column does not exist" while the migration itself succeeded — presenting
+		// as a table that was created correctly but cannot be read.
+		if field.Anonymous && isEmbeddedStruct(field, gormTag) {
+			nested := reflect.New(field.Type).Elem().Interface()
+			fields = append(fields, extractFieldNames(nested, keep)...)
+			continue
+		}
+
 		if columnName := extractColumnName(gormTag); columnName != "" {
 			fields = append(fields, columnName)
 			continue
@@ -595,4 +617,31 @@ func BuildSelectClause(tableName string, fields []string) string {
 	}
 
 	return strings.Join(fields, ", ")
+}
+
+// isEmbeddedStruct 判断匿名字段是否应按「嵌入展开」处理
+//
+// 两种情况都算：显式写了 gorm:"embedded"，或者是没有自定义 Scanner/Valuer 的
+// 普通结构体（GORM 对匿名结构体默认就是平铺）。排除实现了 Valuer 的类型——
+// 那类是整体序列化成一列的自定义类型（如 LocalizedTextList），不能展开。
+//
+// [EN] True for a field tagged gorm:"embedded" and for a plain anonymous struct, which GORM
+// flattens by default. Types implementing driver.Valuer are excluded: those serialize into a
+// single column and must not be expanded.
+func isEmbeddedStruct(field reflect.StructField, gormTag string) bool {
+	t := field.Type
+	if t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+	if t.Kind() != reflect.Struct {
+		return false
+	}
+	if reflect.PointerTo(t).Implements(reflect.TypeOf((*driver.Valuer)(nil)).Elem()) ||
+		t.Implements(reflect.TypeOf((*driver.Valuer)(nil)).Elem()) {
+		return false
+	}
+	if t == reflect.TypeOf(time.Time{}) {
+		return false
+	}
+	return strings.Contains(gormTag, "embedded") || gormTag == ""
 }

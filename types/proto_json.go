@@ -20,10 +20,57 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	validator "github.com/kamalyes/go-argus"
+	validator "github.com/kamalyes/go-toolbox/pkg/argus"
 	"github.com/kamalyes/go-toolbox/pkg/protox"
+	"github.com/kamalyes/go-toolbox/pkg/serializer"
 	tbtypes "github.com/kamalyes/go-toolbox/pkg/types"
 )
+
+// 把 protojson 编解码器装配进 go-toolbox 的 serializer
+//
+// go-toolbox v0.19.3 起，serializer 不再内建 protobuf 支持：它只保留一个
+// 可注册的编解码器槽位，未装配时 isProtoMessageType 恒为 false。
+// 这样拆是对的——serializer 本身不该为了几个 proto 类型去依赖 protobuf 运行时，
+// 不用 protobuf 的项目也不必把它编进二进制。
+//
+// 但代价是「不装配就静默降级」：未注册时 protobuf 消息会走 encoding/json，
+// 于是 wrapperspb.StringValue 落库成 {"value":"hello"} 而不是 protojson 的 "hello"。
+// 两者都能写进库、都不报错，只有读出来对不上时才会发现，而那通常已经是线上数据。
+//
+// 本包是唯一同时依赖 serializer 与 protobuf 的地方，所以装配放在这里：
+// 任何 import 了本包的代码（JSON[T]、ProtoJSON[T] 都在本包）自动获得正确行为，
+// 不需要每个使用方自己记得注册。
+//
+// [EN] Assembles the protojson codec into go-toolbox's serializer. Since v0.19.3 the
+// serializer no longer builds protobuf in: it keeps a registrable codec slot and
+// isProtoMessageType is always false until something fills it. The split is right — the
+// serializer should not drag the protobuf runtime in for a few types, and projects that do not
+// use protobuf should not carry it. The cost is that skipping registration degrades silently:
+// an unregistered protobuf message falls back to encoding/json, so wrapperspb.StringValue is
+// stored as {"value":"hello"} instead of protojson's "hello". Both write without error, and
+// the mismatch only surfaces on read, by which point the data is usually in production. This
+// package is the only place that depends on both the serializer and protobuf, so the
+// registration lives here: anything importing it (JSON[T] and ProtoJSON[T] are both here) gets
+// the correct behavior without each caller having to remember.
+func init() {
+	serializer.RegisterProtoJSONCodec(serializer.ProtoJSONCodec{
+		IsMessageType: protox.IsProtoMessageType,
+		Marshal: func(msg any) ([]byte, error) {
+			m, ok := msg.(proto.Message)
+			if !ok {
+				return nil, fmt.Errorf("protojson marshal: %T is not a proto.Message", msg)
+			}
+			return protojson.Marshal(m)
+		},
+		Unmarshal: func(data []byte, msg any) error {
+			m, ok := msg.(proto.Message)
+			if !ok {
+				return fmt.Errorf("protojson unmarshal: %T is not a proto.Message", msg)
+			}
+			return protojson.Unmarshal(data, m)
+		},
+	})
+}
 
 const (
 	errFieldFormat = "field %s: %w"

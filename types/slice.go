@@ -60,7 +60,26 @@ func (s Slice[T]) Value() (driver.Value, error) {
 	if s == nil {
 		return nil, nil
 	}
-	return serializer.JSONMarshal(s)
+	// 返回 string 而不是 []byte
+	//
+	// driver.Value 里的 []byte 会被驱动当成二进制：pgx 在简单协议下
+	// （go-rpc-gateway 对 postgres 固定开 PreferSimpleProtocol）把它编码成
+	// bytea 的十六进制字面量 '\x5b7b...'，写进 json/jsonb 列直接报
+	// `invalid input syntax for type json`。扩展协议下靠参数类型推断侥幸能过，
+	// 于是这个 bug 只在「关掉预编译」之后才出现，看起来像是别的改动引发的。
+	//
+	// string 在两种协议下都按文本送，json 列能正确解析。
+	//
+	// [EN] A []byte in a driver.Value is treated as binary: under the simple protocol, which
+	// go-rpc-gateway forces for postgres, pgx encodes it as a bytea hex literal and a json or
+	// jsonb column rejects it outright. The extended protocol gets away with it through
+	// parameter type inference, so the bug only appears once prepared statements are turned off
+	// and looks like it came from some other change. A string is sent as text under both.
+	data, err := serializer.JSONMarshal(s)
+	if err != nil {
+		return nil, err
+	}
+	return string(data), nil
 }
 
 // Len 获取长度

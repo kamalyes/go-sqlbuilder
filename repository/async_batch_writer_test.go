@@ -18,7 +18,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kamalyes/go-logger"
+	"github.com/kamalyes/go-toolbox/pkg/logger"
 	"github.com/stretchr/testify/assert"
 	"gorm.io/gorm"
 	gormLogger "gorm.io/gorm/logger"

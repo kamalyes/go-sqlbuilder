@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/kamalyes/go-logger"
+	"github.com/kamalyes/go-toolbox/pkg/logger"
 )
 
 // AsyncBatchWriterConfig 异步批量写入器配置
