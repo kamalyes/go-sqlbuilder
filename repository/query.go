@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	validator "github.com/kamalyes/go-argus"
+	validator "github.com/kamalyes/go-toolbox/pkg/argus"
 	"github.com/kamalyes/go-sqlbuilder/constants"
 	"github.com/kamalyes/go-toolbox/pkg/convert"
 	"github.com/kamalyes/go-toolbox/pkg/mathx"

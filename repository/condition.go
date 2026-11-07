@@ -24,7 +24,7 @@ package repository
 import (
 	"fmt"
 
-	validator "github.com/kamalyes/go-argus"
+	validator "github.com/kamalyes/go-toolbox/pkg/argus"
 	"github.com/kamalyes/go-sqlbuilder/constants"
 )
 

@@ -14,7 +14,7 @@ package repository
 import (
 	"context"
 	"fmt"
-	"github.com/kamalyes/go-logger"
+	"github.com/kamalyes/go-toolbox/pkg/logger"
 	"github.com/kamalyes/go-sqlbuilder/constants"
 	"gorm.io/gorm"
 	"time"
