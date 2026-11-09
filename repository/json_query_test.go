@@ -23,8 +23,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/kamalyes/go-toolbox/pkg/logger"
 	"github.com/kamalyes/go-sqlbuilder/constants"
+	"github.com/kamalyes/go-toolbox/pkg/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"

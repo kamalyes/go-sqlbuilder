@@ -13,8 +13,8 @@ package repository
 import (
 	"fmt"
 
-	validator "github.com/kamalyes/go-toolbox/pkg/argus"
 	"github.com/kamalyes/go-sqlbuilder/constants"
+	validator "github.com/kamalyes/go-toolbox/pkg/argus"
 	"github.com/kamalyes/go-toolbox/pkg/convert"
 )
 
