@@ -2135,14 +2135,16 @@ func TestSyncModelColumnCommentsError(t *testing.T) {
 }
 
 // setupMySQLTestDB 设置真实 MySQL 测试数据库
-// 使用环境变量或默认的本地配置
+// 连接信息只从环境变量读取；未设置 MYSQL_HOST / MYSQL_PASSWORD 时返回错误，调用方据此跳过
 func setupMySQLTestDB() (*gorm.DB, error) {
-	// 从环境变量获取，或使用默认值
-	host := getEnvOrDefault("MYSQL_HOST", "120.77.38.35")
-	port := getEnvOrDefault("MYSQL_PORT", "13306")
+	host := os.Getenv("MYSQL_HOST")
+	password := os.Getenv("MYSQL_PASSWORD")
+	if host == "" || password == "" {
+		return nil, fmt.Errorf("未设置 MYSQL_HOST / MYSQL_PASSWORD")
+	}
+	port := getEnvOrDefault("MYSQL_PORT", "3306")
 	user := getEnvOrDefault("MYSQL_USER", "root")
-	password := getEnvOrDefault("MYSQL_PASSWORD", "idev88888")
-	dbName := getEnvOrDefault("MYSQL_DATABASE", "im_agent")
+	dbName := getEnvOrDefault("MYSQL_DATABASE", "test")
 
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local",
 		user, password, host, port, dbName)
