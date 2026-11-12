@@ -644,13 +644,13 @@ func TestNewIndexDesc(t *testing.T) {
 	// 单列降序索引
 	idx := NewIndexDesc("messages", "created_at")
 	assert.Equal(t, "messages", idx.Table)
-	assert.Equal(t, "(created_at)", idx.Columns)
+	assert.Equal(t, "(created_at DESC)", idx.Columns)
 	assert.False(t, idx.Unique)
 	assert.Equal(t, "idx_messages_created_at", idx.GenerateIndexName())
 
 	// 多列降序索引
 	idx2 := NewIndexDesc("orders", "created_at", "updated_at")
-	assert.Equal(t, "(created_at, updated_at)", idx2.Columns)
+	assert.Equal(t, "(created_at DESC, updated_at DESC)", idx2.Columns)
 	assert.Equal(t, "idx_orders_created_at_updated_at", idx2.GenerateIndexName())
 }
 

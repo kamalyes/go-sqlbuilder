@@ -38,7 +38,7 @@ type IndexDefinition struct {
 	ClickHouseGranularity int    // ClickHouse 索引粒度，默认 1
 
 	// 覆盖索引/部分索引参数（TiDB、PostgreSQL 等支持）
-	Storing []string // STORING 子句列列表（覆盖索引，将附加列存入索引避免回表）
+	Storing []string // 覆盖索引的附加列（避免回表），PostgreSQL 家族生成 INCLUDE 子句，其余方言生成 STORING 子句
 	Where   string   // WHERE 条件（部分索引，仅索引满足条件的行）
 }
 
@@ -142,14 +142,14 @@ func NewIndexDesc(table string, columns ...string) IndexDefinition {
 
 	return IndexDefinition{
 		Table:   table,
-		Columns: formatColumns(columns), // 原始列名用于生成索引名
+		Columns: formatColumns(descCols),
 		Unique:  false,
-		columns: columns, // 保存原始列名
+		columns: columns, // 保存原始列名，用于生成索引名
 	}
 }
 
-// WithStoring 设置覆盖索引的 STORING 列（TiDB/PostgreSQL）
-// 示例: NewIndex("t", "a").WithStoring("b", "c") => CREATE INDEX ... STORING (b, c)
+// WithStoring 设置覆盖索引的附加列（PostgreSQL/CockroachDB）
+// 示例: NewIndex("t", "a").WithStoring("b", "c") => CREATE INDEX ... INCLUDE (b, c)
 func (idx IndexDefinition) WithStoring(columns ...string) IndexDefinition {
 	idx.Storing = columns
 	return idx
@@ -415,9 +415,14 @@ func (m *Migrator) createIndex(idx IndexDefinition) error {
 		sql = fmt.Sprintf("CREATE INDEX %s ON %s %s", indexName, idx.Table, idx.Columns)
 	}
 
-	// 覆盖索引：STORING 子句（TiDB/PostgreSQL）
+	// 覆盖索引：PostgreSQL 只认 INCLUDE；CockroachDB 也接受 INCLUDE（规范化为 STORING），
+	// 且经 gorm postgres 驱动接入时方言名同为 postgres，因此 PostgreSQL 家族统一用 INCLUDE
 	if len(idx.Storing) > 0 {
-		sql += fmt.Sprintf(" STORING (%s)", strings.Join(idx.Storing, ", "))
+		keyword := "STORING"
+		if constants.IsPostgreSQLFamilyDialector(dialector) {
+			keyword = "INCLUDE"
+		}
+		sql += fmt.Sprintf(" %s (%s)", keyword, strings.Join(idx.Storing, ", "))
 	}
 
 	// 部分索引：WHERE 子句
