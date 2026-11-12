@@ -539,9 +539,24 @@ func TestIsTimeoutError(t *testing.T) {
 			want: true,
 		},
 		{
+			name: "MySQL timeout error 3024",
+			err:  &mysql.MySQLError{Number: 3024, Message: "maximum statement execution time exceeded"},
+			want: true,
+		},
+		{
 			name: "PostgreSQL timeout error 57014",
 			err:  &pq.Error{Code: "57014", Message: "query_canceled"},
 			want: true,
+		},
+		{
+			name: "PostgreSQL lock timeout error 55P03",
+			err:  &pq.Error{Code: "55P03", Message: "lock_not_available"},
+			want: true,
+		},
+		{
+			name: "MySQL non-timeout error",
+			err:  &mysql.MySQLError{Number: 1062, Message: "Duplicate entry"},
+			want: false,
 		},
 		{
 			name: testCaseOtherError,

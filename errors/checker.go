@@ -261,22 +261,24 @@ func isCheckConstraintViolation(err error) bool {
 	return false
 }
 
-// IsTimeoutError 检查是否为超时错误
+// IsTimeoutError 检查是否为超时错误（锁等待超时或语句执行超时）
 func IsTimeoutError(err error) bool {
 	if err == nil {
 		return false
 	}
 
 	// MySQL Error 1205: Lock wait timeout exceeded
+	// MySQL Error 3024: Query execution was interrupted, maximum statement execution time exceeded
 	var mysqlErr *mysql.MySQLError
-	if errors.As(err, &mysqlErr) && mysqlErr.Number == 1205 {
-		return true
+	if errors.As(err, &mysqlErr) {
+		return mysqlErr.Number == 1205 || mysqlErr.Number == 3024
 	}
 
-	// PostgreSQL Error 57014: query_canceled (可能是超时)
+	// PostgreSQL Error 55P03: lock_not_available（lock_timeout 超时，NOWAIT 拿不到锁也是此错误码）
+	// PostgreSQL Error 57014: query_canceled（statement_timeout 超时，手动取消也是此错误码）
 	var pqErr *pq.Error
-	if errors.As(err, &pqErr) && pqErr.Code == "57014" {
-		return true
+	if errors.As(err, &pqErr) {
+		return pqErr.Code == "55P03" || pqErr.Code == "57014"
 	}
 
 	return false
